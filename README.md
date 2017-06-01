@@ -11,3 +11,9 @@ Create a build directory, configure the build and compile
     $ cd build
     $ cmake ../src
     $ make
+
+Requirements
+
+ - C++14 compliant compiler
+ - GSL
+ - cmake 3.0 or newer
