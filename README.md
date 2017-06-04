@@ -17,3 +17,8 @@ Requirements
  - C++14 compliant compiler
  - GSL
  - cmake 3.0 or newer
+
+
+# Documentation
+
+Please have a look at PureCLIPs [wiki](https://github.com/skrakau/PureCLIP/wiki/Home).
