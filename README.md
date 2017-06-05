@@ -1,3 +1,9 @@
+# Get the latest release
+
+You can get the souce code and binaries for the latest release here: [![GitHub release](https://img.shields.io/github/release/skrakau/PureCLIP.svg)](https://github.com/skrakau/PureCLIP/releases/latest)
+
+Alternatively, you can find instructions how to build the latest development version below.
+
 # Build instructions
 
 Clone the repository
