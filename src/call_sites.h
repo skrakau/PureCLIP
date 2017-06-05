@@ -183,7 +183,7 @@ bool loadObservations(TContigObservations &contigObservationsF, TContigObservati
     if (options.verbosity >= 2) std::cout << "Parse alignments ... " << std::endl;
 
     // Open BamFileIn for reading.
-    std::cout << "Open Bam and Bai file ... "  << "\n";
+    if (options.verbosity >= 2) std::cout << "Open Bam and Bai file ... "  << "\n";
     BamFileIn inFile;
     if (!open(inFile, toCString(options.bamFileName)))
     {
