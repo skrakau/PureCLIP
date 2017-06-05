@@ -37,6 +37,15 @@ add_definitions (${SEQAN_DEFINITIONS})
 # Add CXX flags found by find_package (SeqAn).
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
+
+# PureCLIP static build for Linux
+if ( CMAKE_PURECLIP_LINUX_STATIC )
+    message ( STATUS "Configuring Linux static build" )
+    SET(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    SET(BUILD_SHARED_LIBRARIES OFF)
+    SET(CMAKE_EXE_LINKER_FLAGS "-static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
+endif()
+
 # Add executable and link against SeqAn dependencies.
 add_executable (pureclip
                     pureclip.cpp
