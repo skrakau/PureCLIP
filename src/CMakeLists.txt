@@ -3,7 +3,10 @@ cmake_minimum_required (VERSION 3.0.0)
 
 # Generate Release builds by default
 if ( NOT CMAKE_BUILD_TYPE )
+    message ( STATUS "Setting build type to Release" )
     set ( CMAKE_BUILD_TYPE "Release" CACHE STRING "Build Type" FORCE )
+else()
+    message ( STATUS "User selected build type: ${CMAKE_BUILD_TYPE}" )
 endif()
 
 # Name of project and that it is C++ only.
