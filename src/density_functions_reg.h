@@ -576,7 +576,7 @@ bool callGSL_simplex2_fixK(int &status,
     const size_t n = 2; 
     double size;
 
-    std::cout << "Warning: Set k to: " << k << std::endl;
+    std::cout << "Note: Set k to: " << k << std::endl;
 
     const gsl_multimin_fminimizer_type *T;
     gsl_multimin_fminimizer *s = NULL;
@@ -707,7 +707,7 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
         // if k < kMin: fix k and optimize only for theta
         if (gsl_vector_get (s->x, 0) < kMin)
         {
-            std::cout << "Warning: limited shape parameter k to: " << kMin << std::endl;   //". This could be caused by outliers: high peaks, potentially background binding. Check if transcripts/chromosomes used for learning are representative." <<  std::endl;
+            std::cout << "Note: limited shape parameter k to: " << kMin << std::endl;   //". This could be caused by outliers: high peaks, potentially background binding. Check if transcripts/chromosomes used for learning are representative." <<  std::endl;
 
             b0 = gsl_vector_get (s->x, 1);
             b1 = gsl_vector_get (s->x, 2);
@@ -720,7 +720,7 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
         }
         else if (gsl_vector_get (s->x, 0) > kMax)
         {
-            std::cout << "Warning: limited shape parameter k to: " << kMax << std::endl; 
+            std::cout << "Note: limited shape parameter k to: " << kMax << std::endl; 
 
             b0 = gsl_vector_get (s->x, 1);
             b1 = gsl_vector_get (s->x, 2);

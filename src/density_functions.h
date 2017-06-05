@@ -489,7 +489,7 @@ bool callGSL_simplex2(double &tp, double &theta, double &k,
         // if k < kMin: fix k and optimize only for theta
         if (gsl_vector_get (s->x, 1) < kMin)
         {
-            std::cout << "Warning: limited shape parameter k to: " << kMin << ". Make sure g1.k <= g2.k. Decrease in shape could be caused by outliers: high peaks, potentially background binding regions. Check if transcripts/chromosomes used for learning are representative. Incorporating input signal would help. (usually results still show relatively high precision compared to other methods)" <<  std::endl;
+            std::cout << "Note: limited shape parameter k to: " << kMin << ". Make sure g1.k <= g2.k. Decrease in shape could be caused by outliers: high peaks, potentially background binding regions. Check if transcripts/chromosomes used for learning are representative. Incorporating input signal would help. (usually results still show relatively high precision compared to other methods)" <<  std::endl;
 
             theta = gsl_vector_get (s->x, 0);
             callGSL_simplex2_fixK(status, tp, theta, kMin, statePosteriors, setObs, options);  
@@ -500,7 +500,7 @@ bool callGSL_simplex2(double &tp, double &theta, double &k,
         }
         else if (gsl_vector_get (s->x, 1) > kMax)
         {
-            std::cout << "Warning: limited shape parameter k to: " << kMax << std::endl;
+            std::cout << "Note: limited shape parameter k to: " << kMax << std::endl;
             theta = gsl_vector_get (s->x, 0);
             callGSL_simplex2_fixK(status, tp, theta, kMax, statePosteriors, setObs, options);  
 

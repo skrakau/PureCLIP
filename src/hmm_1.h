@@ -105,6 +105,7 @@ public:
     void iBackward(String<String<double> > &betas_2, String<String<double> > &alphas_1, unsigned s, unsigned i);
     //void backward_noSc();
     void computeStatePosteriorsFB(AppOptions &options);
+    void computeStatePosteriorsFBupdateTrans(AppOptions &options);
     //void updateTransition(AppOptions &options);
     //void updateTransition2();
     //void updateTransition_noSc2();
@@ -769,7 +770,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriors()
 // for scaling method
 // interval-wise to avoid storing alpha_1, alpha_2 and beta_1, beta_2 values for whole genome
 template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
+void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
 {
     String<String<double> > A = this->transMatrix;
     String<String<double> > p;
@@ -879,10 +880,76 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
         std::cout << "NOTE: Prevented transition probability '2' -> '3' from dropping below min. value of " << options.minTransProbCS << ". Set for transitions '2' -> '3' (and if necessary also for '3'->'3') to " << options.minTransProbCS << "." << std::endl;
     }
     this->transMatrix = A;
-
 }
 
+// without updating transition probabilities 
+template<typename TD1, typename TD2, typename TB1, typename TB2>
+void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
+{
+    String<String<double> > A = this->transMatrix;
+    String<String<double> > p;
+    resize(p, this->K, Exact());
+    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
+    {
+        SEQAN_OMP_PRAGMA(critical)
+        resize(p[k_1], this->K, Exact());
+        for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
+            p[k_1][k_2] = 0.0;
+    }
 
+    for (unsigned s = 0; s < 2; ++s)
+    {
+#if HMM_PARALLEL
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
+#endif  
+        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
+        {
+            unsigned T = setObs[s][i].length();
+            // forward probabilities
+            String<String<double> > alphas_1;
+            String<String<double> > alphas_2;
+            resize(alphas_1, T, Exact());
+            resize(alphas_2, T, Exact());
+            for (unsigned t = 0; t < T; ++t)
+            {
+                resize(alphas_1[t], this->K, Exact());
+                resize(alphas_2[t], this->K, Exact());
+            } 
+            iForward(alphas_1, alphas_2, s, i);
+
+            // backward probabilities  
+            String<String<double> > betas_2;
+            resize(betas_2, T, Exact());
+            for (unsigned t = 0; t < T; ++t)
+                resize(betas_2[t], this->K, Exact());
+            iBackward(betas_2, alphas_1, s, i);
+            
+            // compute state posterior probabilities
+            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+            {
+                double sum = 0.0;
+                for (unsigned k = 0; k < this->K; ++k)
+                    sum += alphas_2[t][k] * betas_2[t][k];
+
+                if (sum == 0.0) 
+                {
+                    std::cerr << "ERROR: sum == 0 at i: " << i << " t: "<< t << std::endl;
+                    for (unsigned k = 0; k < this->K; ++k)
+                    {
+                        std::cout << "k: " << k << std::endl;
+                        std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
+                    }
+                }
+                for (unsigned k = 0; k < this->K; ++k)
+                    this->statePosteriors[s][k][i][t] = alphas_2[t][k] * betas_2[t][k] / sum;
+            }
+
+            // update init probs
+            for (unsigned k = 0; k < this->K; ++k)
+                this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
+        }
+    }
+}
 
 
 // both for scaling and no-scaling
@@ -1298,7 +1365,7 @@ bool HMM<TD1, TD2, TB1, TB2>::baumWelch(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
             return false;
         }
         std::cout << "                        computeStatePosteriorsFB() " << std::endl;
-        computeStatePosteriorsFB(options);
+        computeStatePosteriorsFBupdateTrans(options);
         
         std::cout << "                        updateDensityParams() " << std::endl;
 
@@ -1364,7 +1431,6 @@ bool HMM<TD1, TD2, TB1, TB2>::applyParameters(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &
         std::cerr << "ERROR: Could not compute emission probabilities! " << std::endl;
         return false;
     }
-
     computeStatePosteriorsFB(options);
 
     return true;

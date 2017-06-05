@@ -326,7 +326,7 @@ int main(int argc, char const ** argv)
         GAMMA2 gamma2;
 
         options.g1_kMax = 1.0;
-        std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.0." << std::endl;
+        if (options.verbosity > 1) std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.0." << std::endl;
 
         if (options.useFimoScore)
         {

@@ -56,6 +56,8 @@ bool loadIntervals(AppOptions &options, TStore &store)
     typedef StringSet<CharString>   TNameStore;
 
     NameStoreCache<TNameStore>  nameStoreCache(store.contigNameStore);
+    if (options.verbosity >= 1 && !empty(options.intervals_str)) 
+        std::cout << "Load user specified genomic intervals for learning ..." << std::endl;
     for (unsigned i = 0; i < length(options.intervals_str); ++i)
     {
         CharString buffer;
@@ -140,6 +142,8 @@ bool loadApplyChrs(AppOptions &options, TStore &store)
     typedef StringSet<CharString>   TNameStore;
 
     NameStoreCache<TNameStore>  nameStoreCache(store.contigNameStore);
+    if (options.verbosity >= 1 && !empty(options.applyChr_str)) 
+        std::cout << "Load user specified chromosomes for applying HMM model ..." << std::endl;
     for (unsigned i = 0; i < length(options.applyChr_str); ++i)
     {
         CharString contigName;
@@ -928,7 +932,7 @@ const char * myTempFileName(std::string const suffix = "", std::string const tem
     }
 
     static char fileNameBuffer[1000];
-    strcpy(fileNameBuffer, (tempPath + "HMM.XXXXXX" + suffix).c_str());
+    strcpy(fileNameBuffer, (tempPath + "PURECLIP.XXXXXX" + suffix).c_str());
 
     int _tmp = mkstemps(fileNameBuffer, suffix.size());
     if (_tmp == -1)
@@ -959,12 +963,10 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
     TStore store;
     if (options.verbosity >= 1) std::cout << "Loading reference ... " << std::flush;
     loadContigs(store, toCString(options.refFileName));
-    if (options.verbosity >= 1) std::cout << "Load user specified genomic intervals for learning ..." << std::endl;
     loadIntervals(options, store);
-    if (options.verbosity >= 1) std::cout << "Load user specified chromosomes for applying HMM model ..." << std::endl;
     loadApplyChrs(options, store);
 #if SEQAN_HAS_ZLIB
-    if (options.verbosity >= 1) std::cout << "SEQAN_HAS_ZLIB" << std::endl;
+    if (options.verbosity > 1) std::cout << "SEQAN_HAS_ZLIB" << std::endl;
 #else
     std::cout << "WARNING: zlib not available !" << std::endl;
 #endif
