@@ -28,3 +28,7 @@ Requirements
 # Documentation
 
 Please have a look at PureCLIPs [wiki](https://github.com/skrakau/PureCLIP/wiki/Home).
+
+# Citation
+
+Krakau S, Richard H, Marsico A: PureCLIP: Capturing target-specific protein-RNA interaction footprints from single-nucleotide CLIP-seq data. bioRxiv 146704; doi: https://doi.org/10.1101/146704 
