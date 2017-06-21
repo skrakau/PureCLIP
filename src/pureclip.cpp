@@ -152,6 +152,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("nt", "nt", "Number of threads used for learning.", ArgParseArgument::INTEGER));
     addOption(parser, ArgParseOption("nta", "nta", "Number of threads used for applying learned parameters. Increases memory usage, if greater than number of chromosomes used for learning, since HMM will be build for multiple chromosomes in parallel.", ArgParseArgument::INTEGER));
     addOption(parser, ArgParseOption("tmp", "tmp", "Path to directory to store intermediate files. Default: /tmp ?", ArgParseArgument::STRING));
+    addOption(parser, ArgParseOption("oa", "oa", "Outputs all sites with at least one read start in extended output format."));
 
     addOption(parser, ArgParseOption("q", "quiet", "Set verbosity to a minimum."));
     addOption(parser, ArgParseOption("v", "verbose", "Enable verbose output."));
@@ -245,7 +246,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.numThreads, parser, "nt");
     getOptionValue(options.numThreadsA, parser, "nta");
     getOptionValue(options.tempPath, parser, "tmp");
-
+    if (isSet(parser, "oa"))
+        options.outputAll = true;
+ 
     // Extract option values.
     if (isSet(parser, "quiet"))
         options.verbosity = 0;

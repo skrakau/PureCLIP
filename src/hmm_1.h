@@ -1613,7 +1613,7 @@ void writeStates(BedFileOut &outBed,
         {
             for (unsigned t = 0; t < length(data.states[s][i]); ++t)
             {
-                if (options.verbosity == 3 || (options.verbosity == 2 && data.setObs[s][i].truncCounts[t] >= 1))
+                if (options.outputAll && data.setObs[s][i].truncCounts[t] >= 1)
                 {
                     BedRecord<Bed6> record;
 
@@ -1677,7 +1677,7 @@ void writeStates(BedFileOut &outBed,
 
                     writeRecord(outBed, record);
                 }
-                else if (options.verbosity <= 1 && data.states[s][i][t] == 3)
+                else if (data.states[s][i][t] == 3)
                 {
                     BedRecord<Bed6> record;
 
