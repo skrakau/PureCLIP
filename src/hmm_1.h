@@ -116,7 +116,7 @@ public:
     double viterbi(String<String<String<__uint8> > > &states);
     double viterbi_log(String<String<String<__uint8> > > &states);
     void posteriorDecoding(String<String<String<__uint8> > > &states);
-
+    void rmBoarderArtifacts(String<String<String<__uint8> > > &states, TD1 &g1);
 
     // for each F/R,interval,t, state ....
     String<String<String<String<double> > > > eProbs;           // emission/observation probabilities  P(Y_t | S_t) -> precompute for each t given Y_t = (C_t, T_t) !!!
@@ -1503,6 +1503,7 @@ double HMM<TD1, TD2, TB1, TB2>::viterbi(String<String<String<__uint8> > > &state
     return p;   
 }
 
+
 template<typename TD1, typename TD2, typename TB1, typename TB2>
 double HMM<TD1, TD2, TB1, TB2>::viterbi_log(String<String<String<__uint8> > > &states)
 {
@@ -1598,6 +1599,57 @@ void HMM<TD1, TD2, TB1, TB2>::posteriorDecoding(String<String<String<__uint8> > 
         }
     }
 }
+
+
+// for GLM with input signal: 
+// when using free gamma shapes, i.e. gamma1.k can be > gamma2.k
+// make sure sites with fragment coverage (KDE) below gamma1.mean are classified as 'non-enriched'
+template<>
+void HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::rmBoarderArtifacts(String<String<String<__uint8> > > &states, GAMMA2_REG &g1)
+{
+    double b0 = g1.b0;
+    double b1 = g1.b1;
+    for (unsigned s = 0; s < 2; ++s)
+    {
+        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
+        {
+            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+            {
+                double x1 = this->setObs[s][i].rpkms[t];
+                double g1_pred = exp(b0 + b1 * x1);
+                if (states[s][i][t] >= 2 && this->setObs[s][i].kdes[t] < g1_pred)
+                    states[s][i][t] -= 2;
+            }
+        }
+    }
+}
+
+template<>
+void HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::rmBoarderArtifacts(String<String<String<__uint8> > > &states, GAMMA2_REG &g1)
+{
+    double b0 = g1.b0;
+    double b1 = g1.b1;
+    for (unsigned s = 0; s < 2; ++s)
+    {
+        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
+        {
+            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+            {
+                double x1 = this->setObs[s][i].rpkms[t];
+                double g1_pred = exp(b0 + b1 * x1);
+                if (states[s][i][t] >= 2 && this->setObs[s][i].kdes[t] < g1_pred)
+                    states[s][i][t] -= 2;
+            }
+        }
+    }
+}
+
+template<typename TD1, typename TD2, typename TB1, typename TB2>
+void HMM<TD1, TD2, TB1, TB2>::rmBoarderArtifacts(String<String<String<__uint8> > > &states, TD1 &g1)
+{
+    // do nothing
+}
+
 
 
 
