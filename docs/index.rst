@@ -6,16 +6,25 @@
 Welcome to PureCLIP's documentation!
 ====================================
 
+PureCLIP is a tool to detect protein-RNA interaction footprints from single-nucleotide CLIP-seq data, such as iCLIP and eCLIP.
+
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+    :caption: Tutorials
+    :name: tutorial
+    :hidden:
+    :maxdepth: 2
+    :titlesonly:
 
-   GettingStarted/requirements
-
-
-Indices and tables
-==================
+    GettingStarted/index
+    PureCLIPTutorial/index 
+ 
+.. GettingStarted/requirements
+    GettingStarted/preprocessing
+    PureCLIPTutorial/basicMode
+    PureCLIPTutorial/incorporateInput
+    PureCLIPTutorial/incorporateCLmotifs
+    PureCLIPTutorial/userOptions
 
     
-* :ref:`modindex`
-* :ref:`search`
+.. * :ref:`modindex`
+.. * :ref:`search`
