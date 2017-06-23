@@ -7,8 +7,8 @@ PureCLIP Tutorial
 ====================================
 
 
-
 .. toctree::
+   :hidden:
    :maxdepth: 2
    
    basicMode
