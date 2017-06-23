@@ -18,13 +18,6 @@ PureCLIP is a tool to detect protein-RNA interaction footprints from single-nucl
     GettingStarted/index
     PureCLIPTutorial/index 
  
-.. GettingStarted/requirements
-    GettingStarted/preprocessing
-    PureCLIPTutorial/basicMode
-    PureCLIPTutorial/incorporateInput
-    PureCLIPTutorial/incorporateCLmotifs
-    PureCLIPTutorial/userOptions
-
     
 .. * :ref:`modindex`
 .. * :ref:`search`

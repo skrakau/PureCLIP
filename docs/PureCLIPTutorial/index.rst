@@ -6,6 +6,7 @@
 PureCLIP Tutorial
 ====================================
 
+In the following tutorial we will describe for each PureCLIP mode how to run a minimal example. 
 
 .. toctree::
    :hidden:
@@ -14,8 +15,9 @@ PureCLIP Tutorial
    basicMode
    incorporateInput
    incorporateCLmotifs
+   output
    userOptions
+   faqs
 
-lbalub
 
 

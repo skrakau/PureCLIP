@@ -10,15 +10,17 @@ Before you start, please check the
 
 .. toctree::
    :maxdepth: 2
+   :titlesonly:
 
    requirements
 
    
-In the following tutorial we will describe for each PureCLIP mode how to run a minimal example. For the analysis of your own data, please have a look how to:
+For the analysis of your own data, please have a look how to:
 
 .. toctree::
    :maxdepth: 2
-   
+   :titlesonly:
+ 
    preprocessing
 
 
