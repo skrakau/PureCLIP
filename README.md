@@ -27,7 +27,7 @@ Requirements
 
 # Documentation
 
-Please have a look at PureCLIPs [documentation](pureclip.readthedocs.io).
+Please have a look at PureCLIPs [documentation](http://pureclip.readthedocs.io/en/latest/).
 
 # Citation
 
