@@ -494,7 +494,7 @@ bool checkForPolyT(TSeq const& seq, TOptions &options)
 
 
 template <typename TOptions>
-void cleanCoveredIntervals(Data &data, unsigned contigLength, TOptions &options)
+void cleanCoveredIntervals(Data &data, unsigned contigLength, bool learning, TOptions &options)
 {
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -510,15 +510,19 @@ void cleanCoveredIntervals(Data &data, unsigned contigLength, TOptions &options)
             bool discard = false;
             for (unsigned t = 0; t < data.setObs[s][i].length(); ++t)
             {
-                if (data.setObs[s][i].truncCounts[t] > options.maxTruncCount)
+                // do not consider intervals containing sites with extremely high read start counts at one position for learning 
+                // - possible artifacts (PCR duplicates, mapping artifacts)
+                // - causing problems when getting higher for likelihood computations
+                // - indiv. counts limited to 254 
+                if (learning && (data.setObs[s][i].truncCounts[t] > options.maxTruncCount))
                 {
                     discard = true;
                     if (options.verbosity >= 2)
                     {
                         if (s == 0)
-                            std::cout << "WARNING: Discard interval due to position with " << (int)data.setObs[s][i].truncCounts[t] << " read starts at position " << (t + data.setPos[s][i]) << "." << std::endl;
+                            std::cout << "WARNING: Discard interval for learning due to position with too many read starts at position " << (t + data.setPos[s][i]) << ", which got limited to 254." << std::endl;
                         else
-                            std::cout << "WARNING: Discard interval due to position with " << (int)data.setObs[s][i].truncCounts[t] << " read starts at position " << (contigLength - (t + data.setPos[s][i]) - 1) << "." << std::endl;
+                            std::cout << "WARNING: Discard interval for learning due to position with too many read starts at position " << (contigLength - (t + data.setPos[s][i]) - 1) << ", which got limited to 254." << std::endl;
                     }
                     break;
                 }
@@ -551,6 +555,7 @@ void extractCoveredIntervals(Data &data,
                              unsigned i1, unsigned i2,
                              bool excludePolyA,
                              bool excludePolyT,
+                             bool learning,
                              TStore &store,
                              TOptions &options)
 {
@@ -736,7 +741,7 @@ void extractCoveredIntervals(Data &data,
         std::cout << " Excluded " << countPolyTs << " covered intervals from analysis because of internal polyU sites! " << std::endl;
         std::cout << " No. of remaining intervals: " << (length(data.setObs[0]) + length(data.setObs[1])) << "   F: " << length(data.setObs[0]) << "   R: " << length(data.setObs[1]) << std::endl;
     }
-    cleanCoveredIntervals(data, length(store.contigStore[contigId].seq), options);
+    cleanCoveredIntervals(data, length(store.contigStore[contigId].seq), learning, options);
     if (options.verbosity >= 2) 
         std::cout << " No. of remaining intervals after cleaning up: " << (length(data.setObs[0]) + length(data.setObs[1])) << std::endl;
 }
@@ -1030,7 +1035,7 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
         resize(c_data.statePosteriors, 2);
         resize(c_data.states, 2);
 
-        extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, store, options); 
+        extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, true, store, options); 
 
         SEQAN_OMP_PRAGMA(critical)
         append(data, c_data);           
@@ -1104,7 +1109,7 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
         resize(c_data.setPos, 2);
         resize(c_data.statePosteriors, 2);
         resize(c_data.states, 2); 
-        extractCoveredIntervals(c_data, contigObservationsF, contigObservationsR, c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, store, options); 
+        extractCoveredIntervals(c_data, contigObservationsF, contigObservationsR, c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, false, store, options); 
 
         if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   // TODO handle cases
         {
