@@ -262,7 +262,7 @@ bool loadBAMCovariates(Data &data, TStore &store, TOptions &options)
                 std::cerr << "ERROR: Contig " << store.contigNameStore[data.setObs[s][i].contigId] << " not known.\n";
                 return false; 
             }
-            String<__uint8> truncCounts;
+            String<__uint16> truncCounts;
             resize(truncCounts, data.setObs[s][i].length(), 0, Exact());
             if (s == 0)
             {
@@ -514,15 +514,15 @@ void cleanCoveredIntervals(Data &data, unsigned contigLength, bool learning, TOp
                 // - possible artifacts (PCR duplicates, mapping artifacts)
                 // - causing problems when getting higher for likelihood computations
                 // - indiv. counts limited to 254 
-                if (learning && (data.setObs[s][i].truncCounts[t] > options.maxTruncCount))
+                if (learning && (data.setObs[s][i].truncCounts[t] >= options.maxTruncCount))
                 {
                     discard = true;
                     if (options.verbosity >= 2)
                     {
                         if (s == 0)
-                            std::cout << "WARNING: Discard interval for learning due to position with too many read starts at position " << (t + data.setPos[s][i]) << ", which got limited to 254." << std::endl;
+                            std::cout << "Note: Ignore interval for learning due to position with >= " << options.maxTruncCount << " read starts at position " << (t + data.setPos[s][i]) << "." << std::endl;
                         else
-                            std::cout << "WARNING: Discard interval for learning due to position with too many read starts at position " << (contigLength - (t + data.setPos[s][i]) - 1) << ", which got limited to 254." << std::endl;
+                            std::cout << "Note: Ignore interval for learning due to position with >= " << options.maxTruncCount << " read starts at position " << (contigLength - (t + data.setPos[s][i]) - 1) << "." << std::endl;
                     }
                     break;
                 }
@@ -836,6 +836,7 @@ template<typename TD1, typename TD2, typename TB1, typename TB2>
 bool learnHMM(Data &data, 
               String<String<double> > &transMatrix_1,
               TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
+              unsigned &contigLen,
               AppOptions &options)
 {
 #ifdef HMM_PROFILE
@@ -843,7 +844,7 @@ bool learnHMM(Data &data,
 #endif
 
     if (options.verbosity >= 1) std::cout << "Build HMM ..." << std::endl;
-    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs);       
+    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs, data.setPos, contigLen);       
     hmm.transMatrix = transMatrix_1;
     if (options.verbosity >= 1) 
     {
@@ -890,13 +891,14 @@ template<typename TD1, typename TD2, typename TB1, typename TB2>
 bool applyHMM(Data &data, 
               String<String<double> > &transMatrix_1,
               TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
+              unsigned &contigLen,
               AppOptions &options)
 {
 #ifdef HMM_PROFILE
     double timeStamp = sysTime();
 #endif
     if (options.verbosity >= 1) std::cout << "   build HMM" << std::endl;
-    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs);
+    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs, data.setPos, contigLen);
     hmm.transMatrix = transMatrix_1;
     if (!hmm.applyParameters(d1, d2, bin1, bin2, options))
         return false;
@@ -1061,7 +1063,8 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
     String<String<double> > transMatrix;
     estimateTransitions(transMatrix, gamma1, gamma2, bin1, bin2, data, options);
 
-    if (!learnHMM(data, transMatrix, gamma1, gamma2, bin1, bin2, options))
+    unsigned contigLen = 0; // should not be used within learning
+    if (!learnHMM(data, transMatrix, gamma1, gamma2, bin1, bin2, contigLen, options))
         return 1;
 
     clear(contigObservationsF);
@@ -1117,7 +1120,8 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
             preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
 
             // Apply learned parameters
-            if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, options))
+            unsigned contigLen = length(store.contigStore[contigId].seq);
+            if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, contigLen, options))
             {
                 SEQAN_OMP_PRAGMA(critical)
                 stop = true;

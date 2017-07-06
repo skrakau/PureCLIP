@@ -48,9 +48,11 @@ public:
     String<String<String<double> > >   initProbs;          // intital probabilities
 
     String<String<Observations> >       & setObs;          // workaround for partial specialization
+    String<String<unsigned> >           & setPos;
+    unsigned                            contigLength;
     String<String<double> >     transMatrix;
 
-    HMM(int K_, String<String<Observations> > & setObs_): K(K_), setObs(setObs_)
+    HMM(int K_, String<String<Observations> > & setObs_, String<String<unsigned> > & setPos_, unsigned &contigLength_): K(K_), setObs(setObs_), setPos(setPos_), contigLength(contigLength)
     {
         // initialize transition probabilities
         resize(transMatrix, K, Exact());
@@ -99,7 +101,7 @@ public:
     HMM<TD1, TD2, TB1, TB2>();
     ~HMM<TD1, TD2, TB1, TB2>();
     void setInitProbs(String<double> &probs);
-    bool computeEmissionProbs(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, AppOptions &options);
+    bool computeEmissionProbs(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, bool learning, AppOptions &options);
     void iForward(String<String<double> > &alphas_1, String<String<double> > &alphas_2, unsigned s, unsigned i);
     //void forward_noSc();
     void iBackward(String<String<double> > &betas_2, String<String<double> > &alphas_1, unsigned s, unsigned i);
@@ -137,7 +139,7 @@ HMM<TD1, TD2, TB1, TB2>::~HMM<TD1, TD2, TB1, TB2>()
 
 // assumes gamma, kdes
 template<>
-bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 &d2, ZTBIN &bin1, ZTBIN &bin2, AppOptions &options)
+bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 &d2, ZTBIN &bin1, ZTBIN &bin2, bool learning, AppOptions &options)
 {
     bool stop = false;
     for (unsigned s = 0; s < 2; ++s)
@@ -147,6 +149,7 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 
 #endif  
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
+            bool discardInterval = false;
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)   // TODO getDensity() use functor!!!
             {
                 if (this->setObs[s][i].kdes[t] == 0.0)
@@ -177,35 +180,49 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 
                 // debug
                 if (this->eProbs[s][i][t][0] == 0 && this->eProbs[s][i][t][1] == 0 && this->eProbs[s][i][t][2] == 0 && this->eProbs[s][i][t][3] == 0)
                 {
-                    std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                    if (options.verbosity >= 2)
+                    {
+                        std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t]) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t]) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
+                    }
                     SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t]) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t]) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "Try to learn on more or better representing chromosomes." << std::endl; 
-                    SEQAN_OMP_PRAGMA(critical) 
-                    if(options.verbosity != 3) stop = true;
+                    discardInterval = true;
+                    
+                    this->eProbs[s][i][t][0] = 1.0;
+                    this->eProbs[s][i][t][1] = 0.0;
+                    this->eProbs[s][i][t][2] = 0.0;
+                    this->eProbs[s][i][t][3] = 0.0;
                }
             }
-        }
+            if (!learning)
+            {
+                SEQAN_OMP_PRAGMA(critical) 
+                if (discardInterval && s == 0) 
+                    std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
+                else if (discardInterval)
+                    std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
+            }
+        }   
     }
     if (stop) return false;
     return true;
 }
 
 template<>
-bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 &d2, ZTBIN_REG &bin1, ZTBIN_REG &bin2, AppOptions &options)
+bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 &d2, ZTBIN_REG &bin1, ZTBIN_REG &bin2, bool learning, AppOptions &options)
 {
     bool stop = false;
     for (unsigned s = 0; s < 2; ++s)
@@ -215,6 +232,7 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2 &d1,
 #endif  
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
+            bool discardInterval = false;
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)   // TODO getDensity() use functor!!!
             {
                 if (this->setObs[s][i].kdes[t] == 0.0)
@@ -249,28 +267,42 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2 &d1,
                 // debug
                 if (this->eProbs[s][i][t][0] == 0 && this->eProbs[s][i][t][1] == 0 && this->eProbs[s][i][t][2] == 0 && this->eProbs[s][i][t][3] == 0)
                 {
-                    std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                    if (options.verbosity >= 2)
+                    {
+                        std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       covariate x: " << setObs[s][i].fimoScores[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t]) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t])  << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin1_pred) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin2_pred) << std::endl;
+                    }
                     SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       covariate x: " << setObs[s][i].fimoScores[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t]) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t])  << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin1_pred) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin2_pred) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "Try to learn on more or better representing chromosomes." << std::endl; 
-                    SEQAN_OMP_PRAGMA(critical) 
-                    if(options.verbosity != 3) stop = true;
+                    discardInterval = true;
+                    
+                    this->eProbs[s][i][t][0] = 1.0;
+                    this->eProbs[s][i][t][1] = 0.0;
+                    this->eProbs[s][i][t][2] = 0.0;
+                    this->eProbs[s][i][t][3] = 0.0;
                }
+            }
+            if (!learning)
+            {
+                SEQAN_OMP_PRAGMA(critical) 
+                if (discardInterval && s == 0) 
+                    std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
+                else if (discardInterval)
+                    std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
             }
         }
     }
@@ -280,7 +312,7 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2 &d1,
 
 // assumes gamma regression model, kdes
 template<>
-bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2_REG &d1, GAMMA2_REG &d2, ZTBIN &bin1, ZTBIN &bin2, AppOptions &options)
+bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2_REG &d1, GAMMA2_REG &d2, ZTBIN &bin1, ZTBIN &bin2, bool learning, AppOptions &options)
 {
     bool stop = false;
     for (unsigned s = 0; s < 2; ++s)
@@ -290,6 +322,7 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2_REG 
 #endif  
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
+            bool discardInterval = false;
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)   // todo getDensity() use functor!!!
             {
                 double x = std::max(this->setObs[s][i].rpkms[t], options.minRPKMtoFit);
@@ -326,29 +359,43 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2_REG 
                         (std::isnan(this->eProbs[s][i][t][0]) || std::isnan(this->eProbs[s][i][t][1]) || std::isnan(this->eProbs[s][i][t][2]) || std::isnan(this->eProbs[s][i][t][3])) ||
                         (std::isinf(this->eProbs[s][i][t][0]) || std::isinf(this->eProbs[s][i][t][1]) || std::isinf(this->eProbs[s][i][t][2]) || std::isinf(this->eProbs[s][i][t][3])))
                 {
+                    if (options.verbosity >= 2)
+                    {
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       covariate b: " << x << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t], d1_pred) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t], d2_pred) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
+                    }    
                     SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       covariate b: " << x << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t], d1_pred) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t], d2_pred) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "Try to learn on more or better representing chromosomes." << std::endl; 
-                    SEQAN_OMP_PRAGMA(critical) 
-                    if(options.verbosity != 3) stop = true;
-                }
+                    discardInterval = true;
+                    
+                    this->eProbs[s][i][t][0] = 1.0;
+                    this->eProbs[s][i][t][1] = 0.0;
+                    this->eProbs[s][i][t][2] = 0.0;
+                    this->eProbs[s][i][t][3] = 0.0;
+               }
+            }
+            if (!learning)
+            {
+                SEQAN_OMP_PRAGMA(critical) 
+                if (discardInterval && s == 0) 
+                    std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
+                else if (discardInterval)
+                    std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
             }
         }
     }
@@ -358,7 +405,7 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2_REG 
 
 
 template<>
-bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2_REG &d1, GAMMA2_REG &d2, ZTBIN_REG &bin1, ZTBIN_REG &bin2, AppOptions &options)
+bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2_REG &d1, GAMMA2_REG &d2, ZTBIN_REG &bin1, ZTBIN_REG &bin2, bool learning, AppOptions &options)
 {
     bool stop = false;
     for (unsigned s = 0; s < 2; ++s)
@@ -368,6 +415,7 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAM
 #endif  
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
+            bool discardInterval = false;
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)   // todo getDensity() use functor!!!
             {
                 double x = std::max(this->setObs[s][i].rpkms[t], options.minRPKMtoFit);
@@ -410,32 +458,46 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAM
                         (std::isnan(this->eProbs[s][i][t][0]) || std::isnan(this->eProbs[s][i][t][1]) || std::isnan(this->eProbs[s][i][t][2]) || std::isnan(this->eProbs[s][i][t][3])) ||
                         (std::isinf(this->eProbs[s][i][t][0]) || std::isinf(this->eProbs[s][i][t][1]) || std::isinf(this->eProbs[s][i][t][2]) || std::isinf(this->eProbs[s][i][t][3])))
                 {
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       covariate b: " << x << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       covariate x: " << setObs[s][i].fimoScores[t] << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t], d1_pred) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t], d2_pred) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin1_pred) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin2_pred) << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "Try to learn on more or better representing chromosomes." << std::endl; 
-                    SEQAN_OMP_PRAGMA(critical) 
-                    if(options.verbosity != 3) stop = true;
-                }
+                    if (options.verbosity >= 2)
+                    {
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       covariate b: " << x << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       covariate x: " << setObs[s][i].fimoScores[t] << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t], d1_pred) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t], d2_pred) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin1_pred) << std::endl;
+                        SEQAN_OMP_PRAGMA(critical) 
+                        std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin2_pred) << std::endl;
+                    }
+                     SEQAN_OMP_PRAGMA(critical) 
+                    discardInterval = true;
+                    
+                    this->eProbs[s][i][t][0] = 1.0;
+                    this->eProbs[s][i][t][1] = 0.0;
+                    this->eProbs[s][i][t][2] = 0.0;
+                    this->eProbs[s][i][t][3] = 0.0;
+               }
             }
+            if (!learning)
+            {
+                SEQAN_OMP_PRAGMA(critical) 
+                if (discardInterval && s == 0) 
+                    std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
+                else if (discardInterval)
+                    std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
+           }
         }
     }
     if (stop) return false;
@@ -1359,7 +1421,7 @@ bool HMM<TD1, TD2, TB1, TB2>::baumWelch(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
     {
         std::cout << ".. " << iter << "th iteration " << std::endl;
         std::cout << "                        computeEmissionProbs() " << std::endl;
-        if (!computeEmissionProbs(d1, d2, bin1, bin2, options) )
+        if (!computeEmissionProbs(d1, d2, bin1, bin2, true, options) )
         {
             std::cerr << "ERROR: Could not compute emission probabilities! " << std::endl;
             return false;
@@ -1426,7 +1488,7 @@ bool HMM<TD1, TD2, TB1, TB2>::baumWelch(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
 template<typename TD1, typename TD2, typename TB1, typename TB2> 
 bool HMM<TD1, TD2, TB1, TB2>::applyParameters(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, AppOptions &options)
 {
-    if (!computeEmissionProbs(d1, d2, bin1, bin2, options))
+    if (!computeEmissionProbs(d1, d2, bin1, bin2, false, options))
     {
         std::cerr << "ERROR: Could not compute emission probabilities! " << std::endl;
         return false;

@@ -64,12 +64,12 @@ bool parse_bamRegion(TContigObservations &contigObservationsF, TContigObservatio
 
         if (!hasFlagRC(bamRecord))          // Forward
         {
-            if (contigObservationsF.truncCounts[bamRecord.beginPos] < 254)      // uint8, discard interval if > anyway ...
+            if (contigObservationsF.truncCounts[bamRecord.beginPos] < options.maxTruncCount2)      // uint8, discard interval if > anyway ...
                 ++contigObservationsF.truncCounts[bamRecord.beginPos]; 
         }
         else                                // Reverse  
         {
-            if (contigObservationsR.truncCounts[bamRecord.beginPos + getAlignmentLengthInRef(bamRecord) - 1] < 254)
+            if (contigObservationsR.truncCounts[bamRecord.beginPos + getAlignmentLengthInRef(bamRecord) - 1] < options.maxTruncCount2)
                 ++contigObservationsR.truncCounts[bamRecord.beginPos + getAlignmentLengthInRef(bamRecord) - 1]; 
         }
     }
@@ -118,7 +118,7 @@ bool parse_bamRegion(TTruncCounts &truncCounts, TBamIn &inFile, TBai &baiIndex, 
         {
             if (bamRecord.beginPos >= beginPos &&                       // already there ?
                 bamRecord.beginPos < endPos &&                          // before end of interval ?        
-                truncCounts[bamRecord.beginPos - beginPos] < 254)      // uint8,  ?
+                truncCounts[bamRecord.beginPos - beginPos] < options.maxTruncCount2)      
             {
                 ++truncCounts[bamRecord.beginPos - beginPos]; 
             }
@@ -127,7 +127,7 @@ bool parse_bamRegion(TTruncCounts &truncCounts, TBamIn &inFile, TBai &baiIndex, 
         {
             if ((bamRecord.beginPos + getAlignmentLengthInRef(bamRecord) - 1) >= beginPos &&                        // already there ?
                 (bamRecord.beginPos + getAlignmentLengthInRef(bamRecord) - 1) < endPos &&                          // before end of interval  ? 
-                 truncCounts[bamRecord.beginPos - beginPos + getAlignmentLengthInRef(bamRecord) - 1] < 254)
+                 truncCounts[bamRecord.beginPos - beginPos + getAlignmentLengthInRef(bamRecord) - 1] < options.maxTruncCount2)
             {
                 ++truncCounts[bamRecord.beginPos - beginPos + getAlignmentLengthInRef(bamRecord) - 1]; 
             }
