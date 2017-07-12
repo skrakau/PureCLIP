@@ -150,7 +150,7 @@ namespace seqan {
             minRPKMtoFit(-5.0),
             mrtf_kdeSglt(true),                 // use singleton KDE value as mrtf for GLM fitting (assuming same bandwidth for input KDEs!)
             discardSingletonIntervals(true),    // delete intervals with singleton reads to save memory (and runtime) !! influence on transProbs?
-            maxTruncCount(500),                 // used to ignore intervals for learning
+            maxTruncCount(250),                 // used to ignore intervals for learning
             maxTruncCount2(5000),                 // to store
             useFimoScore(false),
             nInputMotifs(1),
