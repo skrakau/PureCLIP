@@ -102,7 +102,7 @@ public:
     ~HMM<TD1, TD2, TB1, TB2>();
     void setInitProbs(String<double> &probs);
     bool computeEmissionProbs(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, bool learning, AppOptions &options);
-    void iForward(String<String<double> > &alphas_1, String<String<double> > &alphas_2, unsigned s, unsigned i);
+    void iForward(String<String<double> > &alphas_1, String<String<double> > &alphas_2, unsigned s, unsigned i, AppOptions &options);
     //void forward_noSc();
     void iBackward(String<String<double> > &betas_2, String<String<double> > &alphas_1, unsigned s, unsigned i);
     //void backward_noSc();
@@ -182,7 +182,7 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 
                 {
                     if (options.verbosity >= 2)
                     {
-                        std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                        std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
                         SEQAN_OMP_PRAGMA(critical) 
                         std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
                         SEQAN_OMP_PRAGMA(critical) 
@@ -269,7 +269,7 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2 &d1,
                 {
                     if (options.verbosity >= 2)
                     {
-                        std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                        std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
                         SEQAN_OMP_PRAGMA(critical) 
                         std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
                         SEQAN_OMP_PRAGMA(critical) 
@@ -362,7 +362,7 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2_REG 
                     if (options.verbosity >= 2)
                     {
                         SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                        std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
                         SEQAN_OMP_PRAGMA(critical) 
                         std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
                         SEQAN_OMP_PRAGMA(critical) 
@@ -461,7 +461,7 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAM
                     if (options.verbosity >= 2)
                     {
                         SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "ERROR: all emission probabilities are 0!" << std::endl;
+                        std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
                         SEQAN_OMP_PRAGMA(critical) 
                         std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
                         SEQAN_OMP_PRAGMA(critical) 
@@ -481,7 +481,7 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAM
                         SEQAN_OMP_PRAGMA(critical) 
                         std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin2_pred) << std::endl;
                     }
-                     SEQAN_OMP_PRAGMA(critical) 
+                    SEQAN_OMP_PRAGMA(critical) 
                     discardInterval = true;
                     
                     this->eProbs[s][i][t][0] = 1.0;
@@ -610,7 +610,7 @@ void HMM<TD1, TD2, TB1, TB2>::forward()
 
 // for one interval only
 template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String<String<double> > &alphas_2, unsigned s, unsigned i)
+void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String<String<double> > &alphas_2, unsigned s, unsigned i, AppOptions &options)
 {
     // for t = 1
     double norm = 0.0;
@@ -621,11 +621,14 @@ void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String
     }
     if (norm == 0.0) 
     {
-        std::cerr << "ERROR: norm == 0 at t: "<< 0 << "  i: " << i << std::endl;
-        for (unsigned k = 0; k < this->K; ++k)
+        std::cout << "WARNING: norm == 0 at t: "<< 0 << "  i: " << i << std::endl;
+        if (options.verbosity > 2)
         {
-            std::cout << "k: " << k << std::endl;
-            std::cout << "this->eProbs[s][i][0][k] " << this->eProbs[s][i][0][k] << std::endl;
+            for (unsigned k = 0; k < this->K; ++k)
+            {
+                std::cout << "k: " << k << std::endl;
+                std::cout << "this->eProbs[s][i][0][k] " << this->eProbs[s][i][0][k] << std::endl;
+            }
         }
     }
 
@@ -645,9 +648,12 @@ void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String
             
             if (sum == 0.0 || std::isnan(sum)) 
             {
-                std::cerr << "ERROR: sum = " << norm << " at t: "<< t << "  i: " << i << std::endl;
-                for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-                    std::cout << " k_2: " << k_2 <<  " alphas_2[t-1][k_2]: " << alphas_2[t-1][k_2] << " transMatrix[k_2][k]: " << this->transMatrix[k_2][k] << std::endl; 
+                std::cout << "WARNING: sum = " << sum << " at t: "<< t << "  i: " << i << std::endl;
+                if (options.verbosity > 2)
+                {  
+                    for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
+                        std::cout << " k_2: " << k_2 <<  " alphas_2[t-1][k_2]: " << alphas_2[t-1][k_2] << " transMatrix[k_2][k]: " << this->transMatrix[k_2][k] << std::endl; 
+                }
             }
 
             // alpha_1
@@ -657,11 +663,14 @@ void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String
         
         if (norm == 0.0 || std::isnan(norm)) 
         {
-            std::cerr << "ERROR: norm = " << norm << " at t: "<< t << "  i: " << i << std::endl;
-            for (unsigned k = 0; k < this->K; ++k)
+            std::cout << "WARNING: norm = " << norm << " at t: "<< t << "  i: " << i << std::endl;
+            if (options.verbosity > 2)
             {
-                std::cout << "k: " << k << std::endl;
-                std::cout << "this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
+                for (unsigned k = 0; k < this->K; ++k)
+                {
+                    std::cout << "k: " << k << std::endl;
+                    std::cout << "this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
+                }
             }
         }
         // normalize
@@ -863,7 +872,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &op
                 resize(alphas_1[t], this->K, Exact());
                 resize(alphas_2[t], this->K, Exact());
             } 
-            iForward(alphas_1, alphas_2, s, i);
+            iForward(alphas_1, alphas_2, s, i, options);
 
             // backward probabilities  
             String<String<double> > betas_2;
@@ -881,11 +890,14 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &op
 
                 if (sum == 0.0) 
                 {
-                    std::cerr << "ERROR: sum == 0 at i: " << i << " t: "<< t << std::endl;
-                    for (unsigned k = 0; k < this->K; ++k)
+                    std::cout << "WARNING: sum == 0 at i: " << i << " t: "<< t << std::endl;
+                    if (options.verbosity > 2)
                     {
-                        std::cout << "k: " << k << std::endl;
-                        std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
+                        for (unsigned k = 0; k < this->K; ++k)
+                        {
+                            std::cout << "k: " << k << std::endl;
+                            std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
+                        }
                     }
                 }
                 for (unsigned k = 0; k < this->K; ++k)
@@ -977,7 +989,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
                 resize(alphas_1[t], this->K, Exact());
                 resize(alphas_2[t], this->K, Exact());
             } 
-            iForward(alphas_1, alphas_2, s, i);
+            iForward(alphas_1, alphas_2, s, i, options);
 
             // backward probabilities  
             String<String<double> > betas_2;
@@ -995,11 +1007,14 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
 
                 if (sum == 0.0) 
                 {
-                    std::cerr << "ERROR: sum == 0 at i: " << i << " t: "<< t << std::endl;
-                    for (unsigned k = 0; k < this->K; ++k)
+                    std::cout << "WARNING: sum == 0 at i: " << i << " t: "<< t << std::endl;
+                    if (options.verbosity > 2)
                     {
-                        std::cout << "k: " << k << std::endl;
-                        std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
+                        for (unsigned k = 0; k < this->K; ++k)
+                        {
+                            std::cout << "k: " << k << std::endl;
+                            std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
+                        }
                     }
                 }
                 for (unsigned k = 0; k < this->K; ++k)
