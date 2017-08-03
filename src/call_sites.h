@@ -974,8 +974,18 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
 
     typedef  FragmentStore<>    TStore;
     TStore store;
-    if (options.verbosity >= 1) std::cout << "Loading reference ... " << std::flush;
-    loadContigs(store, toCString(options.refFileName));
+    if (options.verbosity >= 1) std::cout << "Loading reference ... " << std::endl;;
+    
+    try {
+        if (!loadContigs(store, toCString(options.refFileName)))
+        {
+            std::cerr << "ERROR: Can't load reference sequence from file '" << options.refFileName << "'" << std::endl;
+            return 1;
+        }
+    } catch (std::exception &e){
+        std::cerr << "ERROR: Can't load reference sequence from file '" << options.refFileName << "': " << e.what() << std::endl;
+        return 1;
+    }
     loadIntervals(options, store);
     loadApplyChrs(options, store);
 #if SEQAN_HAS_ZLIB

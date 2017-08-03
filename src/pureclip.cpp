@@ -312,7 +312,7 @@ int main(int argc, char const ** argv)
             bin2.b0 = log(options.p2/(1.0 - options.p2)); 
             resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
             resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            doIt(gamma1, gamma2, bin1, bin2, options);  
+            return doIt(gamma1, gamma2, bin1, bin2, options);  
         }
         else
         {
@@ -320,7 +320,7 @@ int main(int argc, char const ** argv)
             ZTBIN bin2;
             bin1.p = options.p1;            
             bin2.p = options.p2; 
-            doIt(gamma1, gamma2, bin1, bin2, options);  
+            return doIt(gamma1, gamma2, bin1, bin2, options);  
         }
     }
     else
@@ -340,7 +340,7 @@ int main(int argc, char const ** argv)
             bin2.b0 = log(options.p2/(1.0 - options.p2)); 
             resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
             resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            doIt(gamma1, gamma2, bin1, bin2, options);  
+            return doIt(gamma1, gamma2, bin1, bin2, options);  
         }
         else
         {
@@ -348,7 +348,7 @@ int main(int argc, char const ** argv)
             ZTBIN bin2;
             bin1.p = options.p1;            
             bin2.p = options.p2; 
-            doIt(gamma1, gamma2, bin1, bin2, options);  
+            return doIt(gamma1, gamma2, bin1, bin2, options);  
         }
 
     }
