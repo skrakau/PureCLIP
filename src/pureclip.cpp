@@ -121,7 +121,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("g1kmax", "g1kmax", "Maximum shape k of 'non-enriched' gamma distribution (g1.k).", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("g2kmin", "g2kmin", "Minimum shape k of 'enriched' gamma distribution (g2.k).", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("g2kmax", "g2kmax", "Maximum shape k of 'enriched' gamma distribution (g2.k).", ArgParseArgument::DOUBLE));
-    //addOption(parser, ArgParseOption("g1g2k", "g1g2k", "Force 'non-enriched' gamma parameter k <= 'enriched' gamma parameter k."));
+    addOption(parser, ArgParseOption("g1g2k", "g1g2k", "Force 'non-enriched' gamma parameter k <= 'enriched' gamma parameter k."));
 
     addOption(parser, ArgParseOption("mkn", "mkn", "Max. k/N ratio (read start sites/N) used to learn truncation probabilities for 'non-crosslink' and 'crosslink' emission probabilities (high ratios might originate from mapping artifacts that can disturb parameter learning). Default: 1.0", ArgParseArgument::DOUBLE));
     setMinValue(parser, "mkn", "0.5");
@@ -212,8 +212,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.g1_kMax, parser, "g1kmax");
     getOptionValue(options.g2_kMin, parser, "g2kmin");
     getOptionValue(options.g2_kMax, parser, "g2kmax");
-    //if (isSet(parser, "g1g2k"))
-    //    options.g1_k_le_g2_k = true;
+    if (isSet(parser, "g1g2k"))
+        options.g1_k_le_g2_k = true;
     getOptionValue(options.bandwidth, parser, "bdw");
 
     getOptionValue(options.useKdeThreshold, parser, "mkde");

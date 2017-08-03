@@ -121,7 +121,7 @@ namespace seqan {
             g2_kMin(0.5),
             g1_kMax(10.0),
             g2_kMax(10.0),
-            g1_k_le_g2_k(true),
+            g1_k_le_g2_k(false),
             p1(0.01),                       // initial values for bin1.p
             p2(0.15),                       // .. bin2.p
             gamma_k_conv(0.0001),

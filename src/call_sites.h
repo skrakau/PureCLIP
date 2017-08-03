@@ -877,6 +877,9 @@ bool learnHMM(Data &data,
         hmm.posteriorDecoding(data.states);
     else
         hmm.viterbi_log(data.states);
+    
+    if (options.useCov_RPKM && !options.g1_k_le_g2_k)    // NOTE: otherwise not necessary, since gamma1.k <= 1 or gamma1.k <= gamma2.k
+        hmm.rmBoarderArtifacts(data.states, d1);
     data.statePosteriors = hmm.statePosteriors;
    
 #ifdef HMM_PROFILE
@@ -915,6 +918,9 @@ bool applyHMM(Data &data,
         myPrint(d1);
         myPrint(d2);
     }
+ 
+    if (options.useCov_RPKM)    // NOTE: otherwise not necessary, since gamma1.k <= 1
+        hmm.rmBoarderArtifacts(data.states, d1);
     data.statePosteriors = hmm.statePosteriors;
 
 #ifdef HMM_PROFILE
