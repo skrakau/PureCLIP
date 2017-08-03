@@ -98,6 +98,7 @@ namespace seqan {
         bool mrtf_kdeSglt;
         bool discardSingletonIntervals;
         unsigned maxTruncCount;
+        unsigned maxTruncCount2;
 
         bool useFimoScore;
         unsigned nInputMotifs;
@@ -149,7 +150,8 @@ namespace seqan {
             minRPKMtoFit(-5.0),
             mrtf_kdeSglt(true),                 // use singleton KDE value as mrtf for GLM fitting (assuming same bandwidth for input KDEs!)
             discardSingletonIntervals(true),    // delete intervals with singleton reads to save memory (and runtime) !! influence on transProbs?
-            maxTruncCount(250),                 // < 254
+            maxTruncCount(250),                 // used to ignore intervals for learning
+            maxTruncCount2(5000),                 // to store
             useFimoScore(false),
             nInputMotifs(1),
             distMerge(8),
@@ -188,7 +190,7 @@ namespace seqan {
 
 
     struct ContigObservations {
-        String<__uint8> truncCounts; 
+        String<__uint16> truncCounts; 
     };
 
     void reverse(ContigObservations &contigObservations)
@@ -200,7 +202,7 @@ namespace seqan {
     // workaround because partially specialized member function are forbidden
     // wrapper class for observations
     struct Observations {
-        Infix<String<__uint8> >::Type truncCounts;
+        Infix<String<__uint16> >::Type truncCounts;
         unsigned contigId; 
 
         String<__uint16>    nEstimates;      
@@ -209,13 +211,13 @@ namespace seqan {
         String<float>       fimoScores; // for each t: one motif score
         String<char>        motifIds; // for each t: one motif score
 
-        Observations(Infix<String<__uint8> >::Type _truncCounts) : truncCounts(_truncCounts) {}
+        Observations(Infix<String<__uint16> >::Type _truncCounts) : truncCounts(_truncCounts) {}
         Observations() : truncCounts() {}
 
         void estimateNs(AppOptions &options);                       // using raw counts
         void estimateNs(double b0, double b1, AppOptions /*&options*/); // using KDEs
         void computeKDEs(AppOptions &options);
-        void computeKDEs(String<__uint8> &inputTruncCounts, AppOptions &options);    // input signal
+        void computeKDEs(String<__uint16> &inputTruncCounts, AppOptions &options);    // input signal
 
         unsigned length();
     };
@@ -303,7 +305,7 @@ namespace seqan {
     // keep in mind: same intervals used as for target (+- 2*bdw)
     // could cause underestimation of input KDEs at interval boarders
     // anyway only very low values of gaussian kernel there
-    void Observations::computeKDEs(String<__uint8> &truncCounts, AppOptions &options)
+    void Observations::computeKDEs(String<__uint16> &truncCounts, AppOptions &options)
     {
         resize(this->rpkms, length());
 

@@ -51,13 +51,13 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     // Setup ArgumentParser.
     ArgumentParser parser("pureclip");
     // Set short description, version, and date.
-    setShortDescription(parser, "Protein-RNA crosslink site detection ");
-    setVersion(parser, "1.0.0");
-    setDate(parser, "Juni 2017");
+    setShortDescription(parser, "Protein-RNA interaction site detection ");
+    setVersion(parser, "1.0.1");
+    setDate(parser, "Juli 2017");
 
     // Define usage line and long description.
     addUsageLine(parser, "[\\fIOPTIONS\\fP] <-i \\fIBAM FILE\\fP> <-bai \\fIBAI FILE\\fP> <-g \\fIGENOME FILE\\fP> <-o \\fIOUTPUT BED FILE\\fP> ");
-    addDescription(parser, "Protein-RNA crosslink site detection using a non-homogeneous HMM.");
+    addDescription(parser, "Protein-RNA interaction site detection using a non-homogeneous HMM.");
 
     // We require one argument.
     addOption(parser, ArgParseOption("i", "in", "Target bam file.", ArgParseArgument::INPUT_FILE));

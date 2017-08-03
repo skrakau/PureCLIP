@@ -262,7 +262,7 @@ bool loadBAMCovariates(Data &data, TStore &store, TOptions &options)
                 std::cerr << "ERROR: Contig " << store.contigNameStore[data.setObs[s][i].contigId] << " not known.\n";
                 return false; 
             }
-            String<__uint8> truncCounts;
+            String<__uint16> truncCounts;
             resize(truncCounts, data.setObs[s][i].length(), 0, Exact());
             if (s == 0)
             {
@@ -494,7 +494,7 @@ bool checkForPolyT(TSeq const& seq, TOptions &options)
 
 
 template <typename TOptions>
-void cleanCoveredIntervals(Data &data, unsigned contigLength, TOptions &options)
+void cleanCoveredIntervals(Data &data, unsigned contigLength, bool learning, TOptions &options)
 {
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -510,15 +510,19 @@ void cleanCoveredIntervals(Data &data, unsigned contigLength, TOptions &options)
             bool discard = false;
             for (unsigned t = 0; t < data.setObs[s][i].length(); ++t)
             {
-                if (data.setObs[s][i].truncCounts[t] > options.maxTruncCount)
+                // do not consider intervals containing sites with extremely high read start counts at one position for learning 
+                // - possible artifacts (PCR duplicates, mapping artifacts)
+                // - causing problems when getting higher for likelihood computations
+                // - indiv. counts limited to 254 
+                if (learning && (data.setObs[s][i].truncCounts[t] >= options.maxTruncCount))
                 {
                     discard = true;
                     if (options.verbosity >= 2)
                     {
                         if (s == 0)
-                            std::cout << "WARNING: Discard interval due to position with " << (int)data.setObs[s][i].truncCounts[t] << " read starts at position " << (t + data.setPos[s][i]) << "." << std::endl;
+                            std::cout << "Note: Ignore interval for learning due to position with >= " << options.maxTruncCount << " read starts at position " << (t + data.setPos[s][i]) << "." << std::endl;
                         else
-                            std::cout << "WARNING: Discard interval due to position with " << (int)data.setObs[s][i].truncCounts[t] << " read starts at position " << (contigLength - (t + data.setPos[s][i]) - 1) << "." << std::endl;
+                            std::cout << "Note: Ignore interval for learning due to position with >= " << options.maxTruncCount << " read starts at position " << (contigLength - (t + data.setPos[s][i]) - 1) << "." << std::endl;
                     }
                     break;
                 }
@@ -551,6 +555,7 @@ void extractCoveredIntervals(Data &data,
                              unsigned i1, unsigned i2,
                              bool excludePolyA,
                              bool excludePolyT,
+                             bool learning,
                              TStore &store,
                              TOptions &options)
 {
@@ -736,7 +741,7 @@ void extractCoveredIntervals(Data &data,
         std::cout << " Excluded " << countPolyTs << " covered intervals from analysis because of internal polyU sites! " << std::endl;
         std::cout << " No. of remaining intervals: " << (length(data.setObs[0]) + length(data.setObs[1])) << "   F: " << length(data.setObs[0]) << "   R: " << length(data.setObs[1]) << std::endl;
     }
-    cleanCoveredIntervals(data, length(store.contigStore[contigId].seq), options);
+    cleanCoveredIntervals(data, length(store.contigStore[contigId].seq), learning, options);
     if (options.verbosity >= 2) 
         std::cout << " No. of remaining intervals after cleaning up: " << (length(data.setObs[0]) + length(data.setObs[1])) << std::endl;
 }
@@ -831,6 +836,7 @@ template<typename TD1, typename TD2, typename TB1, typename TB2>
 bool learnHMM(Data &data, 
               String<String<double> > &transMatrix_1,
               TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
+              unsigned &contigLen,
               AppOptions &options)
 {
 #ifdef HMM_PROFILE
@@ -838,7 +844,7 @@ bool learnHMM(Data &data,
 #endif
 
     if (options.verbosity >= 1) std::cout << "Build HMM ..." << std::endl;
-    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs);       
+    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs, data.setPos, contigLen);       
     hmm.transMatrix = transMatrix_1;
     if (options.verbosity >= 1) 
     {
@@ -888,13 +894,14 @@ template<typename TD1, typename TD2, typename TB1, typename TB2>
 bool applyHMM(Data &data, 
               String<String<double> > &transMatrix_1,
               TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
+              unsigned &contigLen,
               AppOptions &options)
 {
 #ifdef HMM_PROFILE
     double timeStamp = sysTime();
 #endif
     if (options.verbosity >= 1) std::cout << "   build HMM" << std::endl;
-    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs);
+    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs, data.setPos, contigLen);
     hmm.transMatrix = transMatrix_1;
     if (!hmm.applyParameters(d1, d2, bin1, bin2, options))
         return false;
@@ -1036,7 +1043,7 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
         resize(c_data.statePosteriors, 2);
         resize(c_data.states, 2);
 
-        extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, store, options); 
+        extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, true, store, options); 
 
         SEQAN_OMP_PRAGMA(critical)
         append(data, c_data);           
@@ -1062,7 +1069,8 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
     String<String<double> > transMatrix;
     estimateTransitions(transMatrix, gamma1, gamma2, bin1, bin2, data, options);
 
-    if (!learnHMM(data, transMatrix, gamma1, gamma2, bin1, bin2, options))
+    unsigned contigLen = 0; // should not be used within learning
+    if (!learnHMM(data, transMatrix, gamma1, gamma2, bin1, bin2, contigLen, options))
         return 1;
 
     clear(contigObservationsF);
@@ -1110,7 +1118,7 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
         resize(c_data.setPos, 2);
         resize(c_data.statePosteriors, 2);
         resize(c_data.states, 2); 
-        extractCoveredIntervals(c_data, contigObservationsF, contigObservationsR, c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, store, options); 
+        extractCoveredIntervals(c_data, contigObservationsF, contigObservationsR, c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, false, store, options); 
 
         if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   // TODO handle cases
         {
@@ -1118,7 +1126,8 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
             preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
 
             // Apply learned parameters
-            if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, options))
+            unsigned contigLen = length(store.contigStore[contigId].seq);
+            if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, contigLen, options))
             {
                 SEQAN_OMP_PRAGMA(critical)
                 stop = true;
