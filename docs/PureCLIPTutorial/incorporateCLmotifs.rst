@@ -3,6 +3,10 @@
 Incorporating CL-motif scores
 ====================================
 
+In order to address the crosslinking sequence bias, PureCLIP can incorporate information about motifs that are known to be preferentially crosslinked, also called CL-motifs (see also `Haberman et al., 2017 <https://genomebiology.biomedcentral.com/articles/10.1186/s13059-016-1130-x>`_). 
+For each CL-motif PureCLIP learns the influence on the crosslinking probability.
+This can be particular useful for proteins binding to sequence motifs distinct from such CL-motifs.  
+
 Compute CL-motif scores
 -----------------------
 
