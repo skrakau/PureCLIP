@@ -51,16 +51,16 @@ public:
     ZTBIN(double p_): p(p_) {}
     ZTBIN() {}
  
-    template<typename TType1, typename TType2> double getDensity(TType1 const &k, TType2 const &n);
+    template<typename TType1, typename TType2> long double getDensity(TType1 const &k, TType2 const &n);
 
-    void updateP(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
+    void updateP(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
 
     double p;
 };
 
 
 // use truncCounts
-void ZTBIN::updateP(String<String<String<double> > > &statePosteriors, 
+void ZTBIN::updateP(String<String<String<long double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, AppOptions const& options)
 {
     double sum1 = 0.0;
@@ -93,7 +93,7 @@ void ZTBIN::updateP(String<String<String<double> > > &statePosteriors,
 
 // k: diagnostic events (de); n: read counts (c)
 template<typename TType1, typename TType2> 
-double ZTBIN::getDensity(TType1 const &k, TType2 const &n)
+long double ZTBIN::getDensity(TType1 const &k, TType2 const &n)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
@@ -103,7 +103,7 @@ double ZTBIN::getDensity(TType1 const &k, TType2 const &n)
     boost::math::binomial_distribution<long double> boostBin;
     boostBin = boost::math::binomial_distribution<long double> ((int)n2, this->p); 
 
-    double res = boost::math::pdf(boostBin, k);
+    long double res = boost::math::pdf(boostBin, k);
     if (std::isnan(res))   // or any other error?
     {
         std::cerr << "ERROR: binomial pdf is : " << res << std::endl;

@@ -808,7 +808,7 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, T
             data.setObs[s][i].computeKDEs(options);
     
     
-    if (options.verbosity >= 1) std::cout << "  Estiamte Ns ... " << std::endl;
+    if (options.verbosity >= 1) std::cout << "  Estiamte Ns ... " << options.estimateNfromKdes << std::endl;
     if (options.estimateNfromKdes && b0 == 0.0 && b1 == 0.0) 
         computeSLR(b0, b1, data, options);
 

@@ -55,13 +55,13 @@ public:
     GAMMA2_REG(double tp_): tp(tp_) {}
     GAMMA2_REG() {}
 
-    double getDensity(double const &kde, double const &pred);
+    long double getDensity(double const &kde, double const &pred);
     //void computeMean(String<String<double> > &statePosteriorsF, String<String<double> > &statePosteriorsR, String<Observations> &setObsF, String<Observations> &setObsR, AppOptions const& options); 
-    void updateMean(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
-    void updateK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
+    void updateMean(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
+    void updateK(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
     //void approximateK(String<String<double> > &statePosteriorsF, String<String<double> > &statePosteriorsR, String<Observations> &setObsF, String<Observations> &setObsR, AppOptions const& options); 
 
-    bool updateRegCoeffsAndK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
+    bool updateRegCoeffsAndK(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
  
 
     double mean;   
@@ -108,7 +108,7 @@ public:
 struct Fct_GSL_N_GAMMA2_REG
 {
     Fct_GSL_N_GAMMA2_REG(double const & tp_, double const& k_, 
-                                  String<String<String<double> > > const& statePosteriors_,  
+                                  String<String<String<long double> > > const& statePosteriors_,  
                                   String<String<Observations> > & setObs_,  
                                   AppOptions const&options_) : tp(tp_), k(k_),
                                                                statePosteriors(statePosteriors_),  
@@ -268,7 +268,7 @@ struct Fct_GSL_N_GAMMA2_REG
 private:
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
@@ -298,7 +298,7 @@ struct Params2
 {
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
@@ -346,7 +346,7 @@ void print_state2(size_t iter, gsl_multimin_fdfminimizer * s, void * /*fct*/)
 
 
 int callGSL_newton2(double &tp, double &k, double &b0, double &b1,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<long double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   AppOptions const& options)
 {
@@ -412,7 +412,7 @@ int callGSL_newton2(double &tp, double &k, double &b0, double &b1,
 }
 
 
-void GAMMA2_REG::updateMean(String<String<String<double> > > &statePosteriors, 
+void GAMMA2_REG::updateMean(String<String<String<long double> > > &statePosteriors, 
                     String<String<Observations> > &setObs,  
                     AppOptions const&options)
 {
@@ -429,7 +429,7 @@ void GAMMA2_REG::updateMean(String<String<String<double> > > &statePosteriors,
 struct Fct_GSL_X_GAMMA2_REG
 {
     Fct_GSL_X_GAMMA2_REG(double const & tp_, 
-                                  String<String<String<double> > > const& statePosteriors_,
+                                  String<String<String<long double> > > const& statePosteriors_,
                                   String<String<Observations> > & setObs_,  
                                   AppOptions const&options_) : tp(tp_),
                                                                statePosteriors(statePosteriors_),  
@@ -480,7 +480,7 @@ struct Fct_GSL_X_GAMMA2_REG
    
 private:
     double tp;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
@@ -488,7 +488,7 @@ private:
 struct Fct_GSL_X_GAMMA2_REG_fixK
 {
     Fct_GSL_X_GAMMA2_REG_fixK(double const & tp_, double const & k_, 
-                                  String<String<String<double> > > const& statePosteriors_,
+                                  String<String<String<long double> > > const& statePosteriors_,
                                   String<String<Observations> > & setObs_,
                                   AppOptions const&options_) : tp(tp_), k(k_),
                                                                statePosteriors(statePosteriors_),
@@ -538,7 +538,7 @@ struct Fct_GSL_X_GAMMA2_REG_fixK
 private:
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
@@ -560,14 +560,14 @@ double fct_GSL_X_GAMMA2_REG_fixK_W (const gsl_vector * x, void * p) {
 struct Params5
 {
     double tp;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
 
 bool callGSL_simplex2_fixK(int &status, 
                   double &tp, double &k, double &b0, double &b1,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<long double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   AppOptions const& options)
 {
@@ -638,7 +638,7 @@ bool callGSL_simplex2_fixK(int &status,
 }
 
 bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<long double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   double &kMin, double &kMax,
                   AppOptions const& options)
@@ -769,7 +769,7 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
 
 
 
-bool GAMMA2_REG::updateRegCoeffsAndK(String<String<String<double> > > &statePosteriors, 
+bool GAMMA2_REG::updateRegCoeffsAndK(String<String<String<long double> > > &statePosteriors, 
                     String<String<Observations> > &setObs,  
                     double &kMin, double &kMax,
                     AppOptions const&options)
@@ -832,7 +832,7 @@ bool GAMMA2_REG::updateRegCoeffsAndK(String<String<String<double> > > &statePost
 struct Fct_GAMMA2_REG_k
 {
     Fct_GAMMA2_REG_k(double const& b0_, double const& b1_, 
-                                  String<String<String<double> > > const& statePosteriors_, 
+                                  String<String<String<long double> > > const& statePosteriors_, 
                                   String<String<Observations> > & setObs_, 
                                   AppOptions const&options_) : b0(b0_), b1(b1_), 
                                                                statePosteriors(statePosteriors_),  
@@ -881,14 +881,14 @@ struct Fct_GAMMA2_REG_k
 private:
     double b0;
     double b1;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
 
 
 
-void GAMMA2_REG::updateK(String<String<String<double> > > &statePosteriors, 
+void GAMMA2_REG::updateK(String<String<String<long double> > > &statePosteriors, 
                          String<String<Observations> > &setObs, 
                          double &kMin, double &kMax,
                          AppOptions const&options)
@@ -904,21 +904,21 @@ void GAMMA2_REG::updateK(String<String<String<double> > > &statePosteriors,
 
 
 
-double GAMMA2_REG::getDensity(double const &kde, double const &pred)   
+long double GAMMA2_REG::getDensity(double const &kde, double const &pred)   
 {
     if (kde < this->tp) return 0.0;
 
     //double pred = exp(this->b0 + this->b1 * x);
 
-    double theta = pred/this->k;
+    long double theta = pred/this->k;
     // if (kde == 0.0) should not occur, checked while computing eProbs
-    double f1 = pow(kde, this->k - 1.0) * exp(-kde/theta);
-    double f2 = pow(theta, this->k) * tgamma(this->k);
+    long double f1 = pow(kde, this->k - 1.0) * exp(-kde/theta);
+    long double f2 = pow(theta, this->k) * tgamma(this->k);
     if (f2 ==  0.0) std::cout << "ERROR: f2 is 0!" << std::endl;
 
 
     // normalized lower incomplete gamma function
-    double nligf = boost::math::gamma_p(this->k, this->tp/theta);
+    long double nligf = boost::math::gamma_p(this->k, this->tp/theta);
     if ((1.0 - nligf) == 0.0) std::cout << "ERROR: (1 - nligf) is 0!"  << " kde: " << kde << " pred: " << pred << std::endl;
 
     return  ((f1/f2)/(1.0 - nligf));

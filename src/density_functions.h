@@ -57,11 +57,11 @@ public:
     GAMMA2(double tp_): tp(tp_) {}
     GAMMA2() {}
 
-    double getDensity(double const &x);
-    void updateTheta(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
-    void updateK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
+    long double getDensity(double const &x);
+    void updateTheta(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
+    void updateK(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
     //void approximateK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
-    bool updateThetaAndK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
+    bool updateThetaAndK(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
 
     double theta;   // scale parameter
     double mean;
@@ -73,7 +73,7 @@ public:
 // Functor for Brent's algorithm: find theta
 struct FctLL_GAMMA2_theta
 {
-    FctLL_GAMMA2_theta(double const& k_, String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : k(k_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
+    FctLL_GAMMA2_theta(double const& k_, String<String<String<long double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : k(k_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
     { 
     }
     double operator()(double const& theta)
@@ -112,13 +112,13 @@ struct FctLL_GAMMA2_theta
 
 private:
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > &setObs;
     AppOptions options;
 };
 
 
-void GAMMA2::updateTheta(String<String<String<double> > > &statePosteriors, 
+void GAMMA2::updateTheta(String<String<String<long double> > > &statePosteriors, 
                          String<String<Observations> > &setObs, 
                          AppOptions const&options)
 { 
@@ -138,14 +138,14 @@ void GAMMA2::updateTheta(String<String<String<double> > > &statePosteriors,
 // Functor for Brent's algorithm: find k
 struct FctLL_GAMMA2_k
 {
-    FctLL_GAMMA2_k(double const& theta_, String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : theta(theta_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
+    FctLL_GAMMA2_k(double const& theta_, String<String<String<long double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : theta(theta_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
     { 
     }
     double operator()(double const& k)
     {
         // Group log-likelihood function evaluations regarding binned kde vaues ! TODO 
         // normalized lower incomplete gamma function
-        double nligf = boost::math::gamma_p(k, (options.useKdeThreshold/theta));
+        long double nligf = boost::math::gamma_p(k, (options.useKdeThreshold/theta));
  
         double ll = 0.0;
         for (unsigned s = 0; s < 2; ++s)
@@ -177,13 +177,13 @@ struct FctLL_GAMMA2_k
 
 private:
     double theta;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > &setObs;
     AppOptions options;
 };
 
 
-void GAMMA2::updateK(String<String<String<double> > > &statePosteriors, 
+void GAMMA2::updateK(String<String<String<long double> > > &statePosteriors, 
                      String<String<Observations> > &setObs,
                      double &kMin, double &kMax,
                      AppOptions const&options)
@@ -203,7 +203,7 @@ void GAMMA2::updateK(String<String<String<double> > > &statePosteriors,
 struct Fct_GSL_X_GAMMA2
 {
     Fct_GSL_X_GAMMA2(double const & tp_, 
-                                  String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, 
+                                  String<String<String<long double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, 
                                   AppOptions const&options_) : tp(tp_), 
                                                                statePosteriors(statePosteriors_), 
                                                                setObs(setObs_), 
@@ -220,7 +220,7 @@ struct Fct_GSL_X_GAMMA2
         if (k <= 0) std::cerr << "ERROR calling GSL multimin: k = " << k << " (make sure initial step size is small enough, value not getting <= 0!)" << std::endl;
         if (theta <= 0) std::cerr << "ERROR calling GSL multimin: theta = " << theta << " (make sure initial step size is small enough, value not getting <= 0!)" << std::endl;
 
-        double nligf = boost::math::gamma_p(k, (tp*theta));
+        long double nligf = boost::math::gamma_p(k, (tp*theta));
 
         double f = 0.0;
         for (unsigned s = 0; s < 2; ++s)
@@ -253,7 +253,7 @@ struct Fct_GSL_X_GAMMA2
    
 private:
     double tp;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
@@ -262,7 +262,7 @@ private:
 struct Fct_GSL_X_GAMMA2_fixK
 {
     Fct_GSL_X_GAMMA2_fixK(double const & tp_, double const& k_, 
-                                  String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, 
+                                  String<String<String<long double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, 
                                   AppOptions const&options_) : tp(tp_), k(k_),
                                                                statePosteriors(statePosteriors_),  
                                                                setObs(setObs_),  
@@ -313,7 +313,7 @@ struct Fct_GSL_X_GAMMA2_fixK
 private:
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > &setObs;
     AppOptions options;
 };
@@ -336,7 +336,7 @@ double fct_GSL_X_GAMMA2_fixK_W (const gsl_vector * x, void * p) {
 struct Params3
 {
     double tp;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
@@ -346,7 +346,7 @@ struct Params4
 {
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
@@ -355,7 +355,7 @@ struct Params4
 
 bool callGSL_simplex2_fixK(int &status, 
                   double &tp, double &theta, double &k,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<long double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   AppOptions const& options)
 {
@@ -424,7 +424,7 @@ bool callGSL_simplex2_fixK(int &status,
 
 
 bool callGSL_simplex2(double &tp, double &theta, double &k,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<long double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   double &kMin, double &kMax,
                   AppOptions const& options)
@@ -537,7 +537,7 @@ bool callGSL_simplex2(double &tp, double &theta, double &k,
 
 
 
-bool GAMMA2::updateThetaAndK(String<String<String<double> > > &statePosteriors, 
+bool GAMMA2::updateThetaAndK(String<String<String<long double> > > &statePosteriors, 
                     String<String<Observations> > &setObs, 
                     double &kMin, double &kMax,
                     AppOptions const&options)
@@ -553,15 +553,15 @@ bool GAMMA2::updateThetaAndK(String<String<String<double> > > &statePosteriors,
 
 
 
-double GAMMA2::getDensity(double const &x)   
+long double GAMMA2::getDensity(double const &x)   
 {
     if (x < this->tp) return 0.0; 
 
-    double f1 = pow(x, this->k - 1.0) * exp(-x/this->theta);
-    double f2 = pow(this->theta, this->k) * tgamma(this->k);
+    long double f1 = pow(x, this->k - 1.0) * exp(-x/this->theta);
+    long double f2 = pow(this->theta, this->k) * tgamma(this->k);
     
     // normalized lower incomplete gamma function
-    double nligf = boost::math::gamma_p(this->k, this->tp/this->theta);
+    long double nligf = boost::math::gamma_p(this->k, this->tp/this->theta);
 
     return  ( (f1/f2) / (1.0 - nligf));
 }

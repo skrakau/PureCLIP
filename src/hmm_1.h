@@ -102,9 +102,9 @@ public:
     ~HMM<TD1, TD2, TB1, TB2>();
     void setInitProbs(String<double> &probs);
     bool computeEmissionProbs(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, bool learning, AppOptions &options);
-    void iForward(String<String<double> > &alphas_1, String<String<double> > &alphas_2, unsigned s, unsigned i, AppOptions &options);
+    void iForward(String<String<long double> > &alphas_1, String<String<long double> > &alphas_2, unsigned s, unsigned i, AppOptions &options);
     //void forward_noSc();
-    void iBackward(String<String<double> > &betas_2, String<String<double> > &alphas_1, unsigned s, unsigned i);
+    void iBackward(String<String<long double> > &betas_2, String<String<long double> > &alphas_1, unsigned s, unsigned i);
     //void backward_noSc();
     void computeStatePosteriorsFB(AppOptions &options);
     void computeStatePosteriorsFBupdateTrans(AppOptions &options);
@@ -121,8 +121,8 @@ public:
     void rmBoarderArtifacts(String<String<String<__uint8> > > &states, TD1 &g1);
 
     // for each F/R,interval,t, state ....
-    String<String<String<String<double> > > > eProbs;           // emission/observation probabilities  P(Y_t | S_t) -> precompute for each t given Y_t = (C_t, T_t) !!!
-    String<String<String<String<double> > > > statePosteriors;  // for each k: for each covered interval string of posteriors
+    String<String<String<String<long double> > > > eProbs;           // emission/observation probabilities  P(Y_t | S_t) -> precompute for each t given Y_t = (C_t, T_t) !!!
+    String<String<String<String<long double> > > > statePosteriors;  // for each k: for each covered interval string of posteriors
 };
 
 
@@ -154,19 +154,19 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 
             {
                 if (this->setObs[s][i].kdes[t] == 0.0)
                 {
-                    std::cerr << "ERROR: KDE is 0.0 on forward strand at i " << i << " t: " << t << std::endl;
+                    std::cerr << "ERROR: KDE is 0.0 at i " << i << " t: " << t << std::endl;
                     SEQAN_OMP_PRAGMA(critical) 
                     stop = true;
                 }
-                double g1_d = 1.0;
-                double g2_d = 0.0;
+                long double g1_d = 1.0;
+                long double g2_d = 0.0;
                 if (this->setObs[s][i].kdes[t] >= d1.tp) 
                 {
                     g1_d = d1.getDensity(this->setObs[s][i].kdes[t]);
                     g2_d = d2.getDensity(this->setObs[s][i].kdes[t]); 
                 }
-                double bin1_d = 1.0;
-                double bin2_d = 0.0;
+                long double bin1_d = 1.0;
+                long double bin2_d = 0.0;
                 if (this->setObs[s][i].truncCounts[t] > 0)
                 {
                     bin1_d = bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]);
@@ -205,7 +205,7 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 
                     this->eProbs[s][i][t][1] = 0.0;
                     this->eProbs[s][i][t][2] = 0.0;
                     this->eProbs[s][i][t][3] = 0.0;
-               }
+                }
             }
             if (!learning)
             {
@@ -294,7 +294,7 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2 &d1,
                     this->eProbs[s][i][t][1] = 0.0;
                     this->eProbs[s][i][t][2] = 0.0;
                     this->eProbs[s][i][t][3] = 0.0;
-               }
+                }
             }
             if (!learning)
             {
@@ -387,7 +387,7 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2_REG 
                     this->eProbs[s][i][t][1] = 0.0;
                     this->eProbs[s][i][t][2] = 0.0;
                     this->eProbs[s][i][t][3] = 0.0;
-               }
+                }
             }
             if (!learning)
             {
@@ -488,7 +488,7 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAM
                     this->eProbs[s][i][t][1] = 0.0;
                     this->eProbs[s][i][t][2] = 0.0;
                     this->eProbs[s][i][t][3] = 0.0;
-               }
+                }
             }
             if (!learning)
             {
@@ -610,10 +610,10 @@ void HMM<TD1, TD2, TB1, TB2>::forward()
 
 // for one interval only
 template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String<String<double> > &alphas_2, unsigned s, unsigned i, AppOptions &options)
+void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<long double> > &alphas_1, String<String<long double> > &alphas_2, unsigned s, unsigned i, AppOptions &options)
 {
     // for t = 1
-    double norm = 0.0;
+    long double norm = 0.0;
     for (unsigned k = 0; k < this->K; ++k)
     {
         alphas_1[0][k] = this->initProbs[s][i][k] * this->eProbs[s][i][0][k];
@@ -642,7 +642,7 @@ void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String
         for (unsigned k = 0; k < this->K; ++k)
         {
             // sum over previous states
-            double sum = 0.0;
+            long double sum = 0.0;
             for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
                 sum += alphas_2[t-1][k_2] * this->transMatrix[k_2][k];
             
@@ -760,10 +760,10 @@ void HMM<TD1, TD2, TB1, TB2>::backward()
 // need alphas_1 for scaling here,
 // only betas_2 is needed to compute posterior probs.
 template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::iBackward(String<String<double> > &betas_2, String<String<double> > &alphas_1, unsigned s, unsigned i)
+void HMM<TD1, TD2, TB1, TB2>::iBackward(String<String<long double> > &betas_2, String<String<long double> > &alphas_1, unsigned s, unsigned i)
 {
     unsigned T = this->setObs[s][i].length();
-    String<String<double> > betas_1;
+    String<String<long double> > betas_1;
     resize(betas_1, T, Exact());
     for (unsigned t = 0; t < T; ++t)
         resize(betas_1[t], this->K, Exact());
@@ -772,7 +772,7 @@ void HMM<TD1, TD2, TB1, TB2>::iBackward(String<String<double> > &betas_2, String
     for (unsigned k = 0; k < this->K; ++k)
        betas_1[this->setObs[s][i].length() - 1][k] = 1.0;
     
-    double norm = 0.0;      // use scaling coefficients from alphas here !
+    long double norm = 0.0;      // use scaling coefficients from alphas here !
     for (unsigned k = 0; k < this->K; ++k)
        norm += alphas_1[this->setObs[s][i].length() - 1][k];
 
@@ -789,7 +789,7 @@ void HMM<TD1, TD2, TB1, TB2>::iBackward(String<String<double> > &betas_2, String
         for (unsigned k = 0; k < this->K; ++k)
         {
             // sum over previous states
-            double sum = 0.0;
+            long double sum = 0.0;
             for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
                 sum += betas_2[t+1][k_2] * this->transMatrix[k][k_2] * this->eProbs[s][i][t+1][k_2];
             
@@ -863,8 +863,8 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &op
         {
             unsigned T = setObs[s][i].length();
             // forward probabilities
-            String<String<double> > alphas_1;
-            String<String<double> > alphas_2;
+            String<String<long double> > alphas_1;
+            String<String<long double> > alphas_2;
             resize(alphas_1, T, Exact());
             resize(alphas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
@@ -875,7 +875,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &op
             iForward(alphas_1, alphas_2, s, i, options);
 
             // backward probabilities  
-            String<String<double> > betas_2;
+            String<String<long double> > betas_2;
             resize(betas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
                 resize(betas_2[t], this->K, Exact());
@@ -884,7 +884,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &op
             // compute state posterior probabilities
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
             {
-                double sum = 0.0;
+                long double sum = 0.0;
                 for (unsigned k = 0; k < this->K; ++k)
                     sum += alphas_2[t][k] * betas_2[t][k];
 
@@ -980,8 +980,8 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
         {
             unsigned T = setObs[s][i].length();
             // forward probabilities
-            String<String<double> > alphas_1;
-            String<String<double> > alphas_2;
+            String<String<long double> > alphas_1;
+            String<String<long double> > alphas_2;
             resize(alphas_1, T, Exact());
             resize(alphas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
@@ -992,7 +992,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
             iForward(alphas_1, alphas_2, s, i, options);
 
             // backward probabilities  
-            String<String<double> > betas_2;
+            String<String<long double> > betas_2;
             resize(betas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
                 resize(betas_2[t], this->K, Exact());
@@ -1001,7 +1001,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
             // compute state posterior probabilities
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
             {
-                double sum = 0.0;
+                long double sum = 0.0;
                 for (unsigned k = 0; k < this->K; ++k)
                     sum += alphas_2[t][k] * betas_2[t][k];
 
@@ -1126,8 +1126,8 @@ void HMM<TD1, TD2>::updateTransition2(String<String<double> > &A, unsigned k_1, 
 template<>
 bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::updateDensityParams(GAMMA2 &d1, GAMMA2 &d2, AppOptions &options)   
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
+    String<String<String<long double> > > statePosteriors1;
+    String<String<String<long double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     for (unsigned s = 0; s < 2; ++s)
@@ -1177,8 +1177,8 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::updateDensityParams(GAMMA2 &d1, GAMMA2 &
 template<>
 bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::updateDensityParams(GAMMA2 &d1, GAMMA2 &d2, AppOptions &options)   
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
+    String<String<String<long double> > > statePosteriors1;
+    String<String<String<long double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     for (unsigned s = 0; s < 2; ++s)
@@ -1228,8 +1228,8 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::updateDensityParams(GAMMA2 &d1, 
 template<>
 bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::updateDensityParams(GAMMA2_REG &d1, GAMMA2_REG &d2, AppOptions &options)   
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
+    String<String<String<long double> > > statePosteriors1;
+    String<String<String<long double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     for (unsigned s = 0; s < 2; ++s)
@@ -1285,8 +1285,8 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::updateDensityParams(GAMMA2_REG &
 template<>
 bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::updateDensityParams(GAMMA2_REG &d1, GAMMA2_REG &d2, AppOptions &options)   
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
+    String<String<String<long double> > > statePosteriors1;
+    String<String<String<long double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     for (unsigned s = 0; s < 2; ++s)
@@ -1343,8 +1343,8 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::updateDensityParams(GAMM
 template<typename TD1, typename TD2, typename TB1, typename TB2>
 bool HMM<TD1, TD2, TB1, TB2>::updateDensityParams(TD1 /*&d1*/, TD2 /*&d2*/, TB1 &bin1, TB2 &bin2, AppOptions &options)   
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
+    String<String<String<long double> > > statePosteriors1;
+    String<String<String<long double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     for (unsigned s = 0; s < 2; ++s)

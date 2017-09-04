@@ -54,11 +54,11 @@ public:
     ZTBIN_REG(double b0_): b0(b0_) {}
     ZTBIN_REG() {}
  
-    template<typename TType1, typename TType2> double getDensity(TType1 const &k, TType2 const &n, double const &pred);
-    template<typename TType1, typename TType2> double getDensity(TType1 const &k, TType2 const &n);
+    template<typename TType1, typename TType2> long double getDensity(TType1 const &k, TType2 const &n, double const &pred);
+    template<typename TType1, typename TType2> long double getDensity(TType1 const &k, TType2 const &n);
 
-    void updateP(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options);
-    void updateRegCoeffs(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const&options);
+    void updateP(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options);
+    void updateRegCoeffs(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const&options);
 
     double b0;   // intercept
     String<double> regCoeffs;
@@ -69,7 +69,7 @@ public:
 // for given motif m; optimize b_m
 struct FctLL_ZTBIN_REG
 {
-    FctLL_ZTBIN_REG(double const& b0_, char const& m_, String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : b0(b0_), m(m_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
+    FctLL_ZTBIN_REG(double const& b0_, char const& m_, String<String<String<long double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : b0(b0_), m(m_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
     { 
     }
     double operator()(double const& b)
@@ -115,13 +115,13 @@ struct FctLL_ZTBIN_REG
 private:
     double b0;
     char m;     // motif ID
-    String<String<String<double> > > statePosteriors;
+    String<String<String<long double> > > statePosteriors;
     String<String<Observations> > &setObs;
     AppOptions options;
 };
 
 
-void ZTBIN_REG::updateRegCoeffs(String<String<String<double> > > &statePosteriors, 
+void ZTBIN_REG::updateRegCoeffs(String<String<String<long double> > > &statePosteriors, 
                          String<String<Observations> > &setObs, 
                          AppOptions const&options)
 { 
@@ -143,7 +143,7 @@ void ZTBIN_REG::updateRegCoeffs(String<String<String<double> > > &statePosterior
 
 
 // use truncCounts
-void ZTBIN_REG::updateP(String<String<String<double> > > &statePosteriors, 
+void ZTBIN_REG::updateP(String<String<String<long double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, AppOptions const& options)
 {
     double sum1 = 0.0;
@@ -178,7 +178,7 @@ void ZTBIN_REG::updateP(String<String<String<double> > > &statePosteriors,
 
 // k: diagnostic events (de); n: read counts (c)
 template<typename TType1, typename TType2> 
-double ZTBIN_REG::getDensity(TType1 const &k, TType2 const &n, double const &pred)
+long double ZTBIN_REG::getDensity(TType1 const &k, TType2 const &n, double const &pred)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
@@ -199,19 +199,19 @@ double ZTBIN_REG::getDensity(TType1 const &k, TType2 const &n, double const &pre
 }
 
 template<typename TType1, typename TType2> 
-double ZTBIN_REG::getDensity(TType1 const &k, TType2 const &n)
+long double ZTBIN_REG::getDensity(TType1 const &k, TType2 const &n)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
     unsigned n2 = (n > k) ? (n) : (k);          // make sure n >= k      (or limit k?) 
    
-    double pred = 1.0/(1.0+exp(- this->b0));
+    long double pred = 1.0/(1.0+exp(- this->b0));
 
     // use boost implementation, maybe avoids overflow
     boost::math::binomial_distribution<long double> boostBin;
     boostBin = boost::math::binomial_distribution<long double> ((int)n2, pred); 
 
-    double res = boost::math::pdf(boostBin, k);
+    long double res = boost::math::pdf(boostBin, k);
     if (std::isnan(res))   // or any other error?
     {
         std::cerr << "ERROR: binomial pdf is : " << res << std::endl;

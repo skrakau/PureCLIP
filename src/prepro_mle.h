@@ -34,8 +34,8 @@ void prior_mle(GAMMA2 &gamma1, GAMMA2 &gamma2,
                Data &data, 
                AppOptions &options)
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
+    String<String<String<long double> > > statePosteriors1;
+    String<String<String<long double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     // split into non-enriched and enriched
@@ -87,8 +87,8 @@ void prior_mle(GAMMA2_REG &gamma1_reg, GAMMA2_REG &gamma2_reg,
                Data &data, 
                AppOptions &options)
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
+    String<String<String<long double> > > statePosteriors1;
+    String<String<String<long double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     // split into non-enriched and enriched
@@ -277,8 +277,8 @@ void estimateTransitions(String<String<double> > &initTrans,
             double d1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[0]);
             double d2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[0]);
             unsigned prev_state = 0;
-            double gamma1_eProb = gamma1.getDensity(data.setObs[s][i].kdes[0], d1_pred);
-            double gamma2_eProb = gamma2.getDensity(data.setObs[s][i].kdes[0], d2_pred);
+            long double gamma1_eProb = gamma1.getDensity(data.setObs[s][i].kdes[0], d1_pred);
+            long double gamma2_eProb = gamma2.getDensity(data.setObs[s][i].kdes[0], d2_pred);
             if (data.setObs[s][i].kdes[0] < gamma1.tp)
             {
                 gamma1_eProb = 1.0;
@@ -287,7 +287,7 @@ void estimateTransitions(String<String<double> > &initTrans,
             unsigned k = data.setObs[s][i].truncCounts[0];
             unsigned n = data.setObs[s][i].nEstimates[0];
 
-            double max = gamma1_eProb * bin1.getDensity(k, n);   // most likely non-enriched and no crosslink "0"
+            long double max = gamma1_eProb * bin1.getDensity(k, n);   // most likely non-enriched and no crosslink "0"
          
             if (gamma1_eProb * bin2.getDensity(k, n) > max)      // most likely non-enriched and crosslink "1" 
             {
