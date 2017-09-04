@@ -248,7 +248,7 @@ namespace seqan {
         resize(this->nEstimates, length(), Exact());
         for (unsigned t = 0; t < length(); ++t)
         {
-             this->nEstimates[t] = std::max((__uint16)floor(b0 + b1*this->kdes[t] + 0.5), (__uint16)1);   // avoid becoming 0 !    
+             this->nEstimates[t] = (__uint16)std::max((int)floor(b0 + b1*this->kdes[t] + 0.5), 1);   // avoid becoming 0 !    
         }
     }
 
