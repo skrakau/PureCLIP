@@ -52,8 +52,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     ArgumentParser parser("pureclip");
     // Set short description, version, and date.
     setShortDescription(parser, "Protein-RNA interaction site detection ");
-    setVersion(parser, "1.0.1");
-    setDate(parser, "Juli 2017");
+    setVersion(parser, "1.0.2");
+    setDate(parser, "October 2017");
 
     // Define usage line and long description.
     addUsageLine(parser, "[\\fIOPTIONS\\fP] <-i \\fIBAM FILE\\fP> <-bai \\fIBAI FILE\\fP> <-g \\fIGENOME FILE\\fP> <-o \\fIOUTPUT BED FILE\\fP> ");
@@ -121,13 +121,14 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("g1kmax", "g1kmax", "Maximum shape k of 'non-enriched' gamma distribution (g1.k).", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("g2kmin", "g2kmin", "Minimum shape k of 'enriched' gamma distribution (g2.k).", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("g2kmax", "g2kmax", "Maximum shape k of 'enriched' gamma distribution (g2.k).", ArgParseArgument::DOUBLE));
-    addOption(parser, ArgParseOption("g1g2k", "g1g2k", "Force 'non-enriched' gamma parameter k <= 'enriched' gamma parameter k."));
+    //addOption(parser, ArgParseOption("g1g2k", "g1g2k", "Force 'non-enriched' gamma parameter k <= 'enriched' gamma parameter k."));
+    addOption(parser, ArgParseOption("fk", "fk", "When incorporating input signal, do not constrain 'non-enriched' shape parameter k <= 'enriched' gamma parameter k."));
 
     addOption(parser, ArgParseOption("mkn", "mkn", "Max. k/N ratio (read start sites/N) used to learn truncation probabilities for 'non-crosslink' and 'crosslink' emission probabilities (high ratios might originate from mapping artifacts that can disturb parameter learning). Default: 1.0", ArgParseArgument::DOUBLE));
     setMinValue(parser, "mkn", "0.5");
     setMaxValue(parser, "mkn", "1.5"); 
 
-    addOption(parser, ArgParseOption("mtp", "mtp", "Min. transition probability from state '2' to '3' (for poor data, where no clear distinction between 'enriched' and 'non-enriched' is possible). Default: 0.0001.", ArgParseArgument::DOUBLE));
+    addOption(parser, ArgParseOption("mtp", "mtp", "Min. transition probability from state '2' to '3' (helpful for poor data, where no clear distinction between 'enriched' and 'non-enriched' is possible). Default: 0.0001.", ArgParseArgument::DOUBLE));
 
     addOption(parser, ArgParseOption("mk", "mkde", "Minimum KDE value used for fitting left-truncated gamma distributions. Default: corresponding to singleton read start.", ArgParseArgument::DOUBLE));
 
@@ -140,9 +141,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("et2", "epta", "Exclude intervals containing poly-U stretches from analysis."));
  
     addOption(parser, ArgParseOption("mrtf", "mrtf", "Fit gamma shape k only for positions with min. covariate value.", ArgParseArgument::DOUBLE));
-    addOption(parser, ArgParseOption("mtc", "mtc", "Maximum number of truncations at one position. For sites with counts above threshold the whole interval will be discarded! Default: 250.", ArgParseArgument::INTEGER));
+    addOption(parser, ArgParseOption("mtc", "mtc", "Maximum number of truncations at one position used for learning. For sites with counts above threshold the whole covered regions will be ignored for learning! Default: 250.", ArgParseArgument::INTEGER));
     setMinValue(parser, "mtc", "50");
-    setMaxValue(parser, "mtc", "254"); 
+    setMaxValue(parser, "mtc", "500"); 
 
     addOption(parser, ArgParseOption("pet", "pet", "Prior enrichment threshold: a KDE threshold corresponding to 7 read start counts at one position will be used for initial classification of 'non-enriched' and 'enriched' site. Default: 7", ArgParseArgument::INTEGER));
     setMinValue(parser, "pet", "2");
@@ -151,7 +152,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addSection(parser, "General user options");
     addOption(parser, ArgParseOption("nt", "nt", "Number of threads used for learning.", ArgParseArgument::INTEGER));
     addOption(parser, ArgParseOption("nta", "nta", "Number of threads used for applying learned parameters. Increases memory usage, if greater than number of chromosomes used for learning, since HMM will be build for multiple chromosomes in parallel.", ArgParseArgument::INTEGER));
-    addOption(parser, ArgParseOption("tmp", "tmp", "Path to directory to store intermediate files. Default: /tmp ?", ArgParseArgument::STRING));
+    addOption(parser, ArgParseOption("tmp", "tmp", "Path to directory to store intermediate files. Default: /tmp", ArgParseArgument::STRING));
     addOption(parser, ArgParseOption("oa", "oa", "Outputs all sites with at least one read start in extended output format."));
 
     addOption(parser, ArgParseOption("q", "quiet", "Set verbosity to a minimum."));
@@ -212,8 +213,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.g1_kMax, parser, "g1kmax");
     getOptionValue(options.g2_kMin, parser, "g2kmin");
     getOptionValue(options.g2_kMax, parser, "g2kmax");
-    if (isSet(parser, "g1g2k"))
-        options.g1_k_le_g2_k = true;
+    if (isSet(parser, "fk"))
+        options.g1_k_le_g2_k = false;
     getOptionValue(options.bandwidth, parser, "bdw");
 
     getOptionValue(options.useKdeThreshold, parser, "mkde");
