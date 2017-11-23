@@ -178,7 +178,7 @@ bool loadApplyChrs(AppOptions &options, TStore &store)
 
 
 template <typename TContigObservations, typename TStore>
-bool loadObservations(TContigObservations &contigObservationsF, TContigObservations &contigObservationsR, unsigned contigId, TStore &store, AppOptions &options)
+int loadObservations(TContigObservations &contigObservationsF, TContigObservations &contigObservationsR, unsigned contigId, TStore &store, AppOptions &options)
 {
 #ifdef HMM_PROFILE
     double timeStamp = sysTime();
@@ -192,7 +192,7 @@ bool loadObservations(TContigObservations &contigObservationsF, TContigObservati
     if (!open(inFile, toCString(options.bamFileName)))
     {
         std::cerr << "ERROR: Could not open " << options.bamFileName << " for reading.\n";
-        return false;
+        return 1;
     }
     BamHeader header;
     readHeader(header, inFile);
@@ -201,14 +201,14 @@ bool loadObservations(TContigObservations &contigObservationsF, TContigObservati
     if (!open(baiIndex, toCString(options.baiFileName)))
     {
         std::cerr << "ERROR: Could not read BAI index file " << options.baiFileName << "\n";
-        return false;
+        return 1;
     }
     // Translate from contig name to rID.
     int rID = 0;
     if (!getIdByName(rID, contigNamesCache(context(inFile)), store.contigNameStore[contigId]))
     {
-        std::cerr << "ERROR: Contig " << store.contigNameStore[contigId] << " not known.\n";
-        return false; 
+        if (options.verbosity >= 2) std::cout << "NOTE: Contig " << store.contigNameStore[contigId] << " not existing in BAM file.\n";
+        return 2; 
     }
 
     resize(contigObservationsF.truncCounts, length(store.contigStore[contigId].seq), 0, Exact());
@@ -223,7 +223,7 @@ bool loadObservations(TContigObservations &contigObservationsF, TContigObservati
 #ifdef HMM_PROFILE
     Times::instance().time_loadObservations += (sysTime() - timeStamp);
 #endif
-    return true;
+    return 0;
 }
 
 
@@ -1034,29 +1034,33 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
     {
         unsigned contigId = options.intervals_contigIds[i];
 
-        if (!loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, store, options))
+        if (loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, store, options) == 1)
+        {
             stop = true; 
+        }
+        else if (loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, store, options) == 0)
+        {
+            String<double> contigCovsF;
+            String<double> contigCovsR;
+            loadCovariates(contigCovsF, contigCovsR, contigId, store, options); 
+            String<String<float> > contigCovsFimo;
+            String<String<char> > motifIds;
+            loadMotifCovariates(contigCovsFimo, motifIds, contigId, store, options); 
 
-        String<double> contigCovsF;
-        String<double> contigCovsR;
-        loadCovariates(contigCovsF, contigCovsR, contigId, store, options); 
-        String<String<float> > contigCovsFimo;
-        String<String<char> > motifIds;
-        loadMotifCovariates(contigCovsFimo, motifIds, contigId, store, options); 
+            // Extract covered intervals for learning
+            unsigned i1 = options.intervals_positions[i][0];    // interval begin
+            unsigned i2 = options.intervals_positions[i][1];    // interval end
+            Data c_data;                
+            resize(c_data.setObs, 2);
+            resize(c_data.setPos, 2);
+            resize(c_data.statePosteriors, 2);
+            resize(c_data.states, 2);
 
-        // Extract covered intervals for learning
-        unsigned i1 = options.intervals_positions[i][0];    // interval begin
-        unsigned i2 = options.intervals_positions[i][1];    // interval end
-        Data c_data;                
-        resize(c_data.setObs, 2);
-        resize(c_data.setPos, 2);
-        resize(c_data.statePosteriors, 2);
-        resize(c_data.states, 2);
+            extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, true, store, options); 
 
-        extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, true, store, options); 
-
-        SEQAN_OMP_PRAGMA(critical)
-        append(data, c_data);           
+            SEQAN_OMP_PRAGMA(critical)
+            append(data, c_data);  
+        }
     }
     if (stop) return 1;
 
@@ -1110,85 +1114,89 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
         ContigObservations contigObservationsF;
         ContigObservations contigObservationsR;
 
-        if (!loadObservations(contigObservationsF, contigObservationsR, contigId, store, options))
-            stop = true; 
-
-        String<double> c_contigCovsF;
-        String<double> c_contigCovsR;
-        loadCovariates(c_contigCovsF, c_contigCovsR, contigId, store, options); 
-        String<String<float> > c_contigCovsFimo;
-        String<String<char> > c_motifIds;
-        loadMotifCovariates(c_contigCovsFimo, c_motifIds, contigId, store, options); 
-
-        // Extract covered intervals
-        unsigned i1 = 0;    
-        unsigned i2 = length(store.contigStore[contigId].seq);    
-        Data c_data;                
-        resize(c_data.setObs, 2);
-        resize(c_data.setPos, 2);
-        resize(c_data.statePosteriors, 2);
-        resize(c_data.states, 2); 
-        extractCoveredIntervals(c_data, contigObservationsF, contigObservationsR, c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, false, store, options); 
-
-        if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   // TODO handle cases
+        if (loadObservations(contigObservationsF, contigObservationsR, contigId, store, options) == 1)
         {
+            stop = true; 
+        }
+        else if (loadObservations(contigObservationsF, contigObservationsR, contigId, store, options) == 0)
+        {
+            String<double> c_contigCovsF;
+            String<double> c_contigCovsR;
+            loadCovariates(c_contigCovsF, c_contigCovsR, contigId, store, options); 
+            String<String<float> > c_contigCovsFimo;
+            String<String<char> > c_motifIds;
+            loadMotifCovariates(c_contigCovsFimo, c_motifIds, contigId, store, options); 
 
-            preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
+            // Extract covered intervals
+            unsigned i1 = 0;    
+            unsigned i2 = length(store.contigStore[contigId].seq);    
+            Data c_data;                
+            resize(c_data.setObs, 2);
+            resize(c_data.setPos, 2);
+            resize(c_data.statePosteriors, 2);
+            resize(c_data.states, 2); 
+            extractCoveredIntervals(c_data, contigObservationsF, contigObservationsR, c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, false, store, options); 
 
-            // Apply learned parameters
-            unsigned contigLen = length(store.contigStore[contigId].seq);
-            if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, contigLen, options))
+            if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   // TODO handle cases
             {
-                SEQAN_OMP_PRAGMA(critical)
-                stop = true;
-            }
 
-            // Temp. output
-            CharString tempFileNameBed;
+                preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
 
-            if (empty(options.tempPath))
-            {
-                SEQAN_OMP_PRAGMA(critical)
-                append(tempFileNameBed, SEQAN_TEMP_FILENAME());
-                std::stringstream ss;
-                ss << contigId;
-                append(tempFileNameBed, ss.str());
-                append(tempFileNameBed, ".bed");
-            }
-            else
-            {
-                SEQAN_OMP_PRAGMA(critical)
-                tempFileNameBed = myTempFileName(".bed", toCString(options.tempPath));
-            }
+                // Apply learned parameters
+                unsigned contigLen = length(store.contigStore[contigId].seq);
+                if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, contigLen, options))
+                {
+                    SEQAN_OMP_PRAGMA(critical)
+                    stop = true;
+                }
 
-            contigTempFileNamesBed[contigId] = tempFileNameBed;
-            if (options.verbosity >= 2) std::cout << "temp file Name: " << tempFileNameBed << std::endl;
-            BedFileOut outBed(toCString(tempFileNameBed)); 
-            writeStates(outBed, c_data, store, contigId, options);  
-            
-            if (!empty(options.outRegionsFileName))
-            {
+                // Temp. output
+                CharString tempFileNameBed;
+
                 if (empty(options.tempPath))
                 {
-
                     SEQAN_OMP_PRAGMA(critical)
-                    tempFileNameBed = SEQAN_TEMP_FILENAME();
+                    append(tempFileNameBed, SEQAN_TEMP_FILENAME());
                     std::stringstream ss;
                     ss << contigId;
                     append(tempFileNameBed, ss.str());
-                    append(tempFileNameBed, ".regions.bed");
+                    append(tempFileNameBed, ".bed");
                 }
                 else
                 {
                     SEQAN_OMP_PRAGMA(critical)
-                    tempFileNameBed = myTempFileName(".regions.bed", toCString(options.tempPath));
+                    tempFileNameBed = myTempFileName(".bed", toCString(options.tempPath));
                 }
 
-                contigTempFileNamesBed2[contigId] = tempFileNameBed;
+                contigTempFileNamesBed[contigId] = tempFileNameBed;
                 if (options.verbosity >= 2) std::cout << "temp file Name: " << tempFileNameBed << std::endl;
-                BedFileOut outBed2(toCString(tempFileNameBed)); 
+                BedFileOut outBed(toCString(tempFileNameBed)); 
+                writeStates(outBed, c_data, store, contigId, options);  
+                
+                if (!empty(options.outRegionsFileName))
+                {
+                    if (empty(options.tempPath))
+                    {
 
-                writeRegions(outBed2, c_data, store, contigId, options);              
+                        SEQAN_OMP_PRAGMA(critical)
+                        tempFileNameBed = SEQAN_TEMP_FILENAME();
+                        std::stringstream ss;
+                        ss << contigId;
+                        append(tempFileNameBed, ss.str());
+                        append(tempFileNameBed, ".regions.bed");
+                    }
+                    else
+                    {
+                        SEQAN_OMP_PRAGMA(critical)
+                        tempFileNameBed = myTempFileName(".regions.bed", toCString(options.tempPath));
+                    }
+
+                    contigTempFileNamesBed2[contigId] = tempFileNameBed;
+                    if (options.verbosity >= 2) std::cout << "temp file Name: " << tempFileNameBed << std::endl;
+                    BedFileOut outBed2(toCString(tempFileNameBed)); 
+
+                    writeRegions(outBed2, c_data, store, contigId, options);              
+                }
             }
         }
     }
@@ -1200,25 +1208,28 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
     for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
     {
         unsigned contigId = options.applyChr_contigIds[i];
-        // BED
-        BedFileIn bedFileIn;
-        if (!open(bedFileIn, toCString(contigTempFileNamesBed[contigId])))
+        if (!empty(contigTempFileNamesBed[contigId]))
         {
-            //std::cerr << "ERROR: Could not open temporary bed file: " << contigTempFileNamesBed[contigId] << "\n";
-            continue;
-        }
+            // BED
+            BedFileIn bedFileIn;
+            if (!open(bedFileIn, toCString(contigTempFileNamesBed[contigId])))
+            {
+                //std::cerr << "ERROR: Could not open temporary bed file: " << contigTempFileNamesBed[contigId] << "\n";
+                continue;
+            }
 
-        BedRecord<seqan::Bed6> bedRecord;
-        while (!atEnd(bedFileIn))
-        {
-            readRecord(bedRecord, bedFileIn);
-            writeRecord(outBed, bedRecord);
-        }
-        std::remove(toCString(contigTempFileNamesBed[contigId]));
-        if (exists_test(contigTempFileNamesBed[contigId]))
-        {
-            std::cerr << "ERROR: Could open temporary bed file which should be deleted: " << contigTempFileNamesBed[contigId]  << std::endl;
-            return 1;
+            BedRecord<seqan::Bed6> bedRecord;
+            while (!atEnd(bedFileIn))
+            {
+                readRecord(bedRecord, bedFileIn);
+                writeRecord(outBed, bedRecord);
+            }
+            std::remove(toCString(contigTempFileNamesBed[contigId]));
+            if (exists_test(contigTempFileNamesBed[contigId]))
+            {
+                std::cerr << "ERROR: Could open temporary bed file which should be deleted: " << contigTempFileNamesBed[contigId]  << std::endl;
+                return 1;
+            }
         }
     }
 
@@ -1230,25 +1241,28 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
         for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
         {
             unsigned contigId = options.applyChr_contigIds[i];
-            // BED
-            BedFileIn bedFileIn;
-            if (!open(bedFileIn, toCString(contigTempFileNamesBed2[contigId])))
+            if (!empty(contigTempFileNamesBed[contigId]))
             {
-                //std::cerr << "ERROR: Could not open temporary bed file: " << contigTempFileNamesBed[contigId] << "\n";
-                continue;
-            }
+                // BED
+                BedFileIn bedFileIn;
+                if (!open(bedFileIn, toCString(contigTempFileNamesBed2[contigId])))
+                {
+                    //std::cerr << "ERROR: Could not open temporary bed file: " << contigTempFileNamesBed[contigId] << "\n";
+                    continue;
+                }
 
-            BedRecord<seqan::Bed6> bedRecord;
-            while (!atEnd(bedFileIn))
-            {
-                readRecord(bedRecord, bedFileIn);
-                writeRecord(outBed2, bedRecord);
-            }
-            std::remove(toCString(contigTempFileNamesBed2[contigId]));
-            if (exists_test(contigTempFileNamesBed2[contigId]))
-            {
-                std::cerr << "ERROR: Could open temporary bed file which should be deleted: " << contigTempFileNamesBed2[contigId]  << std::endl;
-                return 1;
+                BedRecord<seqan::Bed6> bedRecord;
+                while (!atEnd(bedFileIn))
+                {
+                    readRecord(bedRecord, bedFileIn);
+                    writeRecord(outBed2, bedRecord);
+                }
+                std::remove(toCString(contigTempFileNamesBed2[contigId]));
+                if (exists_test(contigTempFileNamesBed2[contigId]))
+                {
+                    std::cerr << "ERROR: Could open temporary bed file which should be deleted: " << contigTempFileNamesBed2[contigId]  << std::endl;
+                    return 1;
+                }
             }
         }
     }
