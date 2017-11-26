@@ -92,6 +92,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     addOption(parser, ArgParseOption("dm", "dm", "Distance used to merge individual crosslink sites to binding regions. Default: 8", ArgParseArgument::INTEGER));
 
+    addOption(parser, ArgParseOption("ld", "ld", "Use higher precision to compute emission probabilities etc. (i.e. long double). Useful in cases of extreme outliers, e.g. extreme high read start counts whose emission probabilities are close to zero and which would be discarded in default setting (along with warning messages). Note: increases memory consumption. Use in combination with '-iv'. Default: double."));
+
 
     addSection(parser, "Options for incorporating covariates");
 
@@ -222,6 +224,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.minTransProbCS, parser, "mtp");
     getOptionValue(options.maxkNratio, parser, "mkn");
     getOptionValue(options.distMerge, parser, "dm");
+    if (isSet(parser, "ld"))
+        options.useHighPrecision = true;
 
     getOptionValue(options.polyAThreshold, parser, "pat");
     if (isSet(parser, "epal"))
@@ -274,6 +278,64 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
 
 
+template <typename TDOUBLE, typename TOptions>
+bool doIt(TDOUBLE /**/, TOptions &options)
+{
+    if (options.useCov_RPKM)
+    {
+        GAMMA2_REG<TDOUBLE> gamma1; 
+        GAMMA2_REG<TDOUBLE> gamma2;
+
+        if (options.useFimoScore)
+        {
+            ZTBIN_REG<TDOUBLE> bin1;
+            ZTBIN_REG<TDOUBLE> bin2;
+            bin1.b0 = log(options.p1/(1.0 - options.p1));            
+            bin2.b0 = log(options.p2/(1.0 - options.p2)); 
+            resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
+            resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
+            return doIt(gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, options);  
+        }
+        else
+        {
+            ZTBIN<TDOUBLE> bin1;
+            ZTBIN<TDOUBLE> bin2;
+            bin1.p = options.p1;            
+            bin2.p = options.p2; 
+            return doIt(gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, options);  
+        }
+    }
+    else
+    {
+        GAMMA2<TDOUBLE> gamma1;           
+        GAMMA2<TDOUBLE> gamma2;
+
+        options.g1_kMax = 1.0;
+        if (options.verbosity > 1) std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.0." << std::endl;
+
+        if (options.useFimoScore)
+        {
+            ZTBIN_REG<TDOUBLE> bin1;
+            ZTBIN_REG<TDOUBLE> bin2;
+
+            bin1.b0 = log(options.p1/(1.0 - options.p1));            
+            bin2.b0 = log(options.p2/(1.0 - options.p2)); 
+            resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
+            resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
+            return doIt(gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, options);  
+        }
+        else
+        {
+            ZTBIN<TDOUBLE> bin1;
+            ZTBIN<TDOUBLE> bin2;
+            bin1.p = options.p1;            
+            bin2.p = options.p2; 
+            return doIt(gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, options);  
+        }
+    }
+}
+
+
 int main(int argc, char const ** argv)
 {
     // Parse the command line.
@@ -298,60 +360,16 @@ int main(int argc, char const ** argv)
                   << "VERBOSITY\t" << options.verbosity << "\n\n";
     }*/
     /////////////////////////////////////////
-
-    if (options.useCov_RPKM)
+    // use parameter
+    if (options.useHighPrecision)
     {
-        GAMMA2_REG gamma1; 
-        GAMMA2_REG gamma2;
-
-        if (options.useFimoScore)
-        {
-            ZTBIN_REG bin1;
-            ZTBIN_REG bin2;
-            bin1.b0 = log(options.p1/(1.0 - options.p1));            
-            bin2.b0 = log(options.p2/(1.0 - options.p2)); 
-            resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            return doIt(gamma1, gamma2, bin1, bin2, options);  
-        }
-        else
-        {
-            ZTBIN bin1;
-            ZTBIN bin2;
-            bin1.p = options.p1;            
-            bin2.p = options.p2; 
-            return doIt(gamma1, gamma2, bin1, bin2, options);  
-        }
+        return doIt((long double)0.0, options);
     }
     else
     {
-        GAMMA2 gamma1;           
-        GAMMA2 gamma2;
+        return doIt((double)0.0, options);
+    }  
 
-        options.g1_kMax = 1.0;
-        if (options.verbosity > 1) std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.0." << std::endl;
-
-        if (options.useFimoScore)
-        {
-            ZTBIN_REG bin1;
-            ZTBIN_REG bin2;
-
-            bin1.b0 = log(options.p1/(1.0 - options.p1));            
-            bin2.b0 = log(options.p2/(1.0 - options.p2)); 
-            resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            return doIt(gamma1, gamma2, bin1, bin2, options);  
-        }
-        else
-        {
-            ZTBIN bin1;
-            ZTBIN bin2;
-            bin1.p = options.p1;            
-            bin2.p = options.p2; 
-            return doIt(gamma1, gamma2, bin1, bin2, options);  
-        }
-
-    }
     return 0;
 }
 

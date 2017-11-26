@@ -29,13 +29,13 @@
 
 using namespace seqan;
 
-
-void prior_mle(GAMMA2 &gamma1, GAMMA2 &gamma2,  
+template<typename TDOUBLE>
+void prior_mle(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2,  
                Data &data, 
                AppOptions &options)
 {
-    String<String<String<long double> > > statePosteriors1;
-    String<String<String<long double> > > statePosteriors2;
+    String<String<String<TDOUBLE> > > statePosteriors1;
+    String<String<String<TDOUBLE> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     // split into non-enriched and enriched
@@ -83,12 +83,13 @@ void prior_mle(GAMMA2 &gamma1, GAMMA2 &gamma2,
     myPrint(gamma2);
 }
 
-void prior_mle(GAMMA2_REG &gamma1_reg, GAMMA2_REG &gamma2_reg,  
+template<typename TDOUBLE>
+void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,  
                Data &data, 
                AppOptions &options)
 {
-    String<String<String<long double> > > statePosteriors1;
-    String<String<String<long double> > > statePosteriors2;
+    String<String<String<TDOUBLE> > > statePosteriors1;
+    String<String<String<TDOUBLE> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     // split into non-enriched and enriched
@@ -116,8 +117,8 @@ void prior_mle(GAMMA2_REG &gamma1_reg, GAMMA2_REG &gamma2_reg,
         }
     }
 
-    GAMMA2     gamma1(options.useKdeThreshold);  
-    GAMMA2     gamma2(options.useKdeThreshold);      
+    GAMMA2<TDOUBLE>     gamma1(options.useKdeThreshold);  
+    GAMMA2<TDOUBLE>     gamma2(options.useKdeThreshold);      
     gamma1.k = 1.0; 
     gamma1.updateTheta(statePosteriors1, data.setObs, options);
     gamma1.updateK(statePosteriors1, data.setObs, options.g1_kMin, options.g1_kMax,  options);
@@ -156,9 +157,9 @@ void prior_mle(GAMMA2_REG &gamma1_reg, GAMMA2_REG &gamma2_reg,
 
 
 
-template<typename TB1, typename TB2>
+template<typename TDOUBLE, typename TBIN>
 void estimateTransitions(String<String<double> > &initTrans, 
-                         GAMMA2 &gamma1, GAMMA2 &gamma2, TB1 &bin1, TB2 &bin2, 
+                         GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, TBIN &bin1, TBIN &bin2, 
                          Data &data,
                          AppOptions &options)
 {
@@ -254,9 +255,9 @@ void estimateTransitions(String<String<double> > &initTrans,
 }
 
 
-template<typename TB1, typename TB2>
+template<typename TDOUBLE, typename TBIN>
 void estimateTransitions(String<String<double> > &initTrans, 
-                         GAMMA2_REG &gamma1, GAMMA2_REG &gamma2, TB1 &bin1, TB2 &bin2, 
+                         GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, TBIN &bin1, TBIN &bin2, 
                          Data &data,
                          AppOptions &options)
 {

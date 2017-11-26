@@ -45,22 +45,24 @@ using namespace seqan;
 ////////
 // P = (k-1)/(n-1) ?
 
+template<typename TDOUBLE>
 class ZTBIN
 {
 public:
     ZTBIN(double p_): p(p_) {}
     ZTBIN() {}
  
-    template<typename TType1, typename TType2> long double getDensity(TType1 const &k, TType2 const &n);
+    long double getDensity(unsigned const &k, unsigned const &n);
 
-    void updateP(String<String<String<long double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
+    void updateP(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
 
     double p;
 };
 
 
 // use truncCounts
-void ZTBIN::updateP(String<String<String<long double> > > &statePosteriors, 
+template<typename TDOUBLE>
+void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, AppOptions const& options)
 {
     double sum1 = 0.0;
@@ -92,28 +94,29 @@ void ZTBIN::updateP(String<String<String<long double> > > &statePosteriors,
 
 
 // k: diagnostic events (de); n: read counts (c)
-template<typename TType1, typename TType2> 
-long double ZTBIN::getDensity(TType1 const &k, TType2 const &n)
+template<typename TDOUBLE> 
+long double ZTBIN<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
     unsigned n2 = (n > k) ? (n) : (k);          // make sure n >= k      (or limit k?) 
    
     // use boost implementation, maybe avoids overflow
-    boost::math::binomial_distribution<long double> boostBin;
-    boostBin = boost::math::binomial_distribution<long double> ((int)n2, this->p); 
+    boost::math::binomial_distribution<TDOUBLE> boostBin;
+    boostBin = boost::math::binomial_distribution<TDOUBLE> ((int)n2, this->p); 
 
-    long double res = boost::math::pdf(boostBin, k);
+    TDOUBLE res = boost::math::pdf(boostBin, k);
     if (std::isnan(res))   // or any other error?
     {
         std::cerr << "ERROR: binomial pdf is : " << res << std::endl;
         return 0.0;
     }
-    return res * (1.0/(1.0 - pow((1.0 - this->p), n2)));     // zero-truncated      TODO ???
+    return res * (TDOUBLE)(1.0/(1.0 - pow((1.0 - this->p), n2)));     // zero-truncated      TODO ???
 }
 
 
-void myPrint(ZTBIN &bin)
+template<typename TDOUBLE>
+void myPrint(ZTBIN<TDOUBLE> &bin)
 {
     std::cout << "*** ZTBIN ***" << std::endl;
     std::cout << "    p:"<< bin.p << std::endl;
@@ -121,14 +124,16 @@ void myPrint(ZTBIN &bin)
 }
 
 
-bool checkConvergence(ZTBIN &bin1, ZTBIN &bin2, AppOptions &options)
+template<typename TDOUBLE>
+bool checkConvergence(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, AppOptions &options)
 {
     if (std::fabs(bin1.p - bin2.p) > options.bin_p_conv) return false;
     return true;
 }
 
 
-void checkOrderBin1Bin2(ZTBIN &bin1, ZTBIN &bin2)
+template<typename TDOUBLE>
+void checkOrderBin1Bin2(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2)
 {
     if (bin1.p > bin2.p)
         std::swap(bin1.p, bin2.p); 
