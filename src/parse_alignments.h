@@ -40,7 +40,7 @@ bool parse_bamRegion(TContigObservations &contigObservationsF, TContigObservatio
     int jump_beginPos = 0;
     // Jump the BGZF stream to this position.
     bool hasAlignments = false;
-    if (!jumpToRegion(inFile, hasAlignments, rID, jump_beginPos, 1975, baiIndex))  //length(contigObservationsF.truncCounts)-1, baiIndex))
+    if (!jumpToRegion(inFile, hasAlignments, rID, jump_beginPos, length(contigObservationsF.truncCounts)-1, baiIndex))
     {
         std::cerr << "ERROR: Could not jump to " << jump_beginPos << ":" << (length(contigObservationsF.truncCounts)-1) << "\n";
         return false;
