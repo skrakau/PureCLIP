@@ -1037,11 +1037,12 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     {
         unsigned contigId = options.intervals_contigIds[i];
 
-        if (loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, store, options) == 1)
+        int r = loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, store, options);
+        if (r == 1)
         {
             stop = true; 
         }
-        else if (loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, store, options) == 0)
+        else if (r == 0)
         {
             String<double> contigCovsF;
             String<double> contigCovsR;
@@ -1117,11 +1118,12 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
         ContigObservations contigObservationsF;
         ContigObservations contigObservationsR;
 
-        if (loadObservations(contigObservationsF, contigObservationsR, contigId, store, options) == 1)
+        int r = loadObservations(contigObservationsF, contigObservationsR, contigId, store, options);
+        if (r == 1)
         {
             stop = true; 
         }
-        else if (loadObservations(contigObservationsF, contigObservationsR, contigId, store, options) == 0)
+        else if (r == 0)
         {
             String<double> c_contigCovsF;
             String<double> c_contigCovsR;
@@ -1244,7 +1246,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
         for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
         {
             unsigned contigId = options.applyChr_contigIds[i];
-            if (!empty(contigTempFileNamesBed[contigId]))
+            if (!empty(contigTempFileNamesBed2[contigId]))
             {
                 // BED
                 BedFileIn bedFileIn;
