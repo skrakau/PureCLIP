@@ -47,7 +47,7 @@ using namespace seqan;
 // GAMMA2_REG: left threshold, forced to be zero
 //////////////////////////////////////////////////////////////////////////
 
-
+template<typename TDOUBLE>
 class GAMMA2_REG  // ignore positions with KDE below theshold
 {
 public:
@@ -55,13 +55,11 @@ public:
     GAMMA2_REG(double tp_): tp(tp_) {}
     GAMMA2_REG() {}
 
-    double getDensity(double const &kde, double const &pred);
-    //void computeMean(String<String<double> > &statePosteriorsF, String<String<double> > &statePosteriorsR, String<Observations> &setObsF, String<Observations> &setObsR, AppOptions const& options); 
-    void updateMean(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
-    void updateK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
-    //void approximateK(String<String<double> > &statePosteriorsF, String<String<double> > &statePosteriorsR, String<Observations> &setObsF, String<Observations> &setObsR, AppOptions const& options); 
+    long double getDensity(double const &kde, double const &pred);
+    void updateMean(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
+    void updateK(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
 
-    bool updateRegCoeffsAndK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
+    bool updateRegCoeffsAndK(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
  
 
     double mean;   
@@ -72,43 +70,15 @@ public:
 };
 
 
-///////////////////////////////////////
-// update mean (b0, b1)
-///////////////////////////////////////
-
-// emp
-/*void GAMMA2_REG::computeMean(String<String<String<double> > > &statePosteriors, 
-                            String<String<Observations> > &setObs, 
-                            AppOptions const&options)
-{
-    double sum1 = 0.0;
-    double sum2 = 0.0;
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        for (unsigned i = 0; i < length(setObs[s]); ++i)
-        {
-            for (unsigned t = 0; t < setObs[s][i].length(); ++t)  
-            {
-                if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].kdes[t] >= this->tp && setObs[s][i].truncCounts[t] >= 1)
-                {
-                    sum1 += statePosteriors[s][i][t] * setObs[s][i].kdes[t];
-                    sum2 += statePosteriors[s][i][t];
-                }
-            }
-        }
-    }
-
-    this->mean = sum1/sum2;
-}*/
-
 
 ////////////////////////////////////
 // GSL newton 
 
+template<typename TDOUBLE>
 struct Fct_GSL_N_GAMMA2_REG
 {
     Fct_GSL_N_GAMMA2_REG(double const & tp_, double const& k_, 
-                                  String<String<String<double> > > const& statePosteriors_,  
+                                  String<String<String<TDOUBLE> > > const& statePosteriors_,  
                                   String<String<Observations> > & setObs_,  
                                   AppOptions const&options_) : tp(tp_), k(k_),
                                                                statePosteriors(statePosteriors_),  
@@ -122,10 +92,10 @@ struct Fct_GSL_N_GAMMA2_REG
         const double b0 = gsl_vector_get (x, 0);
         const double b1 = gsl_vector_get (x, 1);
 
-        double f = 0.0;
+        TDOUBLE f = 0.0;
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<double> f_S;
+            String<TDOUBLE> f_S;
             resize(f_S, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
             SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
@@ -142,7 +112,7 @@ struct Fct_GSL_N_GAMMA2_REG
 
                         double nligf = boost::math::gamma_p(k, (tp*k/pred));
             
-                        double p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
+                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
 
                         f_S[i] +=  p * statePosteriors[s][i][t];
                     }
@@ -161,12 +131,12 @@ struct Fct_GSL_N_GAMMA2_REG
         const double b0 = gsl_vector_get (x, 0);
         const double b1 = gsl_vector_get (x, 1);
 
-        double f_0 = 0.0;
-        double f_1 = 0.0;
+        TDOUBLE f_0 = 0.0;
+        TDOUBLE f_1 = 0.0;
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<double> f_0_S;
-            String<double> f_1_S;
+            String<TDOUBLE> f_0_S;
+            String<TDOUBLE> f_1_S;
             resize(f_0_S, length(setObs[s]), 0.0, Exact());
             resize(f_1_S, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
@@ -182,13 +152,13 @@ struct Fct_GSL_N_GAMMA2_REG
                         double x1 = setObs[s][i].rpkms[t];
                         double pred  = exp(b0 + b1 * x1);
 
-                       double h = tp*k/pred;
+                        double h = tp*k/pred;
                         double ligf = boost::math::tgamma_lower(k, h);
 
                         // b0
-                        double p_0 = k*kde/pred - k - exp(-h)*pow(h, k)/(tgamma(k) - ligf);   
+                        TDOUBLE p_0 = k*kde/pred - k - exp(-h)*pow(h, k)/(tgamma(k) - ligf);   
                         // b1
-                        double p_1 = x1*p_0;   
+                        TDOUBLE p_1 = x1*p_0;   
 
                         f_0_S[i] +=  p_0 * statePosteriors[s][i][t];
                         f_1_S[i] +=  p_1 * statePosteriors[s][i][t];
@@ -213,13 +183,13 @@ struct Fct_GSL_N_GAMMA2_REG
         const double b1 = gsl_vector_get (x, 1);
 
         *f = 0.0;
-        double f_0 = 0.0;
-        double f_1 = 0.0;
+        TDOUBLE f_0 = 0.0;
+        TDOUBLE f_1 = 0.0;
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<double> f_S;
-            String<double> f_0_S;
-            String<double> f_1_S;
+            String<TDOUBLE> f_S;
+            String<TDOUBLE> f_0_S;
+            String<TDOUBLE> f_1_S;
             resize(f_S, length(setObs[s]), 0.0, Exact());
             resize(f_0_S, length(setObs[s]), 0.0, Exact());
             resize(f_1_S, length(setObs[s]), 0.0, Exact());
@@ -240,13 +210,13 @@ struct Fct_GSL_N_GAMMA2_REG
                         double nligf = boost::math::gamma_p(k, h);
                         double ligf = boost::math::tgamma_lower(k, h);
             
-                        double p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
+                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
                         f_S[i] +=  p * statePosteriors[s][i][t];
 
                         // b0
-                        double p_0 = k*kde/pred - k - exp(-h)*pow(h, k)/(tgamma(k) - ligf);   
+                        TDOUBLE p_0 = k*kde/pred - k - exp(-h)*pow(h, k)/(tgamma(k) - ligf);   
                         // b1
-                        double p_1 = x1*p_0;   
+                        TDOUBLE p_1 = x1*p_0;   
                         f_0_S[i] +=  p_0 * statePosteriors[s][i][t];
                         f_1_S[i] +=  p_1 * statePosteriors[s][i][t];
                     }
@@ -268,37 +238,41 @@ struct Fct_GSL_N_GAMMA2_REG
 private:
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
 
 
 // Wrapper functions for functors
+template<typename TDOUBLE>
 double fct_GSL_N_GAMMA2_REG_f_W (const gsl_vector * x, void * p) {
 
-    Fct_GSL_N_GAMMA2_REG * function = reinterpret_cast< Fct_GSL_N_GAMMA2_REG *> (p);
+    Fct_GSL_N_GAMMA2_REG<TDOUBLE> * function = reinterpret_cast< Fct_GSL_N_GAMMA2_REG<TDOUBLE> *> (p);
     return (*function)( x );        
 } 
 
+template<typename TDOUBLE>
 void fct_GSL_N_GAMMA2_REG_df_W (const gsl_vector * x, void * p,  gsl_vector * g) {
 
-    Fct_GSL_N_GAMMA2_REG * function = reinterpret_cast< Fct_GSL_N_GAMMA2_REG *> (p);
+    Fct_GSL_N_GAMMA2_REG<TDOUBLE> * function = reinterpret_cast< Fct_GSL_N_GAMMA2_REG<TDOUBLE> *> (p);
     (*function).Gradient( x, g );
 }
 
+template<typename TDOUBLE>
 void fct_GSL_N_GAMMA2_REG_fdf_W (const gsl_vector * x, void * p, double *f, gsl_vector * g ) {
 
-    Fct_GSL_N_GAMMA2_REG * function = reinterpret_cast< Fct_GSL_N_GAMMA2_REG *> (p);
+    Fct_GSL_N_GAMMA2_REG<TDOUBLE> * function = reinterpret_cast< Fct_GSL_N_GAMMA2_REG<TDOUBLE> *> (p);
     (*function).FdF( x, f, g);
 } 
 
 
+template<typename TDOUBLE>
 struct Params2
 {
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
@@ -345,8 +319,9 @@ void print_state2(size_t iter, gsl_multimin_fdfminimizer * s, void * /*fct*/)
 }
 
 
+template<typename TDOUBLE>
 int callGSL_newton2(double &tp, double &k, double &b0, double &b1,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   AppOptions const& options)
 {
@@ -359,16 +334,16 @@ int callGSL_newton2(double &tp, double &k, double &b0, double &b1,
     const gsl_multimin_fdfminimizer_type *T;
     gsl_multimin_fdfminimizer *s;
     
-    struct Params2 params = {tp, k, statePosteriors, setObs, options};
+    struct Params2<TDOUBLE> params = {tp, k, statePosteriors, setObs, options};
     gsl_multimin_function_fdf f;
 
     // instantiation of functor with all fixed params
-    Fct_GSL_N_GAMMA2_REG fct(tp, k, statePosteriors, setObs, options);
+    Fct_GSL_N_GAMMA2_REG<TDOUBLE> fct(tp, k, statePosteriors, setObs, options);
 
     f.n = n;
-    f.f = &fct_GSL_N_GAMMA2_REG_f_W;        // pointer to wrapper member function
-    f.df = &fct_GSL_N_GAMMA2_REG_df_W;
-    f.fdf = &fct_GSL_N_GAMMA2_REG_fdf_W;
+    f.f = &fct_GSL_N_GAMMA2_REG_f_W<TDOUBLE>;        // pointer to wrapper member function
+    f.df = &fct_GSL_N_GAMMA2_REG_df_W<TDOUBLE>;
+    f.fdf = &fct_GSL_N_GAMMA2_REG_fdf_W<TDOUBLE>;
     f.params =  &fct;       // pointer to functor (instead of to params)
 
     gsl_vector *x = gsl_vector_alloc (n);
@@ -412,7 +387,8 @@ int callGSL_newton2(double &tp, double &k, double &b0, double &b1,
 }
 
 
-void GAMMA2_REG::updateMean(String<String<String<double> > > &statePosteriors, 
+template<typename TDOUBLE>
+void GAMMA2_REG<TDOUBLE>::updateMean(String<String<String<TDOUBLE> > > &statePosteriors, 
                     String<String<Observations> > &setObs,  
                     AppOptions const&options)
 {
@@ -426,10 +402,11 @@ void GAMMA2_REG::updateMean(String<String<String<double> > > &statePosteriors,
 // update betas and k together using simplex2
 //////////////////////////////////////////////
 
+template<typename TDOUBLE>
 struct Fct_GSL_X_GAMMA2_REG
 {
     Fct_GSL_X_GAMMA2_REG(double const & tp_, 
-                                  String<String<String<double> > > const& statePosteriors_,
+                                  String<String<String<TDOUBLE> > > const& statePosteriors_,
                                   String<String<Observations> > & setObs_,  
                                   AppOptions const&options_) : tp(tp_),
                                                                statePosteriors(statePosteriors_),  
@@ -444,68 +421,10 @@ struct Fct_GSL_X_GAMMA2_REG
         const double b0 = gsl_vector_get (x, 1);
         const double b1 = gsl_vector_get (x, 2);
 
-        double f = 0.0;
+        TDOUBLE f = 0.0;
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<double> f_S;
-            resize(f_S, length(setObs[s]), 0.0, Exact());
-#if HMM_PARALLEL
-            SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
-#endif  
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-            {
-                for (unsigned t = 0; t < setObs[s][i].length(); ++t)
-                {    
-                    if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1 && setObs[s][i].rpkms[t] >= options.minRPKMtoFit)
-                    {
-                        double kde = setObs[s][i].kdes[t];
-                        double x1 = setObs[s][i].rpkms[t];
-                        double pred = exp(b0 + b1 * x1);
-
-                       double nligf = boost::math::gamma_p(k, (tp*k/pred));
-            
-                        double p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
-
-                        f_S[i] +=  p * statePosteriors[s][i][t];
-                    }
-                }
-            }
-            // combine results from threads
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-                f += f_S[i];
-        }
-        return  (-f);  
-    }
-
-   
-private:
-    double tp;
-    String<String<String<double> > > statePosteriors;
-    String<String<Observations> > & setObs;
-    AppOptions options;
-};
-
-struct Fct_GSL_X_GAMMA2_REG_fixK
-{
-    Fct_GSL_X_GAMMA2_REG_fixK(double const & tp_, double const & k_, 
-                                  String<String<String<double> > > const& statePosteriors_,
-                                  String<String<Observations> > & setObs_,
-                                  AppOptions const&options_) : tp(tp_), k(k_),
-                                                               statePosteriors(statePosteriors_),
-                                                               setObs(setObs_),  
-                                                               options(options_)
-    { 
-    }
-    // f
-    double operator()(const gsl_vector * x)
-    {      
-        const double b0 = gsl_vector_get (x, 0);
-        const double b1 = gsl_vector_get (x, 1);
-
-        double f = 0.0;
-        for (unsigned s = 0; s < 2; ++s)
-        {
-            String<double> f_S;
+            String<TDOUBLE> f_S;
             resize(f_S, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
             SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
@@ -522,7 +441,66 @@ struct Fct_GSL_X_GAMMA2_REG_fixK
 
                         double nligf = boost::math::gamma_p(k, (tp*k/pred));
             
-                        double p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
+                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
+
+                        f_S[i] +=  p * statePosteriors[s][i][t];
+                    }
+                }
+            }
+            // combine results from threads
+            for (unsigned i = 0; i < length(setObs[s]); ++i)
+                f += f_S[i];
+        }
+        return  (-f);  
+    }
+
+   
+private:
+    double tp;
+    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<Observations> > & setObs;
+    AppOptions options;
+};
+
+template<typename TDOUBLE>
+struct Fct_GSL_X_GAMMA2_REG_fixK
+{
+    Fct_GSL_X_GAMMA2_REG_fixK(double const & tp_, double const & k_, 
+                                  String<String<String<TDOUBLE> > > const& statePosteriors_,
+                                  String<String<Observations> > & setObs_,
+                                  AppOptions const&options_) : tp(tp_), k(k_),
+                                                               statePosteriors(statePosteriors_),
+                                                               setObs(setObs_),  
+                                                               options(options_)
+    { 
+    }
+    // f
+    double operator()(const gsl_vector * x)
+    {      
+        const double b0 = gsl_vector_get (x, 0);
+        const double b1 = gsl_vector_get (x, 1);
+
+        TDOUBLE f = 0.0;
+        for (unsigned s = 0; s < 2; ++s)
+        {
+            String<TDOUBLE> f_S;
+            resize(f_S, length(setObs[s]), 0.0, Exact());
+#if HMM_PARALLEL
+            SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
+#endif  
+            for (unsigned i = 0; i < length(setObs[s]); ++i)
+            {
+                for (unsigned t = 0; t < setObs[s][i].length(); ++t)
+                {    
+                    if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1 && setObs[s][i].rpkms[t] >= options.minRPKMtoFit)
+                    {
+                        double kde = setObs[s][i].kdes[t];
+                        double x1 = setObs[s][i].rpkms[t];
+                        double pred = exp(b0 + b1 * x1);
+
+                        double nligf = boost::math::gamma_p(k, (tp*k/pred));
+            
+                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
 
                         f_S[i] +=  p * statePosteriors[s][i][t];
                     }
@@ -538,36 +516,40 @@ struct Fct_GSL_X_GAMMA2_REG_fixK
 private:
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
 
 
 // Wrapper functions for functors
+template<typename TDOUBLE>
 double fct_GSL_X_GAMMA2_REG_W (const gsl_vector * x, void * p) {
 
-    Fct_GSL_X_GAMMA2_REG * function = reinterpret_cast< Fct_GSL_X_GAMMA2_REG *> (p);
+    Fct_GSL_X_GAMMA2_REG<TDOUBLE> * function = reinterpret_cast< Fct_GSL_X_GAMMA2_REG<TDOUBLE> *> (p);
     return (*function)( x );        
 }
 
+template<typename TDOUBLE>
 double fct_GSL_X_GAMMA2_REG_fixK_W (const gsl_vector * x, void * p) {
 
-    Fct_GSL_X_GAMMA2_REG_fixK * function = reinterpret_cast< Fct_GSL_X_GAMMA2_REG_fixK *> (p);
+    Fct_GSL_X_GAMMA2_REG_fixK<TDOUBLE> * function = reinterpret_cast< Fct_GSL_X_GAMMA2_REG_fixK<TDOUBLE> *> (p);
     return (*function)( x );        
 } 
 
+template<typename TDOUBLE>
 struct Params5
 {
     double tp;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
 
+template<typename TDOUBLE>
 bool callGSL_simplex2_fixK(int &status, 
                   double &tp, double &k, double &b0, double &b1,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   AppOptions const& options)
 {
@@ -581,18 +563,18 @@ bool callGSL_simplex2_fixK(int &status,
     const gsl_multimin_fminimizer_type *T;
     gsl_multimin_fminimizer *s = NULL;
     
-    struct Params2 params = {tp, k, statePosteriors, setObs, options};
+    struct Params2<TDOUBLE> params = {tp, k, statePosteriors, setObs, options};
     gsl_multimin_function f;
 
     // instantiation of functor with all fixed params
-    Fct_GSL_X_GAMMA2_REG_fixK fct(tp, k, statePosteriors, setObs, options);
+    Fct_GSL_X_GAMMA2_REG_fixK<TDOUBLE> fct(tp, k, statePosteriors, setObs, options);
 
     /* Set initial step sizes to */
     gsl_vector *ss = gsl_vector_alloc (n);
     gsl_vector_set_all (ss, 0.001);  
 
     f.n = n;
-    f.f = &fct_GSL_X_GAMMA2_REG_fixK_W;        // pointer to wrapper member function
+    f.f = &fct_GSL_X_GAMMA2_REG_fixK_W<TDOUBLE>;        // pointer to wrapper member function
     f.params =  &fct;       // pointer to functor (instead of to params)
 
     gsl_vector *x = gsl_vector_alloc (n);
@@ -637,8 +619,9 @@ bool callGSL_simplex2_fixK(int &status,
     return true;
 }
 
+template<typename TDOUBLE>
 bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   double &kMin, double &kMax,
                   AppOptions const& options)
@@ -655,11 +638,11 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
     const gsl_multimin_fminimizer_type *T;
     gsl_multimin_fminimizer *s = NULL;
     
-    struct Params5 params = {tp, statePosteriors, setObs, options};
+    struct Params5<TDOUBLE> params = {tp, statePosteriors, setObs, options};
     gsl_multimin_function f;
 
     // instantiation of functor with all fixed params
-    Fct_GSL_X_GAMMA2_REG fct(tp, statePosteriors, setObs, options);
+    Fct_GSL_X_GAMMA2_REG<TDOUBLE> fct(tp, statePosteriors, setObs, options);
 
     /* Set initial step sizes to 0.0001 */
     gsl_vector *ss = gsl_vector_alloc (n);
@@ -667,7 +650,7 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
     // TODO adjust to given value 
 
     f.n = n;
-    f.f = &fct_GSL_X_GAMMA2_REG_W;        // pointer to wrapper member function
+    f.f = &fct_GSL_X_GAMMA2_REG_W<TDOUBLE>;        // pointer to wrapper member function
     f.params =  &fct;       // pointer to functor (instead of to params)
 
     gsl_vector *x = gsl_vector_alloc (n);
@@ -768,8 +751,8 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
 
 
 
-
-bool GAMMA2_REG::updateRegCoeffsAndK(String<String<String<double> > > &statePosteriors, 
+template<typename TDOUBLE>
+bool GAMMA2_REG<TDOUBLE>::updateRegCoeffsAndK(String<String<String<TDOUBLE> > > &statePosteriors, 
                     String<String<Observations> > &setObs,  
                     double &kMin, double &kMax,
                     AppOptions const&options)
@@ -829,10 +812,11 @@ bool GAMMA2_REG::updateRegCoeffsAndK(String<String<String<double> > > &statePost
 
 // Functor for Brent's algorithm
 // maximize for k
+template<typename TDOUBLE>
 struct Fct_GAMMA2_REG_k
 {
     Fct_GAMMA2_REG_k(double const& b0_, double const& b1_, 
-                                  String<String<String<double> > > const& statePosteriors_, 
+                                  String<String<String<TDOUBLE> > > const& statePosteriors_, 
                                   String<String<Observations> > & setObs_, 
                                   AppOptions const&options_) : b0(b0_), b1(b1_), 
                                                                statePosteriors(statePosteriors_),  
@@ -844,10 +828,10 @@ struct Fct_GAMMA2_REG_k
     {
         // Group log-likelihood function evaluations regarding binned kde vaues ! todo
 
-        double ll = 0.0;
+        TDOUBLE ll = 0.0;
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<double> llsS;
+            String<TDOUBLE> llsS;
             resize(llsS, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
             SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
@@ -865,7 +849,7 @@ struct Fct_GAMMA2_REG_k
 
                         double nligf = boost::math::gamma_p(k, (options.useKdeThreshold/(pred/k)));
 
-                        double p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k);
+                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k);
                         p -= log(1.0 - nligf);
                         llsS[i] +=  p * statePosteriors[s][i][t];
                     }
@@ -881,14 +865,14 @@ struct Fct_GAMMA2_REG_k
 private:
     double b0;
     double b1;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
 
 
-
-void GAMMA2_REG::updateK(String<String<String<double> > > &statePosteriors, 
+template<typename TDOUBLE>
+void GAMMA2_REG<TDOUBLE>::updateK(String<String<String<TDOUBLE> > > &statePosteriors, 
                          String<String<Observations> > &setObs, 
                          double &kMin, double &kMax,
                          AppOptions const&options)
@@ -896,15 +880,15 @@ void GAMMA2_REG::updateK(String<String<String<double> > > &statePosteriors,
     int bits = 60;
     boost::uintmax_t maxIter = options.maxIter_brent;
     
-    Fct_GAMMA2_REG_k fct_GAMMA2_REG_k(this->b0, this->b1, statePosteriors, setObs, options);
+    Fct_GAMMA2_REG_k<TDOUBLE> fct_GAMMA2_REG_k(this->b0, this->b1, statePosteriors, setObs, options);
     std::pair<double, double> res = boost::math::tools::brent_find_minima(fct_GAMMA2_REG_k, kMin, kMax, bits, maxIter);         // use somehow initial guess to save time? or interval around prev. value?
 
     this->k = res.first;
 }
 
 
-
-double GAMMA2_REG::getDensity(double const &kde, double const &pred)   
+template<typename TDOUBLE>
+long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pred)   
 {
     if (kde < this->tp) return 0.0;
 
@@ -912,8 +896,8 @@ double GAMMA2_REG::getDensity(double const &kde, double const &pred)
 
     double theta = pred/this->k;
     // if (kde == 0.0) should not occur, checked while computing eProbs
-    double f1 = pow(kde, this->k - 1.0) * exp(-kde/theta);
-    double f2 = pow(theta, this->k) * tgamma(this->k);
+    TDOUBLE f1 = pow(kde, this->k - 1.0) * exp(-kde/theta);
+    TDOUBLE f2 = pow(theta, this->k) * tgamma(this->k);
     if (f2 ==  0.0) std::cout << "ERROR: f2 is 0!" << std::endl;
 
 
@@ -933,8 +917,8 @@ double GAMMA2_REG::getDensity(double const &kde, double const &pred)
 // utils
 
 
-
-void myPrint(GAMMA2_REG &gamma)
+template<typename TDOUBLE>
+void myPrint(GAMMA2_REG<TDOUBLE> &gamma)
 {
     std::cout << "*** GAMMA2_REG ***" << std::endl;
     std::cout << "    b0:"<< gamma.b0 << std::endl;
@@ -945,7 +929,8 @@ void myPrint(GAMMA2_REG &gamma)
     std::cout << std::endl;
 }
 
-bool checkConvergence(GAMMA2_REG &gamma1, GAMMA2_REG &gamma2, AppOptions &options)
+template<typename TDOUBLE>
+bool checkConvergence(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, AppOptions &options)
 {
     if (std::fabs(gamma1.b0 - gamma2.b0) > options.gamma_b_conv) return false;
     if (std::fabs(gamma1.b1 - gamma2.b1) > options.gamma_b_conv) return false;
@@ -954,8 +939,8 @@ bool checkConvergence(GAMMA2_REG &gamma1, GAMMA2_REG &gamma2, AppOptions &option
     return true;
 }
 
-template<typename TOut>
-void printParams(TOut &out, GAMMA2_REG &gamma, int i)
+template<typename TOut, typename TDOUBLE>
+void printParams(TOut &out, GAMMA2_REG<TDOUBLE> &gamma, int i)
 {
     out << "gamma" << i << ".b0" << '\t' << gamma.b0 << std::endl;
     out << "gamma" << i << ".b1" << '\t' << gamma.b1 << std::endl;
@@ -965,7 +950,8 @@ void printParams(TOut &out, GAMMA2_REG &gamma, int i)
 }
 
 
-void checkOrderG1G2(GAMMA2_REG &gamma1, GAMMA2_REG &gamma2, AppOptions &options)
+template<typename TDOUBLE>
+void checkOrderG1G2(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, AppOptions &options)
 {
     if (exp(gamma1.b0) > exp(gamma2.b0))
     {

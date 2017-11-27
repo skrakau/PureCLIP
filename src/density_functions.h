@@ -50,6 +50,7 @@ using namespace seqan;
 /////////
 
 
+template<typename TDOUBLE>
 class GAMMA2  // ignore positions with KDE below theshold
 {
 public:
@@ -57,11 +58,10 @@ public:
     GAMMA2(double tp_): tp(tp_) {}
     GAMMA2() {}
 
-    double getDensity(double const &x);
-    void updateTheta(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
-    void updateK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
-    //void approximateK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
-    bool updateThetaAndK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
+    long double getDensity(double const &x);
+    void updateTheta(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
+    void updateK(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
+    bool updateThetaAndK(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
 
     double theta;   // scale parameter
     double mean;
@@ -71,9 +71,10 @@ public:
 
 
 // Functor for Brent's algorithm: find theta
+template<typename TDOUBLE>
 struct FctLL_GAMMA2_theta
 {
-    FctLL_GAMMA2_theta(double const& k_, String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : k(k_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
+    FctLL_GAMMA2_theta(double const& k_, String<String<String<TDOUBLE> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : k(k_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
     { 
     }
     double operator()(double const& theta)
@@ -82,10 +83,10 @@ struct FctLL_GAMMA2_theta
         // normalized lower incomplete gamma function
         double nligf = boost::math::gamma_p(k, (options.useKdeThreshold/theta));
         
-        double ll = 0.0;       
+        TDOUBLE ll = 0.0;       
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<double> lls;
+            String<TDOUBLE> lls;
             resize(lls, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
             SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
@@ -97,7 +98,7 @@ struct FctLL_GAMMA2_theta
                     if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1)
                     {
                         double kde = setObs[s][i].kdes[t];
-                        double p = (k-1.0)*log(kde) - kde/theta - k*log(theta) - lgamma(k);
+                        TDOUBLE p = (k-1.0)*log(kde) - kde/theta - k*log(theta) - lgamma(k);
                         p -= log(1.0 - nligf);       
                         lls[i] +=  p * statePosteriors[s][i][t];
                     }
@@ -112,13 +113,14 @@ struct FctLL_GAMMA2_theta
 
 private:
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > &setObs;
     AppOptions options;
 };
 
 
-void GAMMA2::updateTheta(String<String<String<double> > > &statePosteriors, 
+template<typename TDOUBLE>
+void GAMMA2<TDOUBLE>::updateTheta(String<String<String<TDOUBLE> > > &statePosteriors, 
                          String<String<Observations> > &setObs, 
                          AppOptions const&options)
 { 
@@ -128,7 +130,7 @@ void GAMMA2::updateTheta(String<String<String<double> > > &statePosteriors,
     double thetaMin = 0.0;
     double thetaMax = 10.0;
 
-    FctLL_GAMMA2_theta fct_GAMMA2_theta(this->k, statePosteriors, setObs, options);
+    FctLL_GAMMA2_theta<TDOUBLE> fct_GAMMA2_theta(this->k, statePosteriors, setObs, options);
     std::pair<double, double> res = boost::math::tools::brent_find_minima(fct_GAMMA2_theta, thetaMin, thetaMax, bits, maxIter);         // use somehow initial guess to save time? or interval around prev. value?
 
     this->theta = res.first;
@@ -136,9 +138,10 @@ void GAMMA2::updateTheta(String<String<String<double> > > &statePosteriors,
 
 
 // Functor for Brent's algorithm: find k
+template<typename TDOUBLE>
 struct FctLL_GAMMA2_k
 {
-    FctLL_GAMMA2_k(double const& theta_, String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : theta(theta_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
+    FctLL_GAMMA2_k(double const& theta_, String<String<String<TDOUBLE> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : theta(theta_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
     { 
     }
     double operator()(double const& k)
@@ -147,10 +150,10 @@ struct FctLL_GAMMA2_k
         // normalized lower incomplete gamma function
         double nligf = boost::math::gamma_p(k, (options.useKdeThreshold/theta));
  
-        double ll = 0.0;
+        TDOUBLE ll = 0.0;
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<double> lls;
+            String<TDOUBLE> lls;
             resize(lls, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
             SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
@@ -162,7 +165,7 @@ struct FctLL_GAMMA2_k
                     if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1)
                     {
                         double kde = setObs[s][i].kdes[t];
-                        double p = (k-1.0)*log(kde) - kde/theta - k*log(theta) - lgamma(k);
+                        TDOUBLE p = (k-1.0)*log(kde) - kde/theta - k*log(theta) - lgamma(k);
                         p -= log(1.0 - nligf);
                         lls[i] +=  p * statePosteriors[s][i][t];
                     }
@@ -177,13 +180,14 @@ struct FctLL_GAMMA2_k
 
 private:
     double theta;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > &setObs;
     AppOptions options;
 };
 
 
-void GAMMA2::updateK(String<String<String<double> > > &statePosteriors, 
+template<typename TDOUBLE>
+void GAMMA2<TDOUBLE>::updateK(String<String<String<TDOUBLE> > > &statePosteriors, 
                      String<String<Observations> > &setObs,
                      double &kMin, double &kMax,
                      AppOptions const&options)
@@ -191,7 +195,7 @@ void GAMMA2::updateK(String<String<String<double> > > &statePosteriors,
     int bits = 60;
     boost::uintmax_t maxIter = options.maxIter_brent;
     
-    FctLL_GAMMA2_k fct_GAMMA2_k(this->theta, statePosteriors, setObs, options);
+    FctLL_GAMMA2_k<TDOUBLE> fct_GAMMA2_k(this->theta, statePosteriors, setObs, options);
     std::pair<double, double> res = boost::math::tools::brent_find_minima(fct_GAMMA2_k, kMin, kMax, bits, maxIter);         // use somehow initial guess to save time? or interval around prev. value?
 
     this->k = res.first;
@@ -200,10 +204,11 @@ void GAMMA2::updateK(String<String<String<double> > > &statePosteriors,
 
 
 /// use GSL simplex to update k and theta together
+template<typename TDOUBLE>
 struct Fct_GSL_X_GAMMA2
 {
     Fct_GSL_X_GAMMA2(double const & tp_, 
-                                  String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, 
+                                  String<String<String<TDOUBLE> > > const& statePosteriors_,  String<String<Observations> > &setObs_, 
                                   AppOptions const&options_) : tp(tp_), 
                                                                statePosteriors(statePosteriors_), 
                                                                setObs(setObs_), 
@@ -222,10 +227,10 @@ struct Fct_GSL_X_GAMMA2
 
         double nligf = boost::math::gamma_p(k, (tp*theta));
 
-        double f = 0.0;
+        TDOUBLE f = 0.0;
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<double> f_S;
+            String<TDOUBLE> f_S;
             resize(f_S, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
             SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
@@ -238,7 +243,7 @@ struct Fct_GSL_X_GAMMA2
                     {
                         double kde = setObs[s][i].kdes[t];
             
-                        double p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
+                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
 
                         f_S[i] +=  p * statePosteriors[s][i][t];
                     }
@@ -253,16 +258,17 @@ struct Fct_GSL_X_GAMMA2
    
 private:
     double tp;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
 
 
+template<typename TDOUBLE>
 struct Fct_GSL_X_GAMMA2_fixK
 {
     Fct_GSL_X_GAMMA2_fixK(double const & tp_, double const& k_, 
-                                  String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, 
+                                  String<String<String<TDOUBLE> > > const& statePosteriors_,  String<String<Observations> > &setObs_, 
                                   AppOptions const&options_) : tp(tp_), k(k_),
                                                                statePosteriors(statePosteriors_),  
                                                                setObs(setObs_),  
@@ -281,7 +287,7 @@ struct Fct_GSL_X_GAMMA2_fixK
 
         double nligf = boost::math::gamma_p(k, (tp*theta));
 
-        double f = 0.0;
+        TDOUBLE f = 0.0;
         for (unsigned s = 0; s < 2; ++s)
         {
             String<double> f_S;
@@ -297,7 +303,7 @@ struct Fct_GSL_X_GAMMA2_fixK
                     {
                         double kde = setObs[s][i].kdes[t];
            
-                        double p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
+                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
 
                         f_S[i] +=  p * statePosteriors[s][i][t];
                     }
@@ -313,49 +319,52 @@ struct Fct_GSL_X_GAMMA2_fixK
 private:
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > &setObs;
     AppOptions options;
 };
 
 // Wrapper functions for functors
+template<typename TDOUBLE>
 double fct_GSL_X_GAMMA2_W (const gsl_vector * x, void * p) {
 
-    Fct_GSL_X_GAMMA2 * function = reinterpret_cast< Fct_GSL_X_GAMMA2 *> (p);
+    Fct_GSL_X_GAMMA2<TDOUBLE> * function = reinterpret_cast< Fct_GSL_X_GAMMA2<TDOUBLE> *> (p);
     return (*function)( x );        
 } 
 
+template<typename TDOUBLE>
 double fct_GSL_X_GAMMA2_fixK_W (const gsl_vector * x, void * p) {
 
-    Fct_GSL_X_GAMMA2_fixK * function = reinterpret_cast< Fct_GSL_X_GAMMA2_fixK *> (p);
+    Fct_GSL_X_GAMMA2_fixK<TDOUBLE> * function = reinterpret_cast< Fct_GSL_X_GAMMA2_fixK<TDOUBLE> *> (p);
     return (*function)( x );        
 } 
 
 
-
+template<typename TDOUBLE>
 struct Params3
 {
     double tp;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
 
 
+template<typename TDOUBLE>
 struct Params4
 {
     double tp;
     double k;
-    String<String<String<double> > > statePosteriors;
+    String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
 
 
-
+template<typename TDOUBLE>
 bool callGSL_simplex2_fixK(int &status, 
                   double &tp, double &theta, double &k,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   AppOptions const& options)
 {
@@ -367,11 +376,11 @@ bool callGSL_simplex2_fixK(int &status,
     const gsl_multimin_fminimizer_type *T;
     gsl_multimin_fminimizer *s = NULL;
     
-    struct Params4 params = {tp, k, statePosteriors, setObs, options};
+    struct Params4<TDOUBLE> params = {tp, k, statePosteriors, setObs, options};
     gsl_multimin_function f;
 
     // instantiation of functor with all fixed params
-    Fct_GSL_X_GAMMA2_fixK fct(tp, k, statePosteriors, setObs, options);
+    Fct_GSL_X_GAMMA2_fixK<TDOUBLE> fct(tp, k, statePosteriors, setObs, options);
 
     /* Set initial step sizes to */
     gsl_vector *ss = gsl_vector_alloc (n);
@@ -379,7 +388,7 @@ bool callGSL_simplex2_fixK(int &status,
 
 
     f.n = n;
-    f.f = &fct_GSL_X_GAMMA2_fixK_W;        // pointer to wrapper member function
+    f.f = &fct_GSL_X_GAMMA2_fixK_W<TDOUBLE>;        // pointer to wrapper member function
     f.params =  &fct;       // pointer to functor (instead of to params)
 
     gsl_vector *x = gsl_vector_alloc (n);
@@ -422,9 +431,9 @@ bool callGSL_simplex2_fixK(int &status,
 }
 
 
-
+template<typename TDOUBLE>
 bool callGSL_simplex2(double &tp, double &theta, double &k,
-                  String<String<String<double> > > &statePosteriors, 
+                  String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   double &kMin, double &kMax,
                   AppOptions const& options)
@@ -441,11 +450,11 @@ bool callGSL_simplex2(double &tp, double &theta, double &k,
     const gsl_multimin_fminimizer_type *T;
     gsl_multimin_fminimizer *s = NULL;
     
-    struct Params3 params = {tp, statePosteriors, setObs, options};
+    struct Params3<TDOUBLE> params = {tp, statePosteriors, setObs, options};
     gsl_multimin_function f;
 
     // instantiation of functor with all fixed params
-    Fct_GSL_X_GAMMA2 fct(tp, statePosteriors, setObs, options);
+    Fct_GSL_X_GAMMA2<TDOUBLE> fct(tp, statePosteriors, setObs, options);
 
     /* Set initial step sizes to 0.0001 */
     gsl_vector *ss = gsl_vector_alloc (n);
@@ -453,7 +462,7 @@ bool callGSL_simplex2(double &tp, double &theta, double &k,
     // TODO adjust to given value 
 
     f.n = n;
-    f.f = &fct_GSL_X_GAMMA2_W;        // pointer to wrapper member function
+    f.f = &fct_GSL_X_GAMMA2_W<TDOUBLE>;        // pointer to wrapper member function
     f.params =  &fct;       // pointer to functor (instead of to params)
     gsl_vector *x = gsl_vector_alloc (n);
     gsl_vector_set (x, 0, theta);
@@ -536,8 +545,8 @@ bool callGSL_simplex2(double &tp, double &theta, double &k,
 
 
 
-
-bool GAMMA2::updateThetaAndK(String<String<String<double> > > &statePosteriors, 
+template<typename TDOUBLE>
+bool GAMMA2<TDOUBLE>::updateThetaAndK(String<String<String<TDOUBLE> > > &statePosteriors, 
                     String<String<Observations> > &setObs, 
                     double &kMin, double &kMax,
                     AppOptions const&options)
@@ -552,13 +561,13 @@ bool GAMMA2::updateThetaAndK(String<String<String<double> > > &statePosteriors,
 ///////////////////////////////////////////////
 
 
-
-double GAMMA2::getDensity(double const &x)   
+template<typename TDOUBLE>
+long double GAMMA2<TDOUBLE>::getDensity(double const &x)   
 {
     if (x < this->tp) return 0.0; 
 
-    double f1 = pow(x, this->k - 1.0) * exp(-x/this->theta);
-    double f2 = pow(this->theta, this->k) * tgamma(this->k);
+    TDOUBLE f1 = pow(x, this->k - 1.0) * exp(-x/this->theta);
+    TDOUBLE f2 = pow(this->theta, this->k) * tgamma(this->k);
     
     // normalized lower incomplete gamma function
     double nligf = boost::math::gamma_p(this->k, this->tp/this->theta);
@@ -572,8 +581,8 @@ double GAMMA2::getDensity(double const &x)
 // utils
 
 
-
-void myPrint(GAMMA2 &gamma)
+template<typename TDOUBLE>
+void myPrint(GAMMA2<TDOUBLE> &gamma)
 {
     std::cout << "*** GAMMA2 ***" << std::endl;
     std::cout << "    theta:"<< gamma.theta << std::endl;
@@ -582,7 +591,8 @@ void myPrint(GAMMA2 &gamma)
     std::cout << std::endl;
 }
 
-bool checkConvergence(GAMMA2 &gamma1, GAMMA2 &gamma2, AppOptions &options)
+template<typename TDOUBLE>
+bool checkConvergence(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOptions &options)
 {
     if (std::fabs(gamma1.theta - gamma2.theta) > options.gamma_theta_conv) return false;
     if (std::fabs(gamma1.k - gamma2.k) > options.gamma_k_conv) return false;
@@ -590,8 +600,8 @@ bool checkConvergence(GAMMA2 &gamma1, GAMMA2 &gamma2, AppOptions &options)
     return true;
 }
 
-template<typename TOut>
-void printParams(TOut &out, GAMMA2 &gamma, int i)
+template<typename TOut, typename TDOUBLE>
+void printParams(TOut &out, GAMMA2<TDOUBLE> &gamma, int i)
 {
     out << "gamma" << i << ".theta" << '\t' << gamma.theta << std::endl;
     out << "gamma" << i << ".k" << '\t' << gamma.k << std::endl;
@@ -599,7 +609,8 @@ void printParams(TOut &out, GAMMA2 &gamma, int i)
 }
 
 
-void checkOrderG1G2(GAMMA2 &gamma1, GAMMA2 &gamma2, AppOptions &options)
+template<typename TDOUBLE>
+void checkOrderG1G2(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOptions &options)
 {
     if ((gamma1.k*gamma1.theta) > (gamma2.k*gamma2.theta))
     {

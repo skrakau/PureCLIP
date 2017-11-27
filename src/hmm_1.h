@@ -39,7 +39,7 @@
 using namespace seqan;
 
 
-template <typename TD1, typename TD2, typename TB1, typename TB2>
+template <typename TGAMMA, typename TBIN, typename TDOUBLE>
 class HMM {     
 
 public:
@@ -56,7 +56,7 @@ public:
     {
         // initialize transition probabilities
         resize(transMatrix, K, Exact());
-        double trans1 = 0.6;    // increased probability to stay in same state
+        double trans1 = 0.6;    // increa:sed probability to stay in same state
         for (unsigned i = 0; i < K; ++i)
         {
             resize(transMatrix[i], K, Exact());
@@ -98,36 +98,36 @@ public:
         }
      }
 
-    HMM<TD1, TD2, TB1, TB2>();
-    ~HMM<TD1, TD2, TB1, TB2>();
+    HMM<TGAMMA, TBIN, TDOUBLE>();
+    ~HMM<TGAMMA, TBIN, TDOUBLE>();
     void setInitProbs(String<double> &probs);
-    bool computeEmissionProbs(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, bool learning, AppOptions &options);
-    void iForward(String<String<double> > &alphas_1, String<String<double> > &alphas_2, unsigned s, unsigned i, AppOptions &options);
+    bool computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, bool learning, AppOptions &options);
+    void iForward(String<String<TDOUBLE> > &alphas_1, String<String<TDOUBLE> > &alphas_2, unsigned s, unsigned i, AppOptions &options);
     //void forward_noSc();
-    void iBackward(String<String<double> > &betas_2, String<String<double> > &alphas_1, unsigned s, unsigned i);
+    void iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i);
     //void backward_noSc();
     void computeStatePosteriorsFB(AppOptions &options);
     void computeStatePosteriorsFBupdateTrans(AppOptions &options);
     //void updateTransition(AppOptions &options);
     //void updateTransition2();
     //void updateTransition_noSc2();
-    bool updateDensityParams(TD1 &d1, TD2 &d2, AppOptions &options);
-    bool updateDensityParams(TD1 /*&d1*/, TD2 /*&d2*/, TB1 &bin1, TB2 &bin2, AppOptions &options);
-    bool baumWelch(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, CharString learnTag, AppOptions &options);
-    bool applyParameters(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, AppOptions &/*options*/);
-    double viterbi(String<String<String<__uint8> > > &states);
-    double viterbi_log(String<String<String<__uint8> > > &states);
+    bool updateDensityParams(TGAMMA &d1, TGAMMA &d2, AppOptions &options);
+    bool updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d2*/, TBIN &bin1, TBIN &bin2, AppOptions &options);
+    bool baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options);
+    bool applyParameters(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, AppOptions &/*options*/);
+    long double viterbi(String<String<String<__uint8> > > &states);
+    long double viterbi_log(String<String<String<__uint8> > > &states);
     void posteriorDecoding(String<String<String<__uint8> > > &states);
-    void rmBoarderArtifacts(String<String<String<__uint8> > > &states, TD1 &g1);
+    void rmBoarderArtifacts(String<String<String<__uint8> > > &states, TGAMMA &g1);
 
     // for each F/R,interval,t, state ....
-    String<String<String<String<double> > > > eProbs;           // emission/observation probabilities  P(Y_t | S_t) -> precompute for each t given Y_t = (C_t, T_t) !!!
-    String<String<String<String<double> > > > statePosteriors;  // for each k: for each covered interval string of posteriors
+    String<String<String<String<TDOUBLE> > > > eProbs;           // emission/observation probabilities  P(Y_t | S_t) -> precompute for each t given Y_t = (C_t, T_t) !!!
+    String<String<String<String<TDOUBLE> > > > statePosteriors;  // for each k: for each covered interval string of posteriors
 };
 
 
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-HMM<TD1, TD2, TB1, TB2>::~HMM<TD1, TD2, TB1, TB2>()
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+HMM<TGAMMA, TBIN, TDOUBLE>::~HMM<TGAMMA, TBIN, TDOUBLE>()
 {
     clear(this->eProbs);
     clear(this->statePosteriors);
@@ -137,9 +137,252 @@ HMM<TD1, TD2, TB1, TB2>::~HMM<TD1, TD2, TB1, TB2>()
 }
 
 
-// assumes gamma, kdes
-template<>
-bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 &d2, ZTBIN &bin1, ZTBIN &bin2, bool learning, AppOptions &options)
+
+template<typename TEProbs, typename TSetObs, typename TDOUBLE>
+bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
+{
+    long double g1_d = 1.0;
+    long double g2_d = 0.0;
+    if (setObs.kdes[t] >= d1.tp) 
+    {
+        g1_d = d1.getDensity(setObs.kdes[t]);
+        g2_d = d2.getDensity(setObs.kdes[t]); 
+    }
+    long double bin1_d = 1.0;
+    long double bin2_d = 0.0;
+    if (setObs.truncCounts[t] > 0)
+    {
+        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]);
+        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]);
+    }
+    eProbs[0] = g1_d * bin1_d;    
+    eProbs[1] = g1_d * bin2_d;
+    eProbs[2] = g2_d * bin1_d;
+    eProbs[3] = g2_d * bin2_d;
+
+    // 
+    if (eProbs[0] == 0 && eProbs[1] == 0 && eProbs[2] == 0 && eProbs[3] == 0)
+    {
+        if (options.verbosity >= 2)
+        {
+            std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       fragment coverage (kde): " << setObs.kdes[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       read start count: " << (int)setObs.truncCounts[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t]) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t]) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]) << std::endl;
+        }
+        eProbs[0] = 1.0;
+        eProbs[1] = 0.0;
+        eProbs[2] = 0.0;
+        eProbs[3] = 0.0;
+        
+        return false;
+    }
+    return true;
+}
+
+template<typename TEProbs, typename TSetObs, typename TDOUBLE>
+bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
+{
+    double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
+    double d1_pred = exp(d1.b0 + d1.b1 * x);
+    double d2_pred = exp(d2.b0 + d2.b1 * x);
+
+    long double g1_d = 1.0;
+    long double g2_d = 0.0;
+    if (setObs.kdes[t] >= d1.tp) 
+    {
+        g1_d = d1.getDensity(setObs.kdes[t], d1_pred);
+        g2_d = d2.getDensity(setObs.kdes[t], d2_pred); 
+    }
+    long double  bin1_d = 1.0;
+    long double  bin2_d = 0.0;
+    if (setObs.truncCounts[t] > 0)
+    {
+        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]);
+        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]);
+    }
+    eProbs[0] = g1_d * bin1_d;    
+    eProbs[1] = g1_d * bin2_d;
+    eProbs[2] = g2_d * bin1_d;
+    eProbs[3] = g2_d * bin2_d;
+
+    // 
+    if ((eProbs[0] == 0 && eProbs[1] == 0 && eProbs[2] == 0 && eProbs[3] == 0) || 
+            (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
+            (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
+    {
+        if (options.verbosity >= 2)
+        {
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       fragment coverage (kde): " << setObs.kdes[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       read start count: " << (int)setObs.truncCounts[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       covariate b: " << x << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t], d1_pred) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t], d2_pred) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]) << std::endl;
+        }    
+        eProbs[0] = 1.0;
+        eProbs[1] = 0.0;
+        eProbs[2] = 0.0;
+        eProbs[3] = 0.0;
+
+        return false;
+    }
+    return true;
+}
+
+template<typename TEProbs, typename TSetObs, typename TDOUBLE>
+bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, unsigned t, AppOptions &options)
+{
+    long double g1_d = 1.0;
+    long double g2_d = 0.0;
+    if (setObs.kdes[t] >= d1.tp) 
+    {
+        g1_d = d1.getDensity(setObs.kdes[t]);
+        g2_d = d2.getDensity(setObs.kdes[t]); 
+    }
+    unsigned mId = setObs.motifIds[t];
+    double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs.fimoScores[t]));
+    double bin2_pred = 1.0/(1.0+exp(-bin2.b0 - bin2.regCoeffs[mId]*setObs.fimoScores[t]));
+
+    long double bin1_d = 1.0;
+    long double bin2_d = 0.0;
+    if (setObs.truncCounts[t] > 0)
+    {
+        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred);
+        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred);
+    }
+    eProbs[0] = g1_d * bin1_d;    
+    eProbs[1] = g1_d * bin2_d;
+    eProbs[2] = g2_d * bin1_d;
+    eProbs[3] = g2_d * bin2_d;
+
+    //
+    if (eProbs[0] == 0 && eProbs[1] == 0 && eProbs[2] == 0 && eProbs[3] == 0)
+    {
+        if (options.verbosity >= 2)
+        {
+            std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       fragment coverage (kde): " << setObs.kdes[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       read start count: " << (int)setObs.truncCounts[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       covariate x: " << setObs.fimoScores[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t]) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t]) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred) << std::endl;
+        }
+        eProbs[0] = 1.0;
+        eProbs[1] = 0.0;
+        eProbs[2] = 0.0;
+        eProbs[3] = 0.0;
+
+        return false;
+    }
+    return true;
+}
+
+template<typename TEProbs, typename TSetObs, typename TDOUBLE>
+bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, unsigned t, AppOptions &options)
+{
+    double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
+    double d1_pred = exp(d1.b0 + d1.b1 * x);
+    double d2_pred = exp(d2.b0 + d2.b1 * x);
+
+    long double g1_d = 1.0;
+    long double g2_d = 0.0;
+    if (setObs.kdes[t] >= d1.tp) 
+    {
+        g1_d = d1.getDensity(setObs.kdes[t], d1_pred);
+        g2_d = d2.getDensity(setObs.kdes[t], d2_pred); 
+    }
+    unsigned mId = setObs.motifIds[t];
+    double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs.fimoScores[t]));
+    double bin2_pred = 1.0/(1.0+exp(-bin2.b0 - bin2.regCoeffs[mId]*setObs.fimoScores[t]));
+
+    long double bin1_d = 1.0;
+    long double bin2_d = 0.0;
+    if (setObs.truncCounts[t] > 0)
+    {
+        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred);
+        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred);
+    }
+    eProbs[0] = g1_d * bin1_d;    
+    eProbs[1] = g1_d * bin2_d;
+    eProbs[2] = g2_d * bin1_d;
+    eProbs[3] = g2_d * bin2_d;
+
+    // 
+    if ((eProbs[0] == 0 && eProbs[1] == 0 && eProbs[2] == 0 && eProbs[3] == 0) || 
+            (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
+            (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
+    {
+        if (options.verbosity >= 2)
+        {
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       fragment coverage (kde): " << setObs.kdes[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       read start count: " << (int)setObs.truncCounts[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       covariate b: " << x << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       covariate x: " << setObs.fimoScores[t] << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t], d1_pred) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t], d2_pred) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred) << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred) << std::endl;
+        }
+        eProbs[0] = 1.0;
+        eProbs[1] = 0.0;
+        eProbs[2] = 0.0;
+        eProbs[3] = 0.0;
+
+        return false;
+    }
+    return true;
+}
+
+
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, bool learning, AppOptions &options)
 {
     bool stop = false;
     for (unsigned s = 0; s < 2; ++s)
@@ -150,62 +393,20 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
             bool discardInterval = false;
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)   // TODO getDensity() use functor!!!
+            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)  
             {
                 if (this->setObs[s][i].kdes[t] == 0.0)
                 {
-                    std::cerr << "ERROR: KDE is 0.0 on forward strand at i " << i << " t: " << t << std::endl;
+                    std::cerr << "ERROR: KDE is 0.0 at i " << i << " t: " << t << std::endl;
                     SEQAN_OMP_PRAGMA(critical) 
                     stop = true;
                 }
-                double g1_d = 1.0;
-                double g2_d = 0.0;
-                if (this->setObs[s][i].kdes[t] >= d1.tp) 
+
+                if (!computeEProb(this->eProbs[s][i][t], this->setObs[s][i], d1, d2, bin1, bin2, t, options))
                 {
-                    g1_d = d1.getDensity(this->setObs[s][i].kdes[t]);
-                    g2_d = d2.getDensity(this->setObs[s][i].kdes[t]); 
-                }
-                double bin1_d = 1.0;
-                double bin2_d = 0.0;
-                if (this->setObs[s][i].truncCounts[t] > 0)
-                {
-                    bin1_d = bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]);
-                    bin2_d = bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]);
-                }
-                this->eProbs[s][i][t][0] = g1_d * bin1_d;    
-                this->eProbs[s][i][t][1] = g1_d * bin2_d;
-                this->eProbs[s][i][t][2] = g2_d * bin1_d;
-                this->eProbs[s][i][t][3] = g2_d * bin2_d;
-  
-                // debug
-                if (this->eProbs[s][i][t][0] == 0 && this->eProbs[s][i][t][1] == 0 && this->eProbs[s][i][t][2] == 0 && this->eProbs[s][i][t][3] == 0)
-                {
-                    if (options.verbosity >= 2)
-                    {
-                        std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t]) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t]) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
-                    }
                     SEQAN_OMP_PRAGMA(critical) 
                     discardInterval = true;
-                    
-                    this->eProbs[s][i][t][0] = 1.0;
-                    this->eProbs[s][i][t][1] = 0.0;
-                    this->eProbs[s][i][t][2] = 0.0;
-                    this->eProbs[s][i][t][3] = 0.0;
-               }
+                }
             }
             if (!learning)
             {
@@ -214,6 +415,11 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 
                     std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
                 else if (discardInterval)
                     std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
+                if (discardInterval && !options.useHighPrecision)
+                {
+                    SEQAN_OMP_PRAGMA(critical) 
+                    std::cout << "NOTE: If this happens frequently, rerun PureCLIP with parameter '-ld' ()!" << std::endl;
+                }
             }
         }   
     }
@@ -221,293 +427,12 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 
     return true;
 }
 
-template<>
-bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2 &d1, GAMMA2 &d2, ZTBIN_REG &bin1, ZTBIN_REG &bin2, bool learning, AppOptions &options)
-{
-    bool stop = false;
-    for (unsigned s = 0; s < 2; ++s)
-    {
-#if HMM_PARALLEL
-        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
-#endif  
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            bool discardInterval = false;
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)   // TODO getDensity() use functor!!!
-            {
-                if (this->setObs[s][i].kdes[t] == 0.0)
-                {
-                    std::cerr << "ERROR: KDE is 0.0 on forward strand at i " << i << " t: " << t << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    stop = true;
-                }
-                double g1_d = 1.0;
-                double g2_d = 0.0;
-                if (this->setObs[s][i].kdes[t] >= d1.tp) 
-                {
-                    g1_d = d1.getDensity(this->setObs[s][i].kdes[t]);
-                    g2_d = d2.getDensity(this->setObs[s][i].kdes[t]); 
-                }
-                unsigned mId = setObs[s][i].motifIds[t];
-                double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs[s][i].fimoScores[t]));
-                double bin2_pred = 1.0/(1.0+exp(-bin2.b0 - bin2.regCoeffs[mId]*setObs[s][i].fimoScores[t]));
 
-                double bin1_d = 1.0;
-                double bin2_d = 0.0;
-                if (this->setObs[s][i].truncCounts[t] > 0)
-                {
-                    bin1_d = bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin1_pred);
-                    bin2_d = bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin2_pred);
-                }
-                this->eProbs[s][i][t][0] = g1_d * bin1_d;    
-                this->eProbs[s][i][t][1] = g1_d * bin2_d;
-                this->eProbs[s][i][t][2] = g2_d * bin1_d;
-                this->eProbs[s][i][t][3] = g2_d * bin2_d;
-  
-                // debug
-                if (this->eProbs[s][i][t][0] == 0 && this->eProbs[s][i][t][1] == 0 && this->eProbs[s][i][t][2] == 0 && this->eProbs[s][i][t][3] == 0)
-                {
-                    if (options.verbosity >= 2)
-                    {
-                        std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       covariate x: " << setObs[s][i].fimoScores[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t]) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t])  << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin1_pred) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin2_pred) << std::endl;
-                    }
-                    SEQAN_OMP_PRAGMA(critical) 
-                    discardInterval = true;
-                    
-                    this->eProbs[s][i][t][0] = 1.0;
-                    this->eProbs[s][i][t][1] = 0.0;
-                    this->eProbs[s][i][t][2] = 0.0;
-                    this->eProbs[s][i][t][3] = 0.0;
-               }
-            }
-            if (!learning)
-            {
-                SEQAN_OMP_PRAGMA(critical) 
-                if (discardInterval && s == 0) 
-                    std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
-                else if (discardInterval)
-                    std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
-            }
-        }
-    }
-    if (stop) return false;
-    return true;
-}
-
-// assumes gamma regression model, kdes
-template<>
-bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::computeEmissionProbs(GAMMA2_REG &d1, GAMMA2_REG &d2, ZTBIN &bin1, ZTBIN &bin2, bool learning, AppOptions &options)
-{
-    bool stop = false;
-    for (unsigned s = 0; s < 2; ++s)
-    {
-#if HMM_PARALLEL
-        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
-#endif  
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            bool discardInterval = false;
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)   // todo getDensity() use functor!!!
-            {
-                double x = std::max(this->setObs[s][i].rpkms[t], options.minRPKMtoFit);
-                if (this->setObs[s][i].kdes[t] == 0.0) 
-                {
-                    std::cerr << "ERROR: KDE is 0.0 on forward strand at i " << i << " t: " << t << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    stop = true;
-                }
-                double d1_pred = exp(d1.b0 + d1.b1 * x);
-                double d2_pred = exp(d2.b0 + d2.b1 * x);
-
-                double g1_d = 1.0;
-                double g2_d = 0.0;
-                if (this->setObs[s][i].kdes[t] >= d1.tp) 
-                {
-                    g1_d = d1.getDensity(this->setObs[s][i].kdes[t], d1_pred);
-                    g2_d = d2.getDensity(this->setObs[s][i].kdes[t], d2_pred); 
-                }
-                double bin1_d = 1.0;
-                double bin2_d = 0.0;
-                if (this->setObs[s][i].truncCounts[t] > 0)
-                {
-                    bin1_d = bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]);
-                    bin2_d = bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]);
-                }
-                this->eProbs[s][i][t][0] = g1_d * bin1_d;    
-                this->eProbs[s][i][t][1] = g1_d * bin2_d;
-                this->eProbs[s][i][t][2] = g2_d * bin1_d;
-                this->eProbs[s][i][t][3] = g2_d * bin2_d;
-
-                // debug
-                if ((this->eProbs[s][i][t][0] == 0 && this->eProbs[s][i][t][1] == 0 && this->eProbs[s][i][t][2] == 0 && this->eProbs[s][i][t][3] == 0) || 
-                        (std::isnan(this->eProbs[s][i][t][0]) || std::isnan(this->eProbs[s][i][t][1]) || std::isnan(this->eProbs[s][i][t][2]) || std::isnan(this->eProbs[s][i][t][3])) ||
-                        (std::isinf(this->eProbs[s][i][t][0]) || std::isinf(this->eProbs[s][i][t][1]) || std::isinf(this->eProbs[s][i][t][2]) || std::isinf(this->eProbs[s][i][t][3])))
-                {
-                    if (options.verbosity >= 2)
-                    {
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       covariate b: " << x << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t], d1_pred) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t], d2_pred) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t]) << std::endl;
-                    }    
-                    SEQAN_OMP_PRAGMA(critical) 
-                    discardInterval = true;
-                    
-                    this->eProbs[s][i][t][0] = 1.0;
-                    this->eProbs[s][i][t][1] = 0.0;
-                    this->eProbs[s][i][t][2] = 0.0;
-                    this->eProbs[s][i][t][3] = 0.0;
-               }
-            }
-            if (!learning)
-            {
-                SEQAN_OMP_PRAGMA(critical) 
-                if (discardInterval && s == 0) 
-                    std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
-                else if (discardInterval)
-                    std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
-            }
-        }
-    }
-    if (stop) return false;
-    return true;
-}
-
-
-template<>
-bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::computeEmissionProbs(GAMMA2_REG &d1, GAMMA2_REG &d2, ZTBIN_REG &bin1, ZTBIN_REG &bin2, bool learning, AppOptions &options)
-{
-    bool stop = false;
-    for (unsigned s = 0; s < 2; ++s)
-    {
-#if HMM_PARALLEL
-        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
-#endif  
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            bool discardInterval = false;
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)   // todo getDensity() use functor!!!
-            {
-                double x = std::max(this->setObs[s][i].rpkms[t], options.minRPKMtoFit);
-                if (this->setObs[s][i].kdes[t] == 0.0) 
-                {
-                    std::cerr << "ERROR: KDE is 0.0 on forward strand at i " << i << " t: " << t << std::endl;
-                    SEQAN_OMP_PRAGMA(critical) 
-                    stop = true;
-                }
-                // gammas
-                double d1_pred = exp(d1.b0 + d1.b1 * x);
-                double d2_pred = exp(d2.b0 + d2.b1 * x);
-                double g1_d = 1.0;
-                double g2_d = 0.0;
-                if (this->setObs[s][i].kdes[t] >= d1.tp) 
-                {
-                    g1_d = d1.getDensity(this->setObs[s][i].kdes[t], d1_pred);
-                    g2_d = d2.getDensity(this->setObs[s][i].kdes[t], d2_pred); 
-                }
-
-                // binomials
-                unsigned mId = setObs[s][i].motifIds[t];
-                double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs[s][i].fimoScores[t]));
-                double bin2_pred = 1.0/(1.0+exp(-bin2.b0 - bin2.regCoeffs[mId]*setObs[s][i].fimoScores[t]));
-                double bin1_d = 1.0;
-                double bin2_d = 0.0;
-                if (this->setObs[s][i].truncCounts[t] > 0)
-                {
-                    bin1_d = bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin1_pred);
-                    bin2_d = bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin2_pred);
-                }
-
-                this->eProbs[s][i][t][0] = g1_d * bin1_d;    
-                this->eProbs[s][i][t][1] = g1_d * bin2_d;
-                this->eProbs[s][i][t][2] = g2_d * bin1_d;
-                this->eProbs[s][i][t][3] = g2_d * bin2_d;
-
-                // debug
-                if ((this->eProbs[s][i][t][0] == 0 && this->eProbs[s][i][t][1] == 0 && this->eProbs[s][i][t][2] == 0 && this->eProbs[s][i][t][3] == 0) || 
-                        (std::isnan(this->eProbs[s][i][t][0]) || std::isnan(this->eProbs[s][i][t][1]) || std::isnan(this->eProbs[s][i][t][2]) || std::isnan(this->eProbs[s][i][t][3])) ||
-                        (std::isinf(this->eProbs[s][i][t][0]) || std::isinf(this->eProbs[s][i][t][1]) || std::isinf(this->eProbs[s][i][t][2]) || std::isinf(this->eProbs[s][i][t][3])))
-                {
-                    if (options.verbosity >= 2)
-                    {
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       fragment coverage (kde): " << this->setObs[s][i].kdes[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       read start count: " << (int)this->setObs[s][i].truncCounts[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       estimated n: " << this->setObs[s][i].nEstimates[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       covariate b: " << x << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       covariate x: " << setObs[s][i].fimoScores[t] << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(this->setObs[s][i].kdes[t], d1_pred) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(this->setObs[s][i].kdes[t], d2_pred) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin1_pred) << std::endl;
-                        SEQAN_OMP_PRAGMA(critical) 
-                        std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(this->setObs[s][i].truncCounts[t], this->setObs[s][i].nEstimates[t], bin2_pred) << std::endl;
-                    }
-                    SEQAN_OMP_PRAGMA(critical) 
-                    discardInterval = true;
-                    
-                    this->eProbs[s][i][t][0] = 1.0;
-                    this->eProbs[s][i][t][1] = 0.0;
-                    this->eProbs[s][i][t][2] = 0.0;
-                    this->eProbs[s][i][t][3] = 0.0;
-               }
-            }
-            if (!learning)
-            {
-                SEQAN_OMP_PRAGMA(critical) 
-                if (discardInterval && s == 0) 
-                    std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
-                else if (discardInterval)
-                    std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
-           }
-        }
-    }
-    if (stop) return false;
-    return true;
-}
  
 // Forward-backward algorithm 
 // without scaling for testing 
 /*template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::forward_noSc()
+void HMM<TGAMMA, TBIN, TDOUBLE>::forward_noSc()
 {
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -538,7 +463,7 @@ void HMM<TD1, TD2, TB1, TB2>::forward_noSc()
 //// -> scaling technique (more stable and faster than log method ?)
 // compute scaled alphas for each state and corresponding c values
 template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::forward()
+void HMM<TGAMMA, TBIN, TDOUBLE>::forward()
 {
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -609,11 +534,11 @@ void HMM<TD1, TD2, TB1, TB2>::forward()
 
 
 // for one interval only
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String<String<double> > &alphas_2, unsigned s, unsigned i, AppOptions &options)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+void HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, String<String<TDOUBLE> > &alphas_2, unsigned s, unsigned i, AppOptions &options)
 {
     // for t = 1
-    double norm = 0.0;
+    long double norm = 0.0;
     for (unsigned k = 0; k < this->K; ++k)
     {
         alphas_1[0][k] = this->initProbs[s][i][k] * this->eProbs[s][i][0][k];
@@ -642,7 +567,7 @@ void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String
         for (unsigned k = 0; k < this->K; ++k)
         {
             // sum over previous states
-            double sum = 0.0;
+            long double sum = 0.0;
             for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
                 sum += alphas_2[t-1][k_2] * this->transMatrix[k_2][k];
             
@@ -683,7 +608,7 @@ void HMM<TD1, TD2, TB1, TB2>::iForward(String<String<double> > &alphas_1, String
 // Backward-algorithm
 // without scaling for testing 
 /*template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::backward_noSc()
+void HMM<TGAMMA, TBIN, TDOUBLE>::backward_noSc()
 {
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -712,7 +637,7 @@ void HMM<TD1, TD2, TB1, TB2>::backward_noSc()
 
 // with scaling method
 template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::backward()
+void HMM<TGAMMA, TBIN, TDOUBLE>::backward()
 {
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -759,11 +684,11 @@ void HMM<TD1, TD2, TB1, TB2>::backward()
 
 // need alphas_1 for scaling here,
 // only betas_2 is needed to compute posterior probs.
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::iBackward(String<String<double> > &betas_2, String<String<double> > &alphas_1, unsigned s, unsigned i)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+void HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i)
 {
     unsigned T = this->setObs[s][i].length();
-    String<String<double> > betas_1;
+    String<String<TDOUBLE> > betas_1;
     resize(betas_1, T, Exact());
     for (unsigned t = 0; t < T; ++t)
         resize(betas_1[t], this->K, Exact());
@@ -772,7 +697,7 @@ void HMM<TD1, TD2, TB1, TB2>::iBackward(String<String<double> > &betas_2, String
     for (unsigned k = 0; k < this->K; ++k)
        betas_1[this->setObs[s][i].length() - 1][k] = 1.0;
     
-    double norm = 0.0;      // use scaling coefficients from alphas here !
+    long double norm = 0.0;      // use scaling coefficients from alphas here !
     for (unsigned k = 0; k < this->K; ++k)
        norm += alphas_1[this->setObs[s][i].length() - 1][k];
 
@@ -789,7 +714,7 @@ void HMM<TD1, TD2, TB1, TB2>::iBackward(String<String<double> > &betas_2, String
         for (unsigned k = 0; k < this->K; ++k)
         {
             // sum over previous states
-            double sum = 0.0;
+            long double sum = 0.0;
             for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
                 sum += betas_2[t+1][k_2] * this->transMatrix[k][k_2] * this->eProbs[s][i][t+1][k_2];
             
@@ -804,7 +729,7 @@ void HMM<TD1, TD2, TB1, TB2>::iBackward(String<String<double> > &betas_2, String
 
 // both for scaling and no-scaling method
 /*template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriors()
+void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriors()
 {
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -840,8 +765,8 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriors()
 
 // for scaling method
 // interval-wise to avoid storing alpha_1, alpha_2 and beta_1, beta_2 values for whole genome
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
 {
     String<String<double> > A = this->transMatrix;
     String<String<double> > p;
@@ -863,8 +788,8 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &op
         {
             unsigned T = setObs[s][i].length();
             // forward probabilities
-            String<String<double> > alphas_1;
-            String<String<double> > alphas_2;
+            String<String<TDOUBLE> > alphas_1;
+            String<String<TDOUBLE> > alphas_2;
             resize(alphas_1, T, Exact());
             resize(alphas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
@@ -875,7 +800,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &op
             iForward(alphas_1, alphas_2, s, i, options);
 
             // backward probabilities  
-            String<String<double> > betas_2;
+            String<String<TDOUBLE> > betas_2;
             resize(betas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
                 resize(betas_2[t], this->K, Exact());
@@ -884,7 +809,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &op
             // compute state posterior probabilities
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
             {
-                double sum = 0.0;
+                long double sum = 0.0;
                 for (unsigned k = 0; k < this->K; ++k)
                     sum += alphas_2[t][k] * betas_2[t][k];
 
@@ -957,8 +882,8 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFBupdateTrans(AppOptions &op
 }
 
 // without updating transition probabilities 
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 {
     String<String<double> > A = this->transMatrix;
     String<String<double> > p;
@@ -980,8 +905,8 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
         {
             unsigned T = setObs[s][i].length();
             // forward probabilities
-            String<String<double> > alphas_1;
-            String<String<double> > alphas_2;
+            String<String<TDOUBLE> > alphas_1;
+            String<String<TDOUBLE> > alphas_2;
             resize(alphas_1, T, Exact());
             resize(alphas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
@@ -992,7 +917,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
             iForward(alphas_1, alphas_2, s, i, options);
 
             // backward probabilities  
-            String<String<double> > betas_2;
+            String<String<TDOUBLE> > betas_2;
             resize(betas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
                 resize(betas_2[t], this->K, Exact());
@@ -1001,7 +926,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
             // compute state posterior probabilities
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
             {
-                double sum = 0.0;
+                long double sum = 0.0;
                 for (unsigned k = 0; k < this->K; ++k)
                     sum += alphas_2[t][k] * betas_2[t][k];
 
@@ -1031,7 +956,7 @@ void HMM<TD1, TD2, TB1, TB2>::computeStatePosteriorsFB(AppOptions &options)
 
 // both for scaling and no-scaling
 /*template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::updateTransition(AppOptions &options)    // precompute numerator, denumerator, for each k_1, k_2 combination!!!
+void HMM<TGAMMA, TBIN, TDOUBLE>::updateTransition(AppOptions &options)    // precompute numerator, denumerator, for each k_1, k_2 combination!!!
 {
     String<String<double> > A = this->transMatrix;
     String<String<double> > p;
@@ -1122,36 +1047,15 @@ void HMM<TD1, TD2>::updateTransition2(String<String<double> > &A, unsigned k_1, 
     A[k_1][k_2] = numerator / denumerator ;  
 }*/
 
-
-template<>
-bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::updateDensityParams(GAMMA2 &d1, GAMMA2 &d2, AppOptions &options)   
+template<typename TDOUBLE>
+bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, AppOptions &options)
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
-    resize(statePosteriors1, 2, Exact());
-    resize(statePosteriors2, 2, Exact());
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        resize(statePosteriors1[s], length(this->statePosteriors[s][0]), Exact());
-        resize(statePosteriors2[s], length(this->statePosteriors[s][0]), Exact());
-        for (unsigned i = 0; i < length(this->statePosteriors[s][0]); ++i)
-        {
-            resize(statePosteriors1[s][i], length(this->statePosteriors[s][0][i]), Exact());
-            resize(statePosteriors2[s][i], length(this->statePosteriors[s][0][i]), Exact());
-            for (unsigned t = 0; t < length(this->statePosteriors[s][0][i]); ++t)
-            {
-                statePosteriors1[s][i][t] = this->statePosteriors[s][0][i][t] + this->statePosteriors[s][1][i][t];
-                statePosteriors2[s][i][t] = this->statePosteriors[s][2][i][t] + this->statePosteriors[s][3][i][t];
-            }
-        }
-    }
-
     if (options.gslSimplex2)
     {
-        if (!d1.updateThetaAndK(statePosteriors1, this->setObs, options.g1_kMin, options.g1_kMax, options))
+        if (!d1.updateThetaAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
             return false;
 
-        if (!d2.updateThetaAndK(statePosteriors2, this->setObs, options.g2_kMin, options.g2_kMax, options))         // make sure g1k <= g2k
+        if (!d2.updateThetaAndK(statePosteriors2, setObs, options.g2_kMin, options.g2_kMax, options))         // make sure g1k <= g2k
             return false;
 
         // make sure gamma1.mu < gamma2.mu   
@@ -1160,104 +1064,32 @@ bool HMM<GAMMA2, GAMMA2, ZTBIN, ZTBIN>::updateDensityParams(GAMMA2 &d1, GAMMA2 &
     else    // TODO get rid of this
     {
         // 
-        d1.updateTheta(statePosteriors1, this->setObs, options);  
-        d2.updateTheta(statePosteriors2, this->setObs, options);
+        d1.updateTheta(statePosteriors1, setObs, options);  
+        d2.updateTheta(statePosteriors2, setObs, options);
 
         // make sure gamma1.mu < gamma2.mu    
         checkOrderG1G2(d1, d2, options);
 
-        d1.updateK(statePosteriors1, this->setObs, options.g1_kMin, options.g1_kMax, options);  
+        d1.updateK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options);  
 
-        d2.updateK(statePosteriors2, this->setObs, options.g2_kMin, options.g2_kMax, options); 
+        d2.updateK(statePosteriors2, setObs, options.g2_kMin, options.g2_kMax, options); 
     }
     return true;
 }
 
-
-template<>
-bool HMM<GAMMA2, GAMMA2, ZTBIN_REG, ZTBIN_REG>::updateDensityParams(GAMMA2 &d1, GAMMA2 &d2, AppOptions &options)   
+template<typename TDOUBLE>
+bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, AppOptions &options)
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
-    resize(statePosteriors1, 2, Exact());
-    resize(statePosteriors2, 2, Exact());
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        resize(statePosteriors1[s], length(this->statePosteriors[s][0]), Exact());
-        resize(statePosteriors2[s], length(this->statePosteriors[s][0]), Exact());
-        for (unsigned i = 0; i < length(this->statePosteriors[s][0]); ++i)
-        {
-            resize(statePosteriors1[s][i], length(this->statePosteriors[s][0][i]), Exact());
-            resize(statePosteriors2[s][i], length(this->statePosteriors[s][0][i]), Exact());
-            for (unsigned t = 0; t < length(this->statePosteriors[s][0][i]); ++t)
-            {
-                statePosteriors1[s][i][t] = this->statePosteriors[s][0][i][t] + this->statePosteriors[s][1][i][t];
-                statePosteriors2[s][i][t] = this->statePosteriors[s][2][i][t] + this->statePosteriors[s][3][i][t];
-            }
-        }
-    }
-
     if (options.gslSimplex2)
     {
-        if (!d1.updateThetaAndK(statePosteriors1, this->setObs, options.g1_kMin, options.g1_kMax, options))
-            return false;
-
-        if (!d2.updateThetaAndK(statePosteriors2, this->setObs, options.g2_kMin, options.g2_kMax, options))
-            return false;
-
-        // make sure gamma1.mu < gamma2.mu   
-        checkOrderG1G2(d1, d2, options);
-    }
-    else    // TODO get rid of this
-    {
-        // 
-        d1.updateTheta(statePosteriors1, this->setObs, options);  
-        d2.updateTheta(statePosteriors2, this->setObs, options);
-
-        // make sure gamma1.mu < gamma2.mu    
-        checkOrderG1G2(d1, d2, options);
-
-        d1.updateK(statePosteriors1, this->setObs, options.g1_kMin, options.g1_kMax, options); 
-
-        d2.updateK(statePosteriors2, this->setObs, options.g2_kMin, options.g2_kMax, options); 
-    }
-    return true;
-}
-
-
-template<>
-bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::updateDensityParams(GAMMA2_REG &d1, GAMMA2_REG &d2, AppOptions &options)   
-{
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
-    resize(statePosteriors1, 2, Exact());
-    resize(statePosteriors2, 2, Exact());
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        resize(statePosteriors1[s], length(this->statePosteriors[s][0]), Exact());
-        resize(statePosteriors2[s], length(this->statePosteriors[s][0]), Exact());
-        for (unsigned i = 0; i < length(this->statePosteriors[s][0]); ++i)
-        {
-            resize(statePosteriors1[s][i], length(this->statePosteriors[s][0][i]), Exact());
-            resize(statePosteriors2[s][i], length(this->statePosteriors[s][0][i]), Exact());
-            for (unsigned t = 0; t < length(this->statePosteriors[s][0][i]); ++t)
-            {
-                statePosteriors1[s][i][t] = this->statePosteriors[s][0][i][t] + this->statePosteriors[s][1][i][t];
-                statePosteriors2[s][i][t] = this->statePosteriors[s][2][i][t] + this->statePosteriors[s][3][i][t];
-            }
-        }
-    }
-
-    if (options.gslSimplex2)
-    {
-        if (!d1.updateRegCoeffsAndK(statePosteriors1, this->setObs, options.g1_kMin, options.g1_kMax, options))
+        if (!d1.updateRegCoeffsAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
             return false;
 
         double g2_kMin = options.g2_kMin;
         if (options.g1_k_le_g2_k)
             g2_kMin = std::max(d1.k, options.g2_kMin);
 
-        if (!d2.updateRegCoeffsAndK(statePosteriors2, this->setObs, g2_kMin, options.g2_kMax, options))
+        if (!d2.updateRegCoeffsAndK(statePosteriors2, setObs, g2_kMin, options.g2_kMax, options))
             return false;
 
         // make sure gamma1.mu < gamma2.mu    
@@ -1265,28 +1097,29 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::updateDensityParams(GAMMA2_REG &
     }
     else
     { 
-        d1.updateMean(statePosteriors1, this->setObs, options); 
-        d2.updateMean(statePosteriors2, this->setObs, options);
+        d1.updateMean(statePosteriors1, setObs, options); 
+        d2.updateMean(statePosteriors2, setObs, options);
 
         // make sure gamma1.mu < gamma2.mu    
         checkOrderG1G2(d1, d2, options);
 
-        d1.updateK(statePosteriors1, this->setObs, options.g1_kMin, options.g1_kMax, options); 
+        d1.updateK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options); 
 
         double g2_kMin = options.g2_kMin;
         if (options.g1_k_le_g2_k)
             g2_kMin = std::max(d1.k, options.g2_kMin);
 
-        d2.updateK(statePosteriors2, this->setObs, g2_kMin, options.g2_kMax, options);
+        d2.updateK(statePosteriors2, setObs, g2_kMin, options.g2_kMax, options);
     }
     return true;
 }
 
-template<>
-bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::updateDensityParams(GAMMA2_REG &d1, GAMMA2_REG &d2, AppOptions &options)   
+
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA &d1, TGAMMA &d2, AppOptions &options)   
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
+    String<String<String<TDOUBLE> > > statePosteriors1;
+    String<String<String<TDOUBLE> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     for (unsigned s = 0; s < 2; ++s)
@@ -1305,46 +1138,17 @@ bool HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::updateDensityParams(GAMM
         }
     }
 
-    if (options.gslSimplex2)
-    {
-        if (!d1.updateRegCoeffsAndK(statePosteriors1, this->setObs, options.g1_kMin, options.g1_kMax, options))
-            return false;
+    updateDensityParams2(statePosteriors1, statePosteriors2, this->setObs, d1, d2, options); 
 
-        double g2_kMin = options.g2_kMin;
-        if (options.g1_k_le_g2_k)
-            g2_kMin = std::max(d1.k, options.g2_kMin);
-
-        if (!d2.updateRegCoeffsAndK(statePosteriors2, this->setObs, g2_kMin, options.g2_kMax, options))
-            return false;
-
-        // make sure gamma1.mu < gamma2.mu    
-         checkOrderG1G2(d1, d2, options);
-    }
-    else
-    { 
-        d1.updateMean(statePosteriors1, this->setObs, options); 
-        d2.updateMean(statePosteriors2, this->setObs, options);
-
-        // make sure gamma1.mu < gamma2.mu    
-        checkOrderG1G2(d1, d2, options);
-
-        d1.updateK(statePosteriors1, this->setObs, options.g1_kMin, options.g1_kMax, options);  
-
-        double g2_kMin = options.g2_kMin;
-        if (options.g1_k_le_g2_k)
-            g2_kMin = std::max(d1.k, options.g2_kMin);
-
-        d2.updateK(statePosteriors2, this->setObs, g2_kMin, options.g2_kMax, options);
-    }
     return true;
 }
 
 
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-bool HMM<TD1, TD2, TB1, TB2>::updateDensityParams(TD1 /*&d1*/, TD2 /*&d2*/, TB1 &bin1, TB2 &bin2, AppOptions &options)   
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d2*/, TBIN &bin1, TBIN &bin2, AppOptions &options)   
 {
-    String<String<String<double> > > statePosteriors1;
-    String<String<String<double> > > statePosteriors2;
+    String<String<String<TDOUBLE> > > statePosteriors1;
+    String<String<String<TDOUBLE> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     for (unsigned s = 0; s < 2; ++s)
@@ -1379,7 +1183,7 @@ bool HMM<TD1, TD2, TB1, TB2>::updateDensityParams(TD1 /*&d1*/, TD2 /*&d2*/, TB1 
 // E: compute state posterior (gamma), transition posterior (xi)
 // M: estimate parameters
 /*template<typename TD1, typename TD2, typename TB1, typename TB2> 
-bool HMM<TD1, TD2, TB1, TB2>::baumWelch_noSc(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, CharString learnTag, AppOptions &options)
+bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch_noSc(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, CharString learnTag, AppOptions &options)
 {
     double prev_p = 666.0;
     for (unsigned iter = 0; iter < options.maxIter_bw; ++iter)
@@ -1425,13 +1229,13 @@ bool HMM<TD1, TD2, TB1, TB2>::baumWelch_noSc(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &b
 }*/
 
 // with scaling
-template<typename TD1, typename TD2, typename TB1, typename TB2> 
-bool HMM<TD1, TD2, TB1, TB2>::baumWelch(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, CharString learnTag, AppOptions &options)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE> 
+bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options)
 {
-    TD1 prev_d1 = d1;
-    TD2 prev_d2 = d2;
-    TB1 prev_bin1 = bin1;
-    TB2 prev_bin2 = bin2;
+    TGAMMA prev_d1 = d1;
+    TGAMMA prev_d2 = d2;
+    TBIN prev_bin1 = bin1;
+    TBIN prev_bin2 = bin2;
     for (unsigned iter = 0; iter < options.maxIter_bw; ++iter)
     {
         std::cout << ".. " << iter << "th iteration " << std::endl;
@@ -1500,8 +1304,8 @@ bool HMM<TD1, TD2, TB1, TB2>::baumWelch(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
 }
 
 
-template<typename TD1, typename TD2, typename TB1, typename TB2> 
-bool HMM<TD1, TD2, TB1, TB2>::applyParameters(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, AppOptions &options)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE> 
+bool HMM<TGAMMA, TBIN, TDOUBLE>::applyParameters(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, AppOptions &options)
 {
     if (!computeEmissionProbs(d1, d2, bin1, bin2, false, options))
     {
@@ -1515,10 +1319,10 @@ bool HMM<TD1, TD2, TB1, TB2>::applyParameters(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &
 
 
 // returns log P
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-double HMM<TD1, TD2, TB1, TB2>::viterbi(String<String<String<__uint8> > > &states)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi(String<String<String<__uint8> > > &states)
 {
-    double p = 1.0;
+    long double p = 1.0;
     for (unsigned s = 0; s < 2; ++s)
     {
         resize(states[s], length(this->setObs[s]), Exact());
@@ -1526,7 +1330,7 @@ double HMM<TD1, TD2, TB1, TB2>::viterbi(String<String<String<__uint8> > > &state
         {
             resize(states[s][i], this->setObs[s][i].length(), Exact());
             // store for each t and state maximizing precursor joint probability of state sequence and observation
-            String<String<double> > vits;
+            String<String<TDOUBLE> > vits;
             resize(vits, this->setObs[s][i].length(), Exact());
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
                 resize(vits[t], this->K, Exact());
@@ -1544,11 +1348,11 @@ double HMM<TD1, TD2, TB1, TB2>::viterbi(String<String<String<__uint8> > > &state
             {
                 for (unsigned k = 0; k < this->K; ++k)
                 {
-                    double max_v = vits[t-1][0] * this->transMatrix[0][k];
+                    TDOUBLE max_v = vits[t-1][0] * this->transMatrix[0][k];
                     unsigned max_k = 0;
                     for (unsigned k_p = 1; k_p < this->K; ++k_p)
                     {
-                        double v = vits[t-1][k_p] * this->transMatrix[k_p][k];
+                        TDOUBLE v = vits[t-1][k_p] * this->transMatrix[k_p][k];
                         if (v > max_v)
                         {
                             max_v = v;
@@ -1560,7 +1364,7 @@ double HMM<TD1, TD2, TB1, TB2>::viterbi(String<String<String<__uint8> > > &state
                 }
             }
             // backtracking
-            double max_v = vits[this->setObs[s][i].length() - 1][0];
+            TDOUBLE max_v = vits[this->setObs[s][i].length() - 1][0];
             unsigned max_k = 0;
             for (unsigned k = 1; k < this->K; ++k)
             {
@@ -1581,10 +1385,10 @@ double HMM<TD1, TD2, TB1, TB2>::viterbi(String<String<String<__uint8> > > &state
 }
 
 
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-double HMM<TD1, TD2, TB1, TB2>::viterbi_log(String<String<String<__uint8> > > &states)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi_log(String<String<String<__uint8> > > &states)
 {
-    double p = 0.0;
+    long double p = 0.0;
     for (unsigned s = 0; s < 2; ++s)
     {
         resize(states[s], length(this->setObs[s]), Exact());
@@ -1592,7 +1396,7 @@ double HMM<TD1, TD2, TB1, TB2>::viterbi_log(String<String<String<__uint8> > > &s
         {
             resize(states[s][i], this->setObs[s][i].length(), Exact());
             // store for each t and state maximizing precursor joint probability of state sequence and observation
-            String<String<double> > vits;
+            String<String<TDOUBLE> > vits;
             resize(vits, this->setObs[s][i].length(), Exact());
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
                 resize(vits[t], this->K, Exact());
@@ -1612,7 +1416,7 @@ double HMM<TD1, TD2, TB1, TB2>::viterbi_log(String<String<String<__uint8> > > &s
             {
                 for (unsigned k = 0; k < this->K; ++k)
                 {
-                    double max_v = vits[t-1][0] + log(this->transMatrix[0][k]);
+                    TDOUBLE max_v = vits[t-1][0] + log(this->transMatrix[0][k]);
                     unsigned max_k = 0;
                     for (unsigned k_p = 1; k_p < this->K; ++k_p)
                     {
@@ -1628,7 +1432,7 @@ double HMM<TD1, TD2, TB1, TB2>::viterbi_log(String<String<String<__uint8> > > &s
                 }
             }
             // backtracking
-            double max_v = vits[this->setObs[s][i].length() - 1][0];
+            TDOUBLE max_v = vits[this->setObs[s][i].length() - 1][0];
             unsigned max_k = 0;
             for (unsigned k = 1; k < this->K; ++k)
             {
@@ -1650,8 +1454,8 @@ double HMM<TD1, TD2, TB1, TB2>::viterbi_log(String<String<String<__uint8> > > &s
 }
 
 
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::posteriorDecoding(String<String<String<__uint8> > > &states)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+void HMM<TGAMMA, TBIN, TDOUBLE>::posteriorDecoding(String<String<String<__uint8> > > &states)
 { 
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -1678,56 +1482,40 @@ void HMM<TD1, TD2, TB1, TB2>::posteriorDecoding(String<String<String<__uint8> > 
 }
 
 
-// for GLM with input signal: 
-// when using free gamma shapes, i.e. gamma1.k can be > gamma2.k
-// make sure sites with fragment coverage (KDE) below gamma1.mean are classified as 'non-enriched'
-template<>
-void HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN, ZTBIN>::rmBoarderArtifacts(String<String<String<__uint8> > > &states, GAMMA2_REG &g1)
+template<typename TDOUBLE>
+void rmBoarderArtifacts2(String<String<String<__uint8> > > &states, String<String<Observations> > &setObs, GAMMA2_REG<TDOUBLE> &g1)
 {
     double b0 = g1.b0;
     double b1 = g1.b1;
     for (unsigned s = 0; s < 2; ++s)
     {
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
+        for (unsigned i = 0; i < length(setObs[s]); ++i)
         {
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+            for (unsigned t = 0; t < setObs[s][i].length(); ++t)
             {
-                double x1 = this->setObs[s][i].rpkms[t];
+                double x1 = setObs[s][i].rpkms[t];
                 double g1_pred = exp(b0 + b1 * x1);
-                if (states[s][i][t] >= 2 && this->setObs[s][i].kdes[t] < g1_pred)
+                if (states[s][i][t] >= 2 && setObs[s][i].kdes[t] < g1_pred)
                     states[s][i][t] -= 2;
             }
         }
     }
 }
 
-template<>
-void HMM<GAMMA2_REG, GAMMA2_REG, ZTBIN_REG, ZTBIN_REG>::rmBoarderArtifacts(String<String<String<__uint8> > > &states, GAMMA2_REG &g1)
-{
-    double b0 = g1.b0;
-    double b1 = g1.b1;
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-            {
-                double x1 = this->setObs[s][i].rpkms[t];
-                double g1_pred = exp(b0 + b1 * x1);
-                if (states[s][i][t] >= 2 && this->setObs[s][i].kdes[t] < g1_pred)
-                    states[s][i][t] -= 2;
-            }
-        }
-    }
-}
-
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TD1, TD2, TB1, TB2>::rmBoarderArtifacts(String<String<String<__uint8> > > &states, TD1 &g1)
+template<typename TDOUBLE>
+void rmBoarderArtifacts2(String<String<String<__uint8> > > &states, String<String<Observations> > &setObs, GAMMA2<TDOUBLE> &g1)
 {
     // do nothing
 }
 
-
+// for GLM with input signal: 
+// when using free gamma shapes, i.e. gamma1.k can be > gamma2.k
+// make sure sites with fragment coverage (KDE) below gamma1.mean are classified as 'non-enriched'
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+void HMM<TGAMMA, TBIN, TDOUBLE>::rmBoarderArtifacts(String<String<String<__uint8> > > &states, TGAMMA &g1)
+{
+    rmBoarderArtifacts2(states, this->setObs, g1);
+}
 
 
 void writeStates(BedFileOut &outBed,
@@ -1944,8 +1732,8 @@ void writeRegions(BedFileOut &outBed,
 }
 
   
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-void myPrint(HMM<TD1, TD2, TB1, TB2> &hmm)
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+void myPrint(HMM<TGAMMA, TBIN, TDOUBLE> &hmm)
 {
     std::cout << "*** Transition probabilitites ***" << std::endl;
     for (unsigned k_1 = 0; k_1 < hmm.K; ++k_1)

@@ -808,7 +808,7 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, T
             data.setObs[s][i].computeKDEs(options);
     
     
-    if (options.verbosity >= 1) std::cout << "  Estiamte Ns ... " << std::endl;
+    if (options.verbosity >= 1) std::cout << "  Estiamte Ns ... " << options.estimateNfromKdes << std::endl;
     if (options.estimateNfromKdes && b0 == 0.0 && b1 == 0.0) 
         computeSLR(b0, b1, data, options);
 
@@ -832,10 +832,11 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, T
 }
 
 
-template<typename TD1, typename TD2, typename TB1, typename TB2>
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool learnHMM(Data &data, 
               String<String<double> > &transMatrix_1,
-              TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
+              TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2,
+              TDOUBLE /**/,
               unsigned &contigLen,
               AppOptions &options)
 {
@@ -844,7 +845,7 @@ bool learnHMM(Data &data,
 #endif
 
     if (options.verbosity >= 1) std::cout << "Build HMM ..." << std::endl;
-    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs, data.setPos, contigLen);       
+    HMM<TGAMMA, TBIN, TDOUBLE> hmm(4, data.setObs, data.setPos, contigLen);       
     hmm.transMatrix = transMatrix_1;
     if (options.verbosity >= 1) 
     {
@@ -890,10 +891,11 @@ bool learnHMM(Data &data,
 }
 
 
-template<typename TD1, typename TD2, typename TB1, typename TB2>
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool applyHMM(Data &data, 
               String<String<double> > &transMatrix_1,
-              TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, 
+              TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2,
+              TDOUBLE /**/,
               unsigned &contigLen,
               AppOptions &options)
 {
@@ -901,7 +903,7 @@ bool applyHMM(Data &data,
     double timeStamp = sysTime();
 #endif
     if (options.verbosity >= 1) std::cout << "   build HMM" << std::endl;
-    HMM<TD1, TD2, TB1, TB2> hmm(4, data.setObs, data.setPos, contigLen);
+    HMM<TGAMMA, TBIN, TDOUBLE> hmm(4, data.setObs, data.setPos, contigLen);
     hmm.transMatrix = transMatrix_1;
     if (!hmm.applyParameters(d1, d2, bin1, bin2, options))
         return false;
@@ -961,8 +963,8 @@ inline bool exists_test(const CharString& fileName) {
 }
 
 
-template <typename TGamma1, typename TGamma2, typename TBIN, typename TOptions>
-bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &options)
+template <typename TGamma, typename TBIN, typename TDOUBLE, typename TOptions>
+bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, TOptions &options)
 {
 #if HMM_PARALLEL
     omp_set_num_threads(options.numThreads);
@@ -1084,7 +1086,7 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
     estimateTransitions(transMatrix, gamma1, gamma2, bin1, bin2, data, options);
 
     unsigned contigLen = 0; // should not be used within learning
-    if (!learnHMM(data, transMatrix, gamma1, gamma2, bin1, bin2, contigLen, options))
+    if (!learnHMM(data, transMatrix, gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, contigLen, options))
         return 1;
 
     clear(contigObservationsF);
@@ -1144,7 +1146,7 @@ bool doIt(TGamma1 &gamma1, TGamma2 &gamma2, TBIN &bin1, TBIN &bin2, TOptions &op
 
                 // Apply learned parameters
                 unsigned contigLen = length(store.contigStore[contigId].seq);
-                if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, contigLen, options))
+                if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, contigLen, options))
                 {
                     SEQAN_OMP_PRAGMA(critical)
                     stop = true;
