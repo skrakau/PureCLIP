@@ -214,7 +214,8 @@ int loadObservations(TContigObservations &contigObservationsF, TContigObservatio
     resize(contigObservationsF.truncCounts, length(store.contigStore[contigId].seq), 0, Exact());
     resize(contigObservationsR.truncCounts, length(store.contigStore[contigId].seq), 0, Exact());
 
-    parse_bamRegion(contigObservationsF, contigObservationsR, inFile, baiIndex, rID, options);
+    if (!parse_bamRegion(contigObservationsF, contigObservationsR, inFile, baiIndex, rID, options))
+        return 2;
 
     // ATTENTIONE: reverse in-place here to avoid problems for observations datastructures (and use Modifier iterator later within writeStates)  !!!!!!!!
     reverse(contigObservationsR);      
