@@ -181,6 +181,7 @@ void estimateTransitions(String<String<double> > &initTrans,
             unsigned k = data.setObs[s][i].truncCounts[0];
             unsigned n = data.setObs[s][i].nEstimates[0];
             unsigned prev_state = 0;
+            bool prev_valid = true;
             double max = gamma1.getDensity(kde) * bin1.getDensity(k, n);   // most likely non-enriched and no crosslink "0"
          
             if (gamma1.getDensity(kde) * bin2.getDensity(k, n) > max)      // most likely non-enriched and crosslink "1" 
@@ -223,7 +224,17 @@ void estimateTransitions(String<String<double> > &initTrans,
                     max = gamma2.getDensity(kde) * bin2.getDensity(k, n);
                     curr_state = 3;
                 }
-                ++transFreqs[prev_state][curr_state];
+                if (max > 0.0 && prev_valid) 
+                {
+                    ++transFreqs[prev_state][curr_state];
+                    prev_valid = true;
+                }
+                else
+                {
+                    //std::cout << "Note: estimating transFreqs, all emission probs 0!" << gamma1.getDensity(kde) << " - " << gamma2.getDensity(kde) << " - " <<  bin1.getDensity(k, n) << " - " << bin2.getDensity(k, n) << std::endl;
+                    prev_valid = false;
+                }
+
                 prev_state = curr_state;
             }
         }
@@ -278,6 +289,7 @@ void estimateTransitions(String<String<double> > &initTrans,
             double d1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[0]);
             double d2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[0]);
             unsigned prev_state = 0;
+            bool prev_valid = true;
             long double gamma1_eProb = gamma1.getDensity(data.setObs[s][i].kdes[0], d1_pred);
             long double gamma2_eProb = gamma2.getDensity(data.setObs[s][i].kdes[0], d2_pred);
             if (data.setObs[s][i].kdes[0] < gamma1.tp)
@@ -339,7 +351,17 @@ void estimateTransitions(String<String<double> > &initTrans,
                     max = gamma2_eProb * bin2.getDensity(k, n);
                     curr_state = 3;
                 }
-                ++transFreqs[prev_state][curr_state];
+                if (max > 0.0 && prev_valid)      
+                {
+                    ++transFreqs[prev_state][curr_state];
+                    prev_valid = true;
+                }
+                else
+                {
+                    // std::cout << "Note: estimating transFreqs, all emission probs 0!" << gamma1.getDensity(kde) << " - " << gamma2.getDensity(kde) << " - " <<  bin1.getDensity(k, n) << " - " << bin2.getDensity(k, n) << std::endl;
+                    prev_valid = false;
+                }
+
                 prev_state = curr_state;
             }
         }
