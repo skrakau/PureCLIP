@@ -128,8 +128,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     addOption(parser, ArgParseOption("mkn", "mkn", "Max. k/N ratio (read start sites/N) used to learn truncation probabilities for 'non-crosslink' and 'crosslink' emission probabilities (high ratios might originate from mapping artifacts that can disturb parameter learning). Default: 1.0", ArgParseArgument::DOUBLE));
     setMinValue(parser, "mkn", "0.5");
-    setMaxValue(parser, "mkn", "1.5"); 
-
+    setMaxValue(parser, "mkn", "1.5");
+    addOption(parser, ArgParseOption("b1p", "b1p", "Initial value for binomial probability parameter of 'non-crosslink' state.", ArgParseArgument::DOUBLE));
+    addOption(parser, ArgParseOption("b2p", "b2p", "Initial value for binomial probability parameter of 'crosslink' state.", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("mtp", "mtp", "Min. transition probability from state '2' to '3' (helpful for poor data, where no clear distinction between 'enriched' and 'non-enriched' is possible). Default: 0.0001.", ArgParseArgument::DOUBLE));
 
     addOption(parser, ArgParseOption("mk", "mkde", "Minimum KDE value used for fitting left-truncated gamma distributions. Default: corresponding to singleton read start.", ArgParseArgument::DOUBLE));
@@ -224,6 +225,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.nThresholdForP, parser, "ntp");
     getOptionValue(options.minTransProbCS, parser, "mtp");
     getOptionValue(options.maxkNratio, parser, "mkn");
+    getOptionValue(options.p1, parser, "b1p");
+    getOptionValue(options.p2, parser, "b2p");
+
     getOptionValue(options.distMerge, parser, "dm");
     if (isSet(parser, "ld"))
         options.useHighPrecision = true;
