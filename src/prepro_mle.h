@@ -182,21 +182,36 @@ void estimateTransitions(String<String<double> > &initTrans,
             unsigned n = data.setObs[s][i].nEstimates[0];
             unsigned prev_state = 0;
             bool prev_valid = true;
-            double max = gamma1.getDensity(kde) * bin1.getDensity(k, n);   // most likely non-enriched and no crosslink "0"
-         
-            if (gamma1.getDensity(kde) * bin2.getDensity(k, n) > max)      // most likely non-enriched and crosslink "1" 
+
+            long double g1_d = 1.0;
+            long double g2_d = 0.0;
+            if (kde >= gamma1.tp) 
             {
-                max = gamma1.getDensity(kde) * bin2.getDensity(k, n);
+                g1_d = gamma1.getDensity(kde);
+                g2_d = gamma2.getDensity(kde); 
+            }
+            long double bin1_d = 1.0;
+            long double bin2_d = 0.0;
+            if (k > 0)
+            {
+                bin1_d = bin1.getDensity(k, n);
+                bin2_d = bin2.getDensity(k, n);
+            }
+
+            double max = g1_d * bin1_d;   // most likely non-enriched and no crosslink "0"
+            if (g1_d * bin2_d > max)      // most likely non-enriched and crosslink "1" 
+            {
+                max = g1_d * bin2_d;
                 prev_state = 1;
             }
-            if (gamma2.getDensity(kde) * bin1.getDensity(k, n) > max)        // most likely enriched and no crosslink "2"
+            if (g2_d * bin1_d > max)        // most likely enriched and no crosslink "2"
             {
-                max = gamma2.getDensity(kde) * bin1.getDensity(k, n);
+                max = g2_d * bin1_d;
                 prev_state = 2;
             }
-            if (gamma2.getDensity(kde) * bin2.getDensity(k, n) > max)        // most likely enriched and crosslink "3"
+            if (g2_d * bin2_d > max)        // most likely enriched and crosslink "3"
             {
-                max = gamma2.getDensity(kde) * bin2.getDensity(k, n);
+                max = g2_d * bin2_d;
                 prev_state = 3;
             }
 
@@ -207,33 +222,48 @@ void estimateTransitions(String<String<double> > &initTrans,
                 k = data.setObs[s][i].truncCounts[t];
                 n = data.setObs[s][i].nEstimates[t];
                 unsigned curr_state = 0;
-                max = gamma1.getDensity(kde) * bin1.getDensity(k, n);          // most likely non-enriched and no crosslink "0"
 
-                if (gamma1.getDensity(kde) * bin2.getDensity(k, n) > max)      // most likely non-enriched and crosslink "1" 
+                g1_d = 1.0;
+                g2_d = 0.0;
+                if (kde >= gamma1.tp) 
                 {
-                    max = gamma1.getDensity(kde) * bin2.getDensity(k, n);
+                    g1_d = gamma1.getDensity(kde);
+                    g2_d = gamma2.getDensity(kde); 
+                }
+                bin1_d = 1.0;
+                bin2_d = 0.0;
+                if (k > 0)
+                {
+                    bin1_d = bin1.getDensity(k, n);
+                    bin2_d = bin2.getDensity(k, n);
+                }
+
+                max = g1_d * bin1_d;          // most likely non-enriched and no crosslink "0"
+                if (g1_d * bin2_d > max)      // most likely non-enriched and crosslink "1" 
+                {
+                    max = g1_d * bin2_d;
                     curr_state = 1;
                 }
-                if (gamma2.getDensity(kde) * bin1.getDensity(k, n) > max)        // most likely enriched and no crosslink "2"
+                if (g2_d * bin1_d > max)        // most likely enriched and no crosslink "2"
                 {
-                    max = gamma2.getDensity(kde) * bin1.getDensity(k, n);
+                    max = g2_d * bin1_d;
                     curr_state = 2;
                 }
-                if (gamma2.getDensity(kde) * bin2.getDensity(k, n) > max)        // most likely enriched and crosslink "3"
+                if (g2_d * bin2_d > max)        // most likely enriched and crosslink "3"
                 {
-                    max = gamma2.getDensity(kde) * bin2.getDensity(k, n);
+                    max = g2_d * bin2_d;
                     curr_state = 3;
                 }
+
                 if (max > 0.0 && prev_valid) 
-                {
                     ++transFreqs[prev_state][curr_state];
-                    prev_valid = true;
-                }
                 else
-                {
-                    //std::cout << "Note: estimating transFreqs, all emission probs 0!" << gamma1.getDensity(kde) << " - " << gamma2.getDensity(kde) << " - " <<  bin1.getDensity(k, n) << " - " << bin2.getDensity(k, n) << std::endl;
+                    std::cout << "Note: estimating transFreqs, all emission probs 0!" << gamma1.getDensity(kde) << " - " << gamma2.getDensity(kde) << " - " <<  bin1_d<< " - " << bin2_d<< "  n: " << n << " k: " << k << std::endl;
+                
+                if (max > 0.0) 
+                    prev_valid = true;
+                else
                     prev_valid = false;
-                }
 
                 prev_state = curr_state;
             }
@@ -286,81 +316,95 @@ void estimateTransitions(String<String<double> > &initTrans,
     {
         for (unsigned i = 0; i < length(data.setObs[s]); ++i)  
         {
+            double kde = data.setObs[s][i].kdes[0];
+            unsigned k = data.setObs[s][i].truncCounts[0];
+            unsigned n = data.setObs[s][i].nEstimates[0];
             double d1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[0]);
             double d2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[0]);
             unsigned prev_state = 0;
             bool prev_valid = true;
-            long double gamma1_eProb = gamma1.getDensity(data.setObs[s][i].kdes[0], d1_pred);
-            long double gamma2_eProb = gamma2.getDensity(data.setObs[s][i].kdes[0], d2_pred);
-            if (data.setObs[s][i].kdes[0] < gamma1.tp)
-            {
-                gamma1_eProb = 1.0;
-                gamma2_eProb = 0.0; 
-            }
-            unsigned k = data.setObs[s][i].truncCounts[0];
-            unsigned n = data.setObs[s][i].nEstimates[0];
 
-            long double max = gamma1_eProb * bin1.getDensity(k, n);   // most likely non-enriched and no crosslink "0"
-         
-            if (gamma1_eProb * bin2.getDensity(k, n) > max)      // most likely non-enriched and crosslink "1" 
+            long double g1_d = 1.0;
+            long double g2_d = 0.0;
+            if (kde >= gamma1.tp)
             {
-                max = gamma1_eProb * bin2.getDensity(k, n);
+                g1_d = gamma1.getDensity(kde, d1_pred);
+                g2_d = gamma2.getDensity(kde, d2_pred);
+            }
+            long double bin1_d = 1.0;
+            long double bin2_d = 0.0;
+            if (k > 0)
+            {
+                bin1_d = bin1.getDensity(k, n);
+                bin2_d = bin2.getDensity(k, n);
+            }
+
+            long double max = g1_d * bin1_d;   // most likely non-enriched and no crosslink "0"
+            if (g1_d * bin2_d> max)      // most likely non-enriched and crosslink "1" 
+            {
+                max = g1_d * bin2_d;
                 prev_state = 1;
             }
-            if (gamma2_eProb * bin1.getDensity(k, n) > max)        // most likely enriched and no crosslink "2"
+            if (g2_d * bin1_d> max)        // most likely enriched and no crosslink "2"
             {
-                max = gamma2_eProb * bin1.getDensity(k, n);
+                max = g2_d * bin1_d;
                 prev_state = 2;
             }
-            if (gamma2_eProb * bin2.getDensity(k, n) > max)        // most likely enriched and crosslink "3"
+            if (g2_d * bin2_d> max)        // most likely enriched and crosslink "3"
             {
-                max = gamma2_eProb * bin2.getDensity(k, n);
+                max = g2_d * bin2_d;
                 prev_state = 3;
             }
             // count transitions
             for (unsigned t = 1; t < data.setObs[s][i].length(); ++t)
             {
-                d1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[t]);
-                d2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[t]);
+                kde = data.setObs[s][i].kdes[t];
                 k = data.setObs[s][i].truncCounts[t];
                 n = data.setObs[s][i].nEstimates[t];
-
+                d1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[t]);
+                d2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[t]);
                 unsigned curr_state = 0;
-                gamma1_eProb = gamma1.getDensity(data.setObs[s][i].kdes[t], d1_pred);
-                gamma2_eProb = gamma2.getDensity(data.setObs[s][i].kdes[t], d2_pred);
-                if (data.setObs[s][i].kdes[t] < gamma1.tp)
+
+                g1_d = 1.0;
+                g2_d = 0.0;
+                if (kde >= gamma1.tp)
                 {
-                    gamma1_eProb = 1.0;
-                    gamma2_eProb = 0.0; 
+                    g1_d = gamma1.getDensity(kde, d1_pred);
+                    g2_d = gamma2.getDensity(kde, d2_pred);
+                }
+                bin1_d = 1.0;
+                bin2_d = 0.0;
+                if (k > 0)
+                {
+                    bin1_d = bin1.getDensity(k, n);
+                    bin2_d = bin2.getDensity(k, n);
                 }
 
-                max = gamma1_eProb * bin1.getDensity(k, n);          // most likely non-enriched and no crosslink "0"
-
-                if (gamma1_eProb * bin2.getDensity(k, n) > max)      // most likely non-enriched and crosslink "1" 
+                max = g1_d * bin1_d;          // most likely non-enriched and no crosslink "0"
+                if (g1_d * bin2_d> max)      // most likely non-enriched and crosslink "1" 
                 {
-                    max = gamma1_eProb * bin2.getDensity(k, n);
+                    max = g1_d * bin2_d;
                     curr_state = 1;
                 }
-                if (gamma2_eProb * bin1.getDensity(k, n) > max)        // most likely enriched and no crosslink "2"
+                if (g2_d * bin1_d> max)        // most likely enriched and no crosslink "2"
                 {
-                    max = gamma2_eProb * bin1.getDensity(k, n);
+                    max = g2_d * bin1_d;
                     curr_state = 2;
                 }
-                if (gamma2_eProb * bin2.getDensity(k, n) > max)        // most likely enriched and crosslink "3"
+                if (g2_d * bin2_d> max)        // most likely enriched and crosslink "3"
                 {
-                    max = gamma2_eProb * bin2.getDensity(k, n);
+                    max = g2_d * bin2_d;
                     curr_state = 3;
                 }
-                if (max > 0.0 && prev_valid)      
-                {
+                if (max > 0.0 && prev_valid) 
                     ++transFreqs[prev_state][curr_state];
+                //else
+                //    std::cout << "Note: estimating transFreqs, all emission probs 0!" << gamma1.getDensity(kde) << " - " << gamma2.getDensity(kde) << " - " <<  bin1_d<< " - " << bin2_d<< std::endl;
+                
+                if (max > 0.0) 
                     prev_valid = true;
-                }
                 else
-                {
-                    // std::cout << "Note: estimating transFreqs, all emission probs 0!" << gamma1.getDensity(kde) << " - " << gamma2.getDensity(kde) << " - " <<  bin1.getDensity(k, n) << " - " << bin2.getDensity(k, n) << std::endl;
                     prev_valid = false;
-                }
 
                 prev_state = curr_state;
             }
