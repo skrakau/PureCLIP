@@ -73,6 +73,7 @@ namespace seqan {
         double bin_b_conv;
         unsigned binSize;
         unsigned bandwidth;
+        unsigned bandwidthN;
         unsigned intervalOffset;
 
         bool gaussianKernel;
@@ -132,6 +133,7 @@ namespace seqan {
             bin_b_conv(0.0001),
             binSize(0),                     // if not specified: 2* bdw
             bandwidth(50),                  // h, standard deviation for gaussian kernel
+            bandwidthN(200),                  // .... used for estionation of N
             intervalOffset(50),             // offset for covered intervals to be stored in observations
             gaussianKernel(true),
             epanechnikovKernel(false),
@@ -208,7 +210,8 @@ namespace seqan {
         unsigned contigId; 
 
         String<__uint16>    nEstimates;      
-        String<double>      kdes;  
+        String<double>      kdes;       // used for 'enriched'. 'non-enriched' classification
+        String<double>      kdesN;    // used to estimate the binomial n parameters (decoupled, might be useful e.g. for longer crosslink clusters) 
         String<double>      rpkms;      // TODO change name -> e.g. bgSignal
         String<float>       fimoScores; // for each t: one motif score
         String<char>        motifIds; // for each t: one motif score
@@ -232,7 +235,7 @@ namespace seqan {
     void Observations::estimateNs(AppOptions &options)  
     { 
         resize(this->nEstimates, length(), Exact());
-        unsigned w_50 = floor((double)options.binSize/2.0 - 0.1);    // binSize should be odd
+        unsigned w_50 = floor((double)options.bandwidthN - 0.1);    // binSize should be odd
 
         for (unsigned t = 0; t < length(); ++t)
         {
@@ -250,7 +253,7 @@ namespace seqan {
         resize(this->nEstimates, length(), Exact());
         for (unsigned t = 0; t < length(); ++t)
         {
-            this->nEstimates[t] = (__uint16)std::max((int)floor(b0 + b1*this->kdes[t] + 0.5), 1);   // avoid becoming 0  
+            this->nEstimates[t] = (__uint16)std::max((int)floor(b0 + b1*this->kdesN[t] + 0.5), 1);   // avoid becoming 0  
         }
     }
 
@@ -300,6 +303,35 @@ namespace seqan {
                 kde += this->truncCounts[i] * kernelDensities[(unsigned)std::abs((int)t - (int)i)];
             }
             this->kdes[t] = kde/(double)options.bandwidth; 
+        }
+
+        /////////////////////////////////
+        // same, but for kdes used for estimation of n
+        // TODO problem: interval size dependent on main bandwidth parameter, 
+        /////////////////////////////////
+        resize(this->kdesN, length());
+
+        w_50 = options.bandwidthN * 4;
+        // precompute kernel densities
+        clear(kernelDensities);
+        resize(kernelDensities, w_50 + 1, 0.0);
+
+        // precompute kernel densities   -> K(d/h) store at position d
+        for (unsigned i = 0; i <= w_50; ++i)
+        {
+            if (options.gaussianKernel)
+                kernelDensities[i] = getGaussianKernelDensity((double)i/(double)options.bandwidthN);
+            else if (options.epanechnikovKernel)
+                kernelDensities[i] = getEpanechnikovKernelDensity((double)i/(double)options.bandwidthN);        
+        }
+        for (unsigned t = 0; t < length(); ++t)
+        {
+            double kde = 0.0;
+            for (unsigned i = std::max((int)t - (int)w_50, (int)0); (i < length()) && (i <= t + w_50); ++i)  // inefficient if low genome coverage and not selected only for covered regions!!!
+            { 
+                kde += this->truncCounts[i] * kernelDensities[(unsigned)std::abs((int)t - (int)i)];
+            }
+            this->kdesN[t] = kde/(double)options.bandwidthN; 
         }
     }
 

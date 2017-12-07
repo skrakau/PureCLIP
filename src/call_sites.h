@@ -752,7 +752,7 @@ void extractCoveredIntervals(Data &data,
 template <typename TOptions>
 void computeSLR(double &b0, double &b1, Data &data, TOptions &options) // TODO check result
 {
-    unsigned w_50 = floor((double)options.binSize/2.0 - 0.1);    // binSize should be odd
+    unsigned w_50 = floor((double)options.bandwidthN - 0.1);    // binSize should be odd
 
     String<double> kdes;
     String<unsigned> counts;
@@ -767,7 +767,7 @@ void computeSLR(double &b0, double &b1, Data &data, TOptions &options) // TODO c
                 for (unsigned j = std::max((int)t - (int)w_50, (int)0); (j < data.setObs[s][i].length()) && (j <= t + w_50); ++j)  // inefficient... update on the fly
                     sum += data.setObs[s][i].truncCounts[j];
                 
-                appendValue(kdes, data.setObs[s][i].kdes[t], Generous());
+                appendValue(kdes, data.setObs[s][i].kdesN[t], Generous());
                 appendValue(counts, sum, Generous());
                 // = std::max(sum, (unsigned)1);  // TODO avoid becoming 0 !
                 //out << setObsF[i].kdes[t] << '\t' << sum << '\n';
@@ -822,6 +822,8 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, T
                 data.setObs[s][i].estimateNs(b0, b1, options);
             else
                 data.setObs[s][i].estimateNs(options);
+
+            clear(data.setObs[s][i].kdesN);
         }
     }
 
@@ -858,7 +860,6 @@ bool learnHMM(Data &data,
     CharString learnTag = "LEARN_GAMMA";
     if (!hmm.baumWelch(d1, d2, bin1, bin2, learnTag, options))
         return false;
-
 
     if (options.verbosity >= 1)  std::cout << "            learn binomial parameter" << std::endl;
     learnTag = "LEARN_BINOMIAL"; 

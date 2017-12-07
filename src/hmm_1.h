@@ -833,6 +833,30 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             for (unsigned k = 0; k < this->K; ++k)
                 this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
 
+            // compute most likely hidden states: posterior decoding
+            /*String<__uint8> states;
+            resize(states, this->setObs[s][i].length(), Exact());
+            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+            {
+                double max_p = 0.0;
+                unsigned max_k = 0;
+                for (unsigned k = 0; k < this->K; ++k)
+                {
+                    if (this->statePosteriors[s][k][i][t] > max_p)
+                    {
+                        max_p = this->statePosteriors[s][k][i][t];
+                        max_k = k;
+                    }
+                }
+                states[t] = max_k;
+            }
+            // get transition frequencies based on posterior decoding
+            for (unsigned t = 0; t < this->setObs[s][i].length()-1; ++t)
+            {
+                SEQAN_OMP_PRAGMA(critical)
+                p[states[t]][states[t+1]] += 1;
+            }*/
+
             // compute new transitioon probs
             String<String<double> > p_i;
             resize(p_i, this->K, Exact());
@@ -850,7 +874,6 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                     p[k_1][k_2] += p_i[k_1][k_2];
                 }
             }
-
         }
     }
     // update transition matrix
