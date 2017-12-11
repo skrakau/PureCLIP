@@ -855,9 +855,14 @@ bool learnHMM(Data &data,
         myPrint(hmm);
         std::cout << std::endl;
         std::cout << "Baum-Welch  ..." << std::endl;
-        std::cout << "            learn gamma parameter" << std::endl;
     }
-    CharString learnTag = "LEARN_GAMMA";
+    if (options.verbosity >= 1)  std::cout << "            learn binomial parameter" << std::endl;
+    CharString learnTag = "LEARN_BINOMIAL"; 
+    if (!hmm.baumWelch(d1, d2, bin1, bin2, learnTag, options))
+        return false;
+
+    if (options.verbosity >= 1)  std::cout << "            learn gamma parameter" << std::endl;
+    learnTag = "LEARN_GAMMA";
     if (!hmm.baumWelch(d1, d2, bin1, bin2, learnTag, options))
         return false;
 
@@ -1019,8 +1024,8 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     // if required, determine n threshold for learning of binomial parameters and trans. probs (2-> 2/3)
     if (options.nThresholdForP == 0)
     {
-        // require at least a mean of 2.5 read start counts for 'crosslink' state
-        options.nThresholdForP = ceil(2.5/options.p2);
+        // require at least a mean of 4 read start counts per 100 bp window for 'crosslink' state
+        options.nThresholdForP = ceil((4/options.p2)*(options.bandwidthN/100));
         std::cout << "Set n threshold used for learning of binomial parameters and transition probabilities '2' -> '2'/'3' to: " << options.nThresholdForP << std::endl;
     }
 
