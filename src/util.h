@@ -134,7 +134,7 @@ namespace seqan {
             bin_b_conv(0.0001),
             binSize(0),                     // if not specified: 2* bdw
             bandwidth(50),                  // h, standard deviation for gaussian kernel
-            bandwidthN(100),                  // .... used for estionation of N
+            bandwidthN(0),                  // .... used for estionation of N
             intervalOffset(50),             // offset for covered intervals to be stored in observations
             gaussianKernel(true),
             epanechnikovKernel(false),

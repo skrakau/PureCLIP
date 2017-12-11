@@ -88,7 +88,11 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     addOption(parser, ArgParseOption("bw", "bdw", "Bandwidth for kernel density estimation. NOTE: Increasing the bandwidth increases runtime and memory consumption. Default: 50.", ArgParseArgument::INTEGER));
     setMinValue(parser, "bdw", "1");
-    setMaxValue(parser, "bdw", "500"); 
+    setMaxValue(parser, "bdw", "500");
+
+    addOption(parser, ArgParseOption("bwn", "bdwn", "Bandwidth for kernel density estimation used to estimate n for binomial distributions. For proteins that are rather sliding along the RNA or showing long crosslink clusters this should be increased, e.g. to 100. Default: same as bdw.", ArgParseArgument::INTEGER));
+    setMinValue(parser, "bdwn", "1");
+    setMaxValue(parser, "bdwn", "500"); 
 
     addOption(parser, ArgParseOption("dm", "dm", "Distance used to merge individual crosslink sites to binding regions. Default: 8", ArgParseArgument::INTEGER));
 
@@ -219,6 +223,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     if (isSet(parser, "fk"))
         options.g1_k_le_g2_k = false;
     getOptionValue(options.bandwidth, parser, "bdw");
+    getOptionValue(options.bandwidthN, parser, "bdwn");
+    if (options.bandwidthN == 0)
+        options.bandwidthN = options.bandwidth;
 
     getOptionValue(options.useKdeThreshold, parser, "mkde");
 

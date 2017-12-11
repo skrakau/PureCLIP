@@ -1020,14 +1020,15 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     }
     if (options.verbosity >= 1) std::cout << "Use bandwidth: " << options.bandwidth << std::endl;
     if (options.verbosity >= 1) std::cout << "Use KDE threshold: " << options.useKdeThreshold << std::endl;
+    if (options.verbosity >= 1) std::cout << "Use bandwidth to estimate n: " << options.bandwidthN << std::endl;
 
     // if required, determine n threshold for learning of binomial parameters and trans. probs (2-> 2/3)
     if (options.nThresholdForP == 0)
     {
-        // require at least a mean of 4 read start counts per 100 bp window for 'crosslink' state
-        options.nThresholdForP = ceil((4/options.p2)*(options.bandwidthN/100));
+        // require at least a mean of 3 read start counts per 100 bp window for 'crosslink' state
+        options.nThresholdForP = ceil((3.0/options.p2)*((double)options.bandwidthN/100.0));
         std::cout << "Set n threshold used for learning of binomial parameters and transition probabilities '2' -> '2'/'3' to: " << options.nThresholdForP << std::endl;
-    }
+    } 
 
     // *****************
     double slr_NfromKDE_b0 = 0.0;
