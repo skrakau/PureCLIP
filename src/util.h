@@ -139,7 +139,7 @@ namespace seqan {
             epanechnikovKernel(false),
             useKdeThreshold(0.0),
             estimateNfromKdes(true),
-            nThresholdForP(10),              // threshold regarding n used for fitting p, if GLM, this need to be larger! 
+            nThresholdForP(0),              // threshold regarding n used for fitting p, if GLM, this need to be larger! 
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
             polyAThreshold(10),
