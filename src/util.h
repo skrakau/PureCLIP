@@ -82,6 +82,7 @@ namespace seqan {
 
         bool estimateNfromKdes;
         double nThresholdForP;
+        double use_nThresholdForTransProbs;
         double minTransProbCS;
         double maxkNratio;
 
