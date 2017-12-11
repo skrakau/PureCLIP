@@ -778,6 +778,10 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
         for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
             p[k_1][k_2] = 0.0;
     }
+    double p_2_2 = 0.0;     // for separate learning of trans. prob from '2' -> '2'
+    double p_2_3 = 0.0;     // for separate learning of trans. prob from '2' -> '3'
+
+   
 
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -805,7 +809,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             for (unsigned t = 0; t < T; ++t)
                 resize(betas_2[t], this->K, Exact());
             iBackward(betas_2, alphas_1, s, i);
-            
+           
             // compute state posterior probabilities
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
             {
@@ -833,33 +837,11 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             for (unsigned k = 0; k < this->K; ++k)
                 this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
 
-            // compute most likely hidden states: posterior decoding
-            /*String<__uint8> states;
-            resize(states, this->setObs[s][i].length(), Exact());
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-            {
-                double max_p = 0.0;
-                unsigned max_k = 0;
-                for (unsigned k = 0; k < this->K; ++k)
-                {
-                    if (this->statePosteriors[s][k][i][t] > max_p)
-                    {
-                        max_p = this->statePosteriors[s][k][i][t];
-                        max_k = k;
-                    }
-                }
-                states[t] = max_k;
-            }
-            // get transition frequencies based on posterior decoding
-            for (unsigned t = 0; t < this->setObs[s][i].length()-1; ++t)
-            {
-                SEQAN_OMP_PRAGMA(critical)
-                p[states[t]][states[t+1]] += 1;
-            }*/
-
             // compute new transitioon probs
             String<String<double> > p_i;
             resize(p_i, this->K, Exact());
+            double p_2_2_i = 0.0;
+            double p_2_3_i = 0.0;
             for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
             {
                 resize(p_i[k_1], this->K, Exact());
@@ -868,12 +850,22 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                     p_i[k_1][k_2] = 0.0;
                     for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
                     {
-                        p_i[k_1][k_2] += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2]; 
+                        p_i[k_1][k_2] += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
+                        // TODO learn p[2->2/3] for region over nThresholdForP
+                        if (k_1 == 2 && k_2 == 2 && setObs[s][i].nEstimates[t] >= options.nThresholdForP)
+                            p_2_2_i += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
+
+                        if (k_1 == 2 && k_2 == 3 && setObs[s][i].nEstimates[t] >= options.nThresholdForP)
+                            p_2_3_i += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
                     }
                     SEQAN_OMP_PRAGMA(critical)
                     p[k_1][k_2] += p_i[k_1][k_2];
                 }
             }
+            SEQAN_OMP_PRAGMA(critical)
+            p_2_2 += p_2_2_i;
+            SEQAN_OMP_PRAGMA(critical)
+            p_2_3 += p_2_3_i;
         }
     }
     // update transition matrix
@@ -884,6 +876,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
         {
             denumerator += p[k_1][k_3]; 
         }
+
         for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
         {
             A[k_1][k_2] = p[k_1][k_2] / denumerator;
@@ -892,6 +885,14 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                 A[k_1][k_2] = DBL_MIN;          // make sure not getting zero
         }
     }
+    // Fix p[2->2/3] using only trasnition prob for region over nThresholdForP, while keeping sum of p[2->2] and p[2->3] constant! (if user options says so) 
+    if (true)
+    {
+        double sum_2_23 = A[2][2] + A[2][3];
+        A[2][2] = sum_2_23 * p_2_2/(p_2_2 + p_2_3);
+        A[2][3] = sum_2_23 * p_2_3/(p_2_2 + p_2_3);
+    }
+
     // keep transProb of '2' -> '3' on min. value
     if (A[2][3] < options.minTransProbCS)
     {

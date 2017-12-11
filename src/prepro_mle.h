@@ -257,8 +257,8 @@ void estimateTransitions(String<String<double> > &initTrans,
 
                 if (max > 0.0 && prev_valid) 
                     ++transFreqs[prev_state][curr_state];
-                else
-                    std::cout << "Note: estimating transFreqs, all emission probs 0!" << gamma1.getDensity(kde) << " - " << gamma2.getDensity(kde) << " - " <<  bin1_d<< " - " << bin2_d<< "  n: " << n << " k: " << k << std::endl;
+                //else
+                //    std::cout << "Note: estimating transFreqs, all emission probs 0!" << gamma1.getDensity(kde) << " - " << gamma2.getDensity(kde) << " - " <<  bin1_d<< " - " << bin2_d<< "  n: " << n << " k: " << k << std::endl;
                 
                 if (max > 0.0) 
                     prev_valid = true;
