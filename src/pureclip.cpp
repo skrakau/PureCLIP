@@ -90,7 +90,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setMinValue(parser, "bdw", "1");
     setMaxValue(parser, "bdw", "500");
 
-    addOption(parser, ArgParseOption("bwn", "bdwn", "Bandwidth for kernel density estimation used to estimate n for binomial distributions. For proteins that are rather sliding along the RNA or showing long crosslink clusters this should be increased, e.g. to 100. Default: same as bdw.", ArgParseArgument::INTEGER));
+    addOption(parser, ArgParseOption("bwn", "bdwn", "Bandwidth for kernel density estimation used to estimate n for binomial distributions. For proteins that are rather sliding along the RNA or showing long crosslink clusters this should be increased, e.g. to 100 (should be <= 4*bdw). Default: same as bdw.", ArgParseArgument::INTEGER));
     setMinValue(parser, "bdwn", "1");
     setMaxValue(parser, "bdwn", "500"); 
 

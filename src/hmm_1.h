@@ -779,9 +779,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             p[k_1][k_2] = 0.0;
     }
     double p_2_2 = 0.0;     // for separate learning of trans. prob from '2' -> '2'
-    double p_2_3 = 0.0;     // for separate learning of trans. prob from '2' -> '3'
-
-   
+    double p_2_3 = 0.0;     // for separate learning of trans. prob from '2' -> '3' 
 
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -851,7 +849,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                     for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
                     {
                         p_i[k_1][k_2] += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
-                        // TODO learn p[2->2/3] for region over nThresholdForP
+                        // learn p[2->2/3] for region over nThresholdForP
                         if (k_1 == 2 && k_2 == 2 && setObs[s][i].nEstimates[t] >= options.nThresholdForP)
                             p_2_2_i += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
 
@@ -885,8 +883,8 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                 A[k_1][k_2] = DBL_MIN;          // make sure not getting zero
         }
     }
-    // Fix p[2->2/3] using only trasnition prob for region over nThresholdForP, while keeping sum of p[2->2] and p[2->3] constant! (if user options says so) 
-    if (true)
+    // Fix p[2->2/3] using only transition prob for region over nThresholdForP, while keeping sum of p[2->2] and p[2->3] constant! (if user options says so) 
+    if (options.use_nThresholdForTransProbs)
     {
         double sum_2_23 = A[2][2] + A[2][3];
         A[2][2] = sum_2_23 * p_2_2/(p_2_2 + p_2_3);
