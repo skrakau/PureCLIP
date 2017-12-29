@@ -93,6 +93,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("bwn", "bdwn", "Bandwidth for kernel density estimation used to estimate n for binomial distributions. For proteins that are rather sliding along the RNA or showing long crosslink clusters this should be increased, e.g. to 100 (should be <= 4*bdw). Default: same as bdw.", ArgParseArgument::INTEGER));
     setMinValue(parser, "bdwn", "1");
     setMaxValue(parser, "bdwn", "500"); 
+    addOption(parser, ArgParseOption("kgw", "kgw", "Kernel gap width", ArgParseArgument::INTEGER));
+    setMinValue(parser, "kgw", "0");
+    setMaxValue(parser, "kgw", "20"); 
 
     addOption(parser, ArgParseOption("dm", "dm", "Distance used to merge individual crosslink sites to binding regions. Default: 8", ArgParseArgument::INTEGER));
 
@@ -226,6 +229,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.bandwidthN, parser, "bdwn");
     if (options.bandwidthN == 0)
         options.bandwidthN = options.bandwidth;
+    getOptionValue(options.nKernelGap, parser, "kgw");
 
     getOptionValue(options.useKdeThreshold, parser, "mkde");
 

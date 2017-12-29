@@ -74,6 +74,7 @@ namespace seqan {
         unsigned binSize;
         unsigned bandwidth;
         unsigned bandwidthN;
+        unsigned nKernelGap;
         unsigned intervalOffset;
 
         bool gaussianKernel;
@@ -135,6 +136,7 @@ namespace seqan {
             binSize(0),                     // if not specified: 2* bdw
             bandwidth(50),                  // h, standard deviation for gaussian kernel
             bandwidthN(0),                  // .... used for estionation of N
+            nKernelGap(0),                  // 
             intervalOffset(50),             // offset for covered intervals to be stored in observations
             gaussianKernel(true),
             epanechnikovKernel(false),
@@ -279,6 +281,25 @@ namespace seqan {
         
         return (3.0/4.0 * (1.0 - pow(u, 2)));
     }
+    ///////////////////////////////
+    // custom kernel for estimation of N
+    // lower weight for very close by neighbour positions (other crosslinks within same motif regions for example)
+    template<typename TType> 
+    double getCustomKernelDensity(TType const &u, AppOptions &options)
+    {
+        TType cu = u;
+        // simply cutoff
+        if (u*options.bandwidthN <= options.nKernelGap && u*options.bandwidthN != 0) return cu = (double)options.nKernelGap/(double)options.bandwidthN;       // test gap
+
+        double fac1 = 1.0 / (double)std::sqrt(2.0*M_PI);
+        double fac2 = (-1.0)*pow(cu, 2);
+
+
+        if (u*options.bandwidthN == 0) return (fac1 * exp(fac2/2.0));     
+        if (u*options.bandwidthN <= options.nKernelGap) return (fac1 * exp(fac2/2.0))*0.0;     // only 50%
+
+        return (fac1 * exp(fac2/2.0));
+    }
 
     void Observations::computeKDEs(AppOptions &options)
     {
@@ -321,10 +342,7 @@ namespace seqan {
         // precompute kernel densities   -> K(d/h) store at position d
         for (unsigned i = 0; i <= w_50; ++i)
         {
-            if (options.gaussianKernel)
-                kernelDensities[i] = getGaussianKernelDensity((double)i/(double)options.bandwidthN);
-            else if (options.epanechnikovKernel)
-                kernelDensities[i] = getEpanechnikovKernelDensity((double)i/(double)options.bandwidthN);        
+            kernelDensities[i] = getCustomKernelDensity((double)i/(double)options.bandwidthN, options);      
         }
         for (unsigned t = 0; t < length(); ++t)
         {
