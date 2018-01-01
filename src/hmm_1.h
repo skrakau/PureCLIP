@@ -546,9 +546,9 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, St
     }
     if (norm == 0.0) 
     {
-        std::cout << "WARNING: norm == 0 at t: "<< 0 << "  i: " << i << std::endl;
-        if (options.verbosity > 2)
+        if (options.verbosity >= 2)
         {
+            std::cout << "WARNING: norm == 0 at t: "<< 0 << "  i: " << i << std::endl;
             for (unsigned k = 0; k < this->K; ++k)
             {
                 std::cout << "k: " << k << std::endl;
@@ -573,9 +573,9 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, St
             
             if (sum == 0.0 || std::isnan(sum)) 
             {
-                std::cout << "WARNING: sum = " << sum << " at t: "<< t << "  i: " << i << std::endl;
-                if (options.verbosity > 2)
-                {  
+                if (options.verbosity >= 2)
+                { 
+                    std::cout << "WARNING: sum = " << sum << " at t: "<< t << "  i: " << i << std::endl;
                     for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
                         std::cout << " k_2: " << k_2 <<  " alphas_2[t-1][k_2]: " << alphas_2[t-1][k_2] << " transMatrix[k_2][k]: " << this->transMatrix[k_2][k] << std::endl; 
                 }
@@ -588,9 +588,9 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, St
         
         if (norm == 0.0 || std::isnan(norm)) 
         {
-            std::cout << "WARNING: norm = " << norm << " at t: "<< t << "  i: " << i << std::endl;
-            if (options.verbosity > 2)
+            if (options.verbosity >= 2)
             {
+                std::cout << "WARNING: norm = " << norm << " at t: "<< t << "  i: " << i << std::endl;
                 for (unsigned k = 0; k < this->K; ++k)
                 {
                     std::cout << "k: " << k << std::endl;
@@ -817,9 +817,9 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
 
                 if (sum == 0.0) 
                 {
-                    std::cout << "WARNING: sum == 0 at i: " << i << " t: "<< t << std::endl;
-                    if (options.verbosity > 2)
+                    if (options.verbosity >= 2)
                     {
+                        std::cout << "WARNING: sum == 0 at i: " << i << " t: "<< t << std::endl;
                         for (unsigned k = 0; k < this->K; ++k)
                         {
                             std::cout << "k: " << k << std::endl;
@@ -850,10 +850,10 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                     {
                         p_i[k_1][k_2] += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
                         // learn p[2->2/3] for region over nThresholdForP
-                        if (k_1 == 2 && k_2 == 2 && setObs[s][i].nEstimates[t] >= options.nThresholdForP)
+                        if (k_1 == 2 && k_2 == 2 && setObs[s][i].nEstimates[t] >= options.nThresholdForTransP)
                             p_2_2_i += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
 
-                        if (k_1 == 2 && k_2 == 3 && setObs[s][i].nEstimates[t] >= options.nThresholdForP)
+                        if (k_1 == 2 && k_2 == 3 && setObs[s][i].nEstimates[t] >= options.nThresholdForTransP)
                             p_2_3_i += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
                     }
                     SEQAN_OMP_PRAGMA(critical)
@@ -884,7 +884,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
         }
     }
     // Fix p[2->2/3] using only transition prob for region over nThresholdForP, while keeping sum of p[2->2] and p[2->3] constant! (if user options says so) 
-    if (options.use_nThresholdForTransProbs)
+    if (options.nThresholdForTransP > 0)
     {
         double sum_2_23 = A[2][2] + A[2][3];
         A[2][2] = sum_2_23 * p_2_2/(p_2_2 + p_2_3);
@@ -954,9 +954,9 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 
                 if (sum == 0.0) 
                 {
-                    std::cout << "WARNING: sum == 0 at i: " << i << " t: "<< t << std::endl;
-                    if (options.verbosity > 2)
+                    if (options.verbosity >= 2)
                     {
+                        std::cout << "WARNING: sum == 0 at i: " << i << " t: "<< t << std::endl;
                         for (unsigned k = 0; k < this->K; ++k)
                         {
                             std::cout << "k: " << k << std::endl;

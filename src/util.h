@@ -83,7 +83,8 @@ namespace seqan {
 
         bool estimateNfromKdes;
         double nThresholdForP;
-        double use_nThresholdForTransProbs;
+        double nThresholdForTransP;
+        double get_nThreshold;
         double minTransProbCS;
         double maxkNratio;
 
@@ -142,8 +143,9 @@ namespace seqan {
             epanechnikovKernel(false),
             useKdeThreshold(0.0),
             estimateNfromKdes(true),
-            nThresholdForP(0),              // threshold regarding n used for fitting p, if GLM, this need to be larger! 
-            use_nThresholdForTransProbs(true),  // apply the same threshold for learning transition probs. 2 -> 2/3
+            nThresholdForP(10),              // threshold regarding n used for fitting p, if GLM, this need to be larger!
+            nThresholdForTransP(0),              // threshold regarding n used for fitting p, if GLM, this need to be larger! 
+            get_nThreshold(false),  // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
             polyAThreshold(10),
@@ -289,14 +291,14 @@ namespace seqan {
     {
         TType cu = u;
         // simply cutoff
-        if (u*options.bandwidthN <= options.nKernelGap && u*options.bandwidthN != 0) return cu = (double)options.nKernelGap/(double)options.bandwidthN;       // test gap
+        if (u*options.bandwidthN <= options.nKernelGap && u*options.bandwidthN != 0) return cu = (double)options.nKernelGap/(double)options.bandwidthN;       
 
         double fac1 = 1.0 / (double)std::sqrt(2.0*M_PI);
         double fac2 = (-1.0)*pow(cu, 2);
 
 
         if (u*options.bandwidthN == 0) return (fac1 * exp(fac2/2.0));     
-        if (u*options.bandwidthN <= options.nKernelGap) return (fac1 * exp(fac2/2.0))*0.0;     // only 50%
+        if (u*options.bandwidthN <= options.nKernelGap) return (fac1 * exp(fac2/2.0))*0.0;     
 
         return (fac1 * exp(fac2/2.0));
     }
