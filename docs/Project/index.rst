@@ -9,7 +9,7 @@
 Citation
 ====================================
 
-Krakau S, Richard H, Marsico A: PureCLIP: Capturing target-specific protein-RNA interaction footprints from single-nucleotide CLIP-seq data. bioRxiv 146704; doi: https://doi.org/10.1101/146704
+Krakau S, Richard H, Marsico A: PureCLIP: Capturing target-specific protein-RNA interaction footprints from single-nucleotide CLIP-seq data. Genome Biology 2017; 18:240; https://doi.org/10.1186/s13059-017-1364-2
 
 
 .. _license:
