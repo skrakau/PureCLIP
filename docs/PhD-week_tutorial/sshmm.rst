@@ -1,7 +1,7 @@
 .. 
 
-ssHMM
-====================================
+ssHMM: extracting sequence-structure motifs
+===========================================
 
 .. container:: toggle
 
