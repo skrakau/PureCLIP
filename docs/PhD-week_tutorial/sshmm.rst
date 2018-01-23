@@ -3,6 +3,8 @@
 ssHMM: extracting sequence-structure motifs
 ===========================================
 
+We can now use the called binding sites and find out whether they share a common motif/pattern. For this purpose, we use ssHMM.
+
 .. container:: toggle
 
     .. container:: header
@@ -16,30 +18,31 @@ ssHMM: extracting sequence-structure motifs
     .. code:: bash
 
        cp ... 
-
-
     
 |
 
 Preprocessing
 -------------
 
-We need to extend PureCLIP regions +- 20 bp and get the top 3000 ... bla
+The binding sites that PureCLIP calls are very short - too short for containing a motif. Therefore, we need to extend the binding sites by 20 bp in both direction.
 
 .. code:: bash
+    cd ~/protein-RNA-interactions/RBFOX2_data/PureCLIP_results/
+    bedtools slop -i bindingRegions.basic.bed -g ~/protein-RNA-interactions/hg19_data/genome_index/chrNameLength.t
+xt -b 20 > bindingRegions.basic.elong.bed
 
-    bedtools ?
-    sort -g -k5,5 -r PureCLIP_results/regions.basic.bed > PureCLIP_results/regions.basic.soSc.bed
-    head -n 3000 PureCLIP_results/regions.basic.soSc.bed > PureCLIP_results/regions.basic.top3000.bed
+Next, we sort the binding sites by their score and fetch only the best 3000.
+.. code:: bash
+    sort -g -k5,5 -r bindingRegions.basic.elong.bed > bindingRegions.basic.elong.soSc.bed
+    head -n 3000 bindingRegions.basic.elong.soSc.bed > bindingRegions.basic.elong.soSc.top3000.bed
 
-To use the binding regions for ssHMM, we copy these to ...
+To use the binding regions for ssHMM, we copy them to the sshmm directory.
     
 .. code:: bash
+    mkdir -p ~/sshmm/datasets/bed/RBFOX2_PureCLIP-basic_regions
+    cp bindingRegions.basic.elong.soSc.top3000.bed ~/sshmm/datasets/bed/RBFOX2_PureCLIP-basic_regions/positive_raw.bed
 
-    cp PureCLIP_results/regions.basic.top3000.bed datasets/bed/RBFOX2_PureCLIP-basic_regions/positive_raw.bed
-
-
-Blabla
+The binding regions are currently just genomic coordinates, i.e. numbers in a file. But ssHMM needs RNA sequences and structures to learn motifs. We therefore use a preprocessing script to fetch the nucleotide sequence from the coordinates and predict the RNA structure of the region with the tool RNAshapes.
 
 .. code:: bash
 
@@ -48,10 +51,10 @@ Blabla
 ssHMM
 -------------
 
-Blabla
+Now everything is ready and we can start ssHMM. Over many iterations it tries to find the most prominent sequence-structure motif in the data. The intermediate results are printed onto the command line so you can see the current iteration number and a few statistics.
 
 .. code:: bash
 
-    train_seqstructhmm datasets/fasta/RBFOX2_PureCLIP-basic_top3000_regions/positive.fasta datasets/shapes/RBFOX2_PureCLIP-basic_top3000_regions/positive.txt -o results/ -n 6 -b -j RBFOX2_PureCLIP-basic_top3000_regions_len6_b_random
+    train_seqstructhmm datasets/fasta/RBFOX2_PureCLIP-basic_regions/positive.fasta datasets/shapes/RBFOX2_PureCLIP-basic_regions/positive.txt -o results/ -n 6 -b -j RBFOX2_PureCLIP-basic_top3000_regions_len6_b_random
 
 
