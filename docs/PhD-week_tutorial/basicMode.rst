@@ -31,7 +31,8 @@ To run PureCLIP in its basic mode, i.e. without incorporating external data as c
 
 .. code:: bash
 
-    pureclip -i Aligned.f.duplRm.pooled.R2.bam -bai Aligned.f.duplRm.pooled.R2.bam.bai -g ~/protein-RNA-interactions/hg19_data/Homo_sapiens.GRCh37.75.dna.primary_assembly.chr1_2_21.fa -iv 'chr21;' -bdw 20 -nt 8 -o crosslinkSites.basic.bed -or bindingRegions.basic.bed > pureclip.basic.log
+    mkdir PureCLIP_results
+    pureclip -i Aligned.f.duplRm.pooled.R2.bam -bai Aligned.f.duplRm.pooled.R2.bam.bai -g ~/protein-RNA-interactions/hg19_data/Homo_sapiens.GRCh37.75.dna.primary_assembly.chr1_2_21.fa -iv 'chr21;' -bdw 20 -nt 8 -o PureCLIP_results/crosslinkSites.basic.bed -or PureCLIP_results/bindingRegions.basic.bed > PureCLIP_results/pureclip.basic.log
 
 
 With ``-iv`` the chromosomes (or transcripts) can be specified that will be used to learn the parameters of PureCLIPs HMM.

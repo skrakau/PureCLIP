@@ -38,7 +38,7 @@ The computed CL-motif occurrences are then handed over with ``-fis`` together wi
 
 .. code:: bash
 
-    pureclip -i Aligned.f.duplRm.pooled.R2.bam -bai Aligned.f.duplRm.pooled.R2.bam.bai -g ../hg19_data/Homo_sapiens.GRCh37.75.dna.primary_assembly.chr1_2_21.fa -iv 'chr21;' -bdw 20 -nt 8 -ibam ../input_control_data/Aligned.f.duplRm.R2.bam -ibai ../input_control_data/Aligned.f.duplRm.R2.bam.bai -nim 4 -fis ../hg19_data/CLmotif_occurences.chr1_2_21.bed -o crosslinkSites.input_CLmotifs.bed -or bindingRegions.input_CLmotifs.bed > pureclip.input_CLmotifs.log
+    pureclip -i Aligned.f.duplRm.pooled.R2.bam -bai Aligned.f.duplRm.pooled.R2.bam.bai -g ../hg19_data/Homo_sapiens.GRCh37.75.dna.primary_assembly.chr1_2_21.fa -iv 'chr21;' -bdw 20 -nt 8 -ibam ../input_control_data/Aligned.f.duplRm.R2.bam -ibai ../input_control_data/Aligned.f.duplRm.R2.bam.bai -nim 4 -fis ../hg19_data/CLmotif_occurences.chr1_2_21.bed -o PureCLIP_results/crosslinkSites.input_CLmotifs.bed -or PureCLIP_results/bindingRegions.input_CLmotifs.bed > PureCLIP_results/pureclip.input_CLmotifs.log
 
 
 

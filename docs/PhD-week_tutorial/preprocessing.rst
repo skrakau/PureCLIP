@@ -26,7 +26,7 @@ The human reference sequences (containing chr1, chr2, chr21) as well as annotati
 
 .. code:: bash
 
-   ls -lh ~/protein-RNA-interactions/hg19_data_data/ 
+   ls -lh ~/protein-RNA-interactions/hg19_data/ 
 
 
 Let's start with changing to the folder 
@@ -86,17 +86,15 @@ However, in the current format the barcode is located in front of the actual rea
     zless rep1/reads.R1.trimmed2.fastq.gz
 
 
-Therefore we change the location of the barcode within the read ID prior the mapping, using the following commands:
+Therefore we change the location of the barcode within the read ID prior the mapping, using awk:
 
 .. code:: bash
 
-    gunzip -c rep1/reads.R1.trimmed2.fastq.gz > rep1/reads.R1.trimmed2.fastq
-    gunzip -c rep1/reads.R2.trimmed2.fastq.gz > rep1/reads.R2.trimmed2.fastq
-    awk 'BEGIN{OFS=FS=" "} substr($1, 1, 1) == "@" {print "@" substr($1, (10+3), 500) "_" substr($1, 2, 10) " " $2 }; substr($1, 1, 1) != "@" {print}; ' rep1/reads.R1.trimmed2.fastq  | gzip > rep1/reads.R1.trimmed2.bc.fastq.gz
-    awk 'BEGIN{OFS=FS=" "} substr($1, 1, 1) == "@" {print "@" substr($1, (10+3), 500) "_" substr($1, 2, 10) " " $2 }; substr($1, 1, 1) != "@" {print}; ' rep1/reads.R2.trimmed2.fastq  | gzip > rep1/reads.R2.trimmed2.bc.fastq.gz
+    gunzip -c rep1/reads.R1.trimmed2.fastq.gz | awk 'BEGIN{FS=" "} substr($1, 1, 1) == "@" {print "@" substr($1, (10+3), 500) "_" substr($1, 2, 10) " " $2 }; substr($1, 1, 1) != "@" {print}; ' rep1/reads.R1.trimmed2.fastq  | gzip > rep1/reads.R1.trimmed2.bc.fastq.gz
+    gunzip -c rep1/reads.R2.trimmed2.fastq.gz | awk 'BEGIN{FS=" "} substr($1, 1, 1) == "@" {print "@" substr($1, (10+3), 500) "_" substr($1, 2, 10) " " $2 }; substr($1, 1, 1) != "@" {print}; ' rep1/reads.R2.trimmed2.fastq  | gzip > rep1/reads.R2.trimmed2.bc.fastq.gz
 
 where the used barcode length is 10.
-TODO use easier command!!!!
+
 
 
 Read mapping with STAR
@@ -122,7 +120,7 @@ Next, we map the reads (R1 and R2) against the indexed genome:
 .. code:: bash
 
     mkdir -p rep1/STAR
-    STAR --outSAMtype BAM SortedByCoordinate --runThreadN 6 --genomeDir ~/protein-RNA-interactions/hg19_data_data/genome_index/ --readFilesIn rep1/reads.R1.trimmed2.bc.fastq.gz rep1/reads.R2.trimmed2.bc.fastq.gz --readFilesCommand  zcat --outFilterMultimapNmax 1 --scoreDelOpen -1 --outFileNamePrefix rep1/STAR/ --alignEndsType EndToEnd 
+    STAR --outSAMtype BAM SortedByCoordinate --runThreadN 6 --genomeDir ~/protein-RNA-interactions/hg19_data/genome_index/ --readFilesIn rep1/reads.R1.trimmed2.bc.fastq.gz rep1/reads.R2.trimmed2.bc.fastq.gz --readFilesCommand  zcat --outFilterMultimapNmax 1 --scoreDelOpen -1 --outFileNamePrefix rep1/STAR/ --alignEndsType EndToEnd 
 
 The parameter ``--outFilterMultimapNmax 1`` ensures only uniquely mapping reads will be reported.
 Furthermore, it is important to use the ``--alignEndsType EndToEnd`` setting, to ensure the mapping of the whole read.
