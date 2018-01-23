@@ -189,7 +189,7 @@ For this we use `fastqc <https://www.bioinformatics.babraham.ac.uk/projects/fast
 .. code:: bash
 
     mkdir fastqc
-    fastqc -o fastqc/ aligned.f.duplRm.pooled.R2.bam
+    fastqc -o fastqc/ Aligned.f.duplRm.pooled.R2.bam
 
 
 
