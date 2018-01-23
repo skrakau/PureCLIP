@@ -24,14 +24,14 @@ We can now use the called binding sites and find out whether they share a common
 Preprocessing
 -------------
 
-The binding sites that PureCLIP calls are very short - too short for containing a motif. Therefore, we need to extend the binding sites by 20 bp in both direction.
+The binding sites that PureCLIP calls are very short - too short for containing a motif. Therefore, we need to extend the binding sites by 20 bp in both directions.
 
 .. code:: bash
     cd ~/protein-RNA-interactions/RBFOX2_data/PureCLIP_results/
-    bedtools slop -i bindingRegions.basic.bed -g ~/protein-RNA-interactions/hg19_data/genome_index/chrNameLength.t
-xt -b 20 > bindingRegions.basic.elong.bed
+    bedtools slop -i bindingRegions.basic.bed -g ~/protein-RNA-interactions/hg19_data/genome_index/chrNameLength.txt -b 20 > bindingRegions.basic.elong.bed
 
 Next, we sort the binding sites by their score and fetch only the best 3000.
+
 .. code:: bash
     sort -g -k5,5 -r bindingRegions.basic.elong.bed > bindingRegions.basic.elong.soSc.bed
     head -n 3000 bindingRegions.basic.elong.soSc.bed > bindingRegions.basic.elong.soSc.top3000.bed
