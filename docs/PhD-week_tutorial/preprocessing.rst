@@ -86,7 +86,7 @@ However, in the current format the barcode is located in front of the actual rea
     zless rep1/reads.R1.trimmed2.fastq.gz
 
 
-Therefore we change the location of the barcode within the read ID prior the mapping, using awk:
+Therefore we change the location of the barcode within the read ID prior the mapping, using `awk <http://www.hcs.harvard.edu/~dholland/computers/awk.html>`_ :
 
 .. code:: bash
 
@@ -178,11 +178,11 @@ and filter for R2, to keep only reads containing information about potential tru
     samtools index Aligned.f.duplRm.pooled.R2.bam   
 
 
-Quality control
+Next steps - Quality control
 ---------------
 
 It's always a good idea to assess the quality of the data prior to the actual analysis.
-For this we use `fastqc <https://www.bioinformatics.babraham.ac.uk/projects/fastqc/>`_:
+For this you could use for example `fastqc <https://www.bioinformatics.babraham.ac.uk/projects/fastqc/>`_:
 
 .. code:: bash
 
