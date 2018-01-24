@@ -66,13 +66,13 @@ Possible adapter contaminations at 3' ends can be removed using the tool `cutada
 
 .. code:: bash
 
-    cutadapt -j 6 --match-read-wildcards --times 1 -e 0.1 -O 1 --quality-cutoff 6 -m 18 -a NNNNNAGATCGGAAGAGCACACGTCTGAACTCCAGTCAC -g CTTCCGATCTACAAGTT  -g CTTCCGATCTTGGTCCT -A AACTTGTAGATCGGA -A AGGACCAAGATCGGA -A ACTTGTAGATCGGAA -A GGACCAAGATCGGAA  -A CTTGTAGATCGGAAG  -A GACCAAGATCGGAAG -A TTGTAGATCGGAAGA -A ACCAAGATCGGAAGA -A TGTAGATCGGAAGAG -A CCAAGATCGGAAGAG -A GTAGATCGGAAGAGC -A CAAGATCGGAAGAGC -A TAGATCGGAAGAGCG  -A AAGATCGGAAGAGCG -A AGATCGGAAGAGCGT  -A GATCGGAAGAGCGTC -A ATCGGAAGAGCGTCG -A TCGGAAGAGCGTCGT -A CGGAAGAGCGTCGTG -A GGAAGAGCGTCGTGT -o rep1/reads.R1.trimmed.fastq.gz -p rep1/reads.R2.trimmed.fastq.gz rep1/reads.R1.fastq.gz rep1/reads.R2.fastq.gz > rep1/cutadapt.log
+    prun python-3.6.4-1 cutadapt -j 6 --match-read-wildcards --times 1 -e 0.1 -O 1 --quality-cutoff 6 -m 18 -a NNNNNAGATCGGAAGAGCACACGTCTGAACTCCAGTCAC -g CTTCCGATCTACAAGTT  -g CTTCCGATCTTGGTCCT -A AACTTGTAGATCGGA -A AGGACCAAGATCGGA -A ACTTGTAGATCGGAA -A GGACCAAGATCGGAA  -A CTTGTAGATCGGAAG  -A GACCAAGATCGGAAG -A TTGTAGATCGGAAGA -A ACCAAGATCGGAAGA -A TGTAGATCGGAAGAG -A CCAAGATCGGAAGAG -A GTAGATCGGAAGAGC -A CAAGATCGGAAGAGC -A TAGATCGGAAGAGCG  -A AAGATCGGAAGAGCG -A AGATCGGAAGAGCGT  -A GATCGGAAGAGCGTC -A ATCGGAAGAGCGTCG -A TCGGAAGAGCGTCGT -A CGGAAGAGCGTCGTG -A GGAAGAGCGTCGTGT -o rep1/reads.R1.trimmed.fastq.gz -p rep1/reads.R2.trimmed.fastq.gz rep1/reads.R1.fastq.gz rep1/reads.R2.fastq.gz > rep1/cutadapt.log
 
 For eCLIP data, it was suggested (`Van Nostrand et. al, 2016 <https://www.ncbi.nlm.nih.gov/pubmed/27018577>`_) to apply two rounds of adapter trimming to correct for possible double ligations events.
 
 .. code:: bash
 
-    cutadapt -j 6 --match-read-wildcards --times 1 -e 0.1 -O 5 --quality-cutoff 6 -m 18 -A AACTTGTAGATCGGA -A AGGACCAAGATCGGA -A ACTTGTAGATCGGAA -A GGACCAAGATCGGAA -A CTTGTAGATCGGAAG -A GACCAAGATCGGAAG -A TTGTAGATCGGAAGA -A ACCAAGATCGGAAGA -A TGTAGATCGGAAGAG -A CCAAGATCGGAAGAG -A GTAGATCGGAAGAGC -A CAAGATCGGAAGAGC -A TAGATCGGAAGAGCG -A AAGATCGGAAGAGCG -A AGATCGGAAGAGCGT -A GATCGGAAGAGCGTC -A ATCGGAAGAGCGTCG -A TCGGAAGAGCGTCGT -A CGGAAGAGCGTCGTG -A GGAAGAGCGTCGTGT -o rep1/reads.R1.trimmed2.fastq.gz -p rep1/reads.R2.trimmed2.fastq.gz rep1/reads.R1.trimmed.fastq.gz rep1/reads.R2.trimmed.fastq.gz > rep1/cutadapt.2.log
+    prun python-3.6.4-1 cutadapt -j 6 --match-read-wildcards --times 1 -e 0.1 -O 5 --quality-cutoff 6 -m 18 -A AACTTGTAGATCGGA -A AGGACCAAGATCGGA -A ACTTGTAGATCGGAA -A GGACCAAGATCGGAA -A CTTGTAGATCGGAAG -A GACCAAGATCGGAAG -A TTGTAGATCGGAAGA -A ACCAAGATCGGAAGA -A TGTAGATCGGAAGAG -A CCAAGATCGGAAGAG -A GTAGATCGGAAGAGC -A CAAGATCGGAAGAGC -A TAGATCGGAAGAGCG -A AAGATCGGAAGAGCG -A AGATCGGAAGAGCGT -A GATCGGAAGAGCGTC -A ATCGGAAGAGCGTCG -A TCGGAAGAGCGTCGT -A CGGAAGAGCGTCGTG -A GGAAGAGCGTCGTGT -o rep1/reads.R1.trimmed2.fastq.gz -p rep1/reads.R2.trimmed2.fastq.gz rep1/reads.R1.trimmed.fastq.gz rep1/reads.R2.trimmed.fastq.gz > rep1/cutadapt.2.log
 
 
 Preparing read IDs for UMI-tools
@@ -120,7 +120,7 @@ Next, we map the reads (R1 and R2) against the indexed genome:
 .. code:: bash
 
     mkdir -p rep1/STAR
-    STAR --outSAMtype BAM SortedByCoordinate --runThreadN 6 --genomeDir ~/protein-RNA-interactions/hg19_data/genome_index/ --readFilesIn rep1/reads.R1.trimmed2.bc.fastq.gz rep1/reads.R2.trimmed2.bc.fastq.gz --readFilesCommand  zcat --outFilterMultimapNmax 1 --scoreDelOpen -1 --outFileNamePrefix rep1/STAR/ --alignEndsType EndToEnd 
+    STAR --outSAMtype BAM SortedByCoordinate --runThreadN 6 --genomeDir ~/protein-RNA-interactions/hg19_data/genome_index/ --readFilesIn rep1/reads.R1.trimmed2.bc.fastq.gz rep1/reads.R2.trimmed2.bc.fastq.gz --readFilesCommand  zcat --outFilterType BySJout --outFilterMultimapNmax 1 --alignSJoverhangMin 8 --alignSJDBoverhangMin 1 --outFilterMismatchNmax 999 --outFilterMismatchNoverLmax 0.04 --scoreDelOpen -1 --alignIntronMin 20 --alignIntronMax 1000000 --alignMatesGapMax 1000000 --outFileNamePrefix rep1/STAR/ --alignEndsType EndToEnd 
 
 The parameter ``--outFilterMultimapNmax 1`` ensures only uniquely mapping reads will be reported.
 Furthermore, it is important to use the ``--alignEndsType EndToEnd`` setting, to ensure the mapping of the whole read.
@@ -158,7 +158,7 @@ We use the `UMI-tools <https://github.com/CGATOxford/UMI-tools>`_ (`Smith et. al
 
 .. code:: bash
 
-    umi_tools dedup -I rep1/STAR/Aligned.f.bam --paired -S rep1/STAR/Aligned.f.duplRm.bam > rep1/STAR/umi_tools.log
+    prun python umi_tools dedup -I rep1/STAR/Aligned.f.bam --paired -S rep1/STAR/Aligned.f.duplRm.bam > rep1/STAR/umi_tools.log
  
 
 Pooling and R2 retrieval
