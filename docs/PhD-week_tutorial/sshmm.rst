@@ -13,11 +13,7 @@ We can now use the called binding sites and find out whether they share a common
 
     |
 
-    In case something went wrong, you can copy the intermediate files as follows:
-
-    .. code:: bash
-
-       cp ... 
+    In case something went wrong, you can copy the intermediate files from ``~/protein-RNA-interactions/intermediate_results/``.
     
 |
 
