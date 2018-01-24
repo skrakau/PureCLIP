@@ -60,4 +60,4 @@ Now everything is ready and we can start ssHMM. Over many iterations it tries to
 
     train_seqstructhmm datasets/fasta/RBFOX2_PureCLIP-basic_regions/positive.fasta datasets/shapes/RBFOX2_PureCLIP-basic_regions/positive.txt -o results/ -n 6 -b -j RBFOX2_PureCLIP-basic_top3000_regions_len6_b_random
 
-
+When ssHMM is done, it tells you the location of the final model graph. You can open this png image in an image viewer.
