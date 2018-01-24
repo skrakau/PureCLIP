@@ -90,8 +90,8 @@ Therefore we change the location of the barcode within the read ID prior the map
 
 .. code:: bash
 
-    gunzip -c rep1/reads.R1.trimmed2.fastq.gz | awk 'BEGIN{FS=" "} substr($1, 1, 1) == "@" {print "@" substr($1, (10+3), 500) "_" substr($1, 2, 10) " " $2 }; substr($1, 1, 1) != "@" {print}; ' rep1/reads.R1.trimmed2.fastq  | gzip > rep1/reads.R1.trimmed2.bc.fastq.gz
-    gunzip -c rep1/reads.R2.trimmed2.fastq.gz | awk 'BEGIN{FS=" "} substr($1, 1, 1) == "@" {print "@" substr($1, (10+3), 500) "_" substr($1, 2, 10) " " $2 }; substr($1, 1, 1) != "@" {print}; ' rep1/reads.R2.trimmed2.fastq  | gzip > rep1/reads.R2.trimmed2.bc.fastq.gz
+    gunzip -c rep1/reads.R1.trimmed2.fastq.gz | awk 'BEGIN{FS=" "} substr($1, 1, 1) == "@" {print "@" substr($1, (10+3), 500) "_" substr($1, 2, 10) " " $2 }; substr($1, 1, 1) != "@" {print}; '  | gzip > rep1/reads.R1.trimmed2.bc.fastq.gz
+    gunzip -c rep1/reads.R2.trimmed2.fastq.gz | awk 'BEGIN{FS=" "} substr($1, 1, 1) == "@" {print "@" substr($1, (10+3), 500) "_" substr($1, 2, 10) " " $2 }; substr($1, 1, 1) != "@" {print}; '  | gzip > rep1/reads.R2.trimmed2.bc.fastq.gz
 
 where the used barcode length is 10.
 
