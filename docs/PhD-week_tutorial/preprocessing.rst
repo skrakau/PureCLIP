@@ -22,7 +22,7 @@ You can find this data in ``~/protein-RNA-interactions/RBFOX2_data/rep1/`` and `
     ls  ~/protein-RNA-interactions/RBFOX2_data/rep1/
 
 
-The human reference sequences (containing chr1, chr2, chr21) as well as annotations are located in ``~/protein-RNA-interactions/hg19_data_data/``. 
+The human reference sequences (containing chr1, chr2, chr21) as well as annotations are located in ``~/protein-RNA-interactions/hg19_data/``. 
 
 .. code:: bash
 

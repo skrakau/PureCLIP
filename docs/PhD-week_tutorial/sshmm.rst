@@ -3,7 +3,7 @@
 ssHMM: extracting sequence-structure motifs
 ===========================================
 
-We can now use the called binding sites and find out whether they share a common motif/pattern. For this purpose, we use ssHMM.
+We can now use the called binding sites and find out whether they share a common motif/pattern. For this purpose, we use ssHMM. The following steps are explained for the binding sites from PureCLIP in basic mode. They can be found in ``~/protein-RNA-interactions/RBFOX2_data/PureCLIP_results/bindingRegions.basic.bed``. To analyze the binding sites from PureCLIP with control data you have to use ``~/protein-RNA-interactions/RBFOX2_data/PureCLIP_results/bindingRegions.input_CLmotifs.bed`` instead.
 
 .. container:: toggle
 
@@ -45,6 +45,7 @@ The binding regions are currently just genomic coordinates, i.e. numbers in a fi
 
 .. code:: bash
 
+    cd ~/sshmm/
     preprocess_dataset -e 20 datasets RBFOX2_PureCLIP-basic_regions 1 0.0
 
 ssHMM
