@@ -15,8 +15,8 @@ You can use the provided precompiled list of `common_CL-motifs <https://github.c
 
 .. code:: bash
 
-    wget -O motifs.txt https://github.com/skrakau/PureCLIP_data/blob/master/common_CL-motifs/dreme.w10.k4.txt
-    wget -O motifs.xml https://github.com/skrakau/PureCLIP_data/blob/master/common_CL-motifs/dreme.w10.k4.xml
+    wget -O motifs.txt https://raw.githubusercontent.com/skrakau/PureCLIP_data/master/common_CL-motifs/dreme.w10.k4.txt
+    wget -O motifs.xml https://raw.githubusercontent.com/skrakau/PureCLIP_data/master/common_CL-motifs/dreme.w10.k4.xml
 
 If you want to compute the CL-motifs specific to the used eCLIP experiment, please have a look `here <https://github.com/skrakau/PureCLIP/wiki/Compute-custom-CL-motifs-and-scores>`_.
 Assume we have given a set of CL-motifs, we use `FIMO <http://meme-suite.org/doc/fimo.html>`_ (`Grant et. al, 2011 <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3065696/>`_) to compute motif occurrences associated with a score within the reference sequence.
