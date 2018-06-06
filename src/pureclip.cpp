@@ -79,7 +79,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setValidValues(parser, "or", ".bed");
     addOption(parser, ArgParseOption("p", "par", "Output file to write learned parameters.", ArgParseArgument::OUTPUT_FILE));
     //setRequired(parser, "par", true);
-    addOption(parser, ArgParseOption("oi", "oi", "File containing intervals for which to write position-wise PureCLIP output (used in preparation for differential binding sites calling).", ArgParseArgument::OUTPUT_FILE));
+    addOption(parser, ArgParseOption("oi", "oi", "File containing intervals for which to write position-wise PureCLIP output (used in preparation for differential binding sites calling).", ArgParseArgument::INPUT_FILE));
     setValidValues(parser, "oi", ".bed");
 
 
