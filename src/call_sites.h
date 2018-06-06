@@ -530,7 +530,7 @@ void cleanCoveredIntervals(Data &data, unsigned contigLength, bool learning, TOp
                 count += data.setObs[s][i].truncCounts[t];
             }
 
-            if ((!options.discardSingletonIntervals || count > 1) && !discard)
+            if ((!options.discardSingletonIntervals || count > 1 || (options.forDiff && !learning)) && !discard)	// for diff. calling: do not discard singeltons for final application	
             {
                 tmp_setObs[j] = data.setObs[s][i];      
                 tmp_setPos[j] = data.setPos[s][i];

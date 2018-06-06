@@ -1587,19 +1587,69 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::rmBoarderArtifacts(String<String<String<__uint8
 }
 
 
+// forDiff: only output if osition is within intervals
+template<typename TInterval>
+void loadOutputIntervals(String<TInterval> &intervalsF, String<TInterval> &intervalsR, CharString &contigName, AppOptions &options)
+{
+    BedFileIn bedIn(toCString(options.outputIntervalsFileName));
+    BedRecord<Bed6> bedRecord;      
+    while (!atEnd(bedIn))
+    {
+        try
+        {
+            readRecord(bedRecord, bedIn);
+        }
+        catch (ParseError const & e)
+        {
+            std::cerr << "ERROR: input BED record is badly formatted. " << e.what() << "\n";
+        }
+        catch (IOError const & e)
+        {
+            std::cerr << "ERROR: could not copy input BED record. " << e.what() << "\n";
+        } 
+
+        if (bedRecord.ref == contigName)   
+        {
+            TInterval interval;
+            interval.i1 = bedRecord.beginPos; 
+            interval.i2 = bedRecord.endPos;
+            
+            if (bedRecord.strand == '+') appendValue(intervalsF, interval);
+            else  appendValue(intervalsR, interval);
+        }
+    } 	
+}
+
+
+
 void writeStates(BedFileOut &outBed,
                  Data &data,
                  FragmentStore<> &store, 
                  unsigned contigId,
                  AppOptions &options)          
-{  
+{ 
+    ////////
+    // for diff: load output intervals	
+    typedef CharString TCargo;  // id type
+    typedef int TValue;         // position type
+
+    typedef IntervalAndCargo<TValue, TCargo> TInterval;
+    typedef IntervalTree<TValue, TCargo> TIntervalTree;
+
+    String<TInterval> intervalsF;
+    String<TInterval> intervalsR;
+    if(!empty(options.outputIntervalsFileName)) loadOutputIntervals(intervalsF, intervalsR, store.contigNameStore[contigId], options);
+    TIntervalTree treeF(intervalsF);
+    TIntervalTree treeR(intervalsR);
+    ////////
+
     for (unsigned s = 0; s < 2; ++s)
     {
         for (unsigned i = 0; i < length(data.states[s]); ++i)
         {
             for (unsigned t = 0; t < length(data.states[s][i]); ++t)
             {
-                if (options.outputAll && data.setObs[s][i].truncCounts[t] >= 1)
+                if ((options.outputAll && data.setObs[s][i].truncCounts[t] >= 1) || options.forDiff)
                 {
                     BedRecord<Bed6> record;
 
@@ -1622,54 +1672,69 @@ void writeStates(BedFileOut &outBed,
 
                         record.endPos = record.beginPos + 1;
                     }
+                    ////
+                    String<TCargo> results;
+                    if (!empty(options.outputIntervalsFileName))
+                    { 
+                        if (s = 0) findIntervals(results, treeF, record.beginPos);	// TODO bool function to check if within intervals?
+                        else findIntervals(results, treeR, record.beginPos);	
+                    }
+                    ////
 
-                    std::stringstream ss;
-                    ss << (int)data.states[s][i][t];
-                    record.name = ss.str();
-                    ss.str("");  
-                    ss.clear();  
-
-                    // log posterior prob. ratio score
-                    double secondBest = 0.0;
-                    for (unsigned k = 0; k < 4; ++k)
+                    if (empty(options.outputIntervalsFileName) || length(results) > 0) 
                     {
-                        if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
-                            secondBest = data.statePosteriors[s][k][i][t];
-                    }                    
-                    ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, DBL_MIN) );
+                        std::stringstream ss;
+                        ss << (int)data.states[s][i][t];
+                        record.name = ss.str();
+                        ss.str("");  
+                        ss.clear();  
 
-                    record.score = ss.str();
-                    ss.str("");  
-                    ss.clear();  
-                    if (s == 0)
-                        record.strand = '+';
-                    else
-                        record.strand = '-';
+                        // log posterior prob. ratio score
+                        double secondBest = 0.0;
+                        for (unsigned k = 0; k < 4; ++k)
+                        {
+                            if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
+                                secondBest = data.statePosteriors[s][k][i][t];
+                        }                    
+                        ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, DBL_MIN) );
 
-                    ss << 0;
-                    ss << ";";
-                    ss << (int)data.setObs[s][i].truncCounts[t];
-                    ss << ";";
-                    ss << (int)data.setObs[s][i].nEstimates[t];
-                    ss << ";";
-                    ss << (double)data.setObs[s][i].kdes[t];
-                    ss << ";";
+                        record.score = ss.str();
+                        ss.str("");  
+                        ss.clear();  
+                        if (s == 0)
+                            record.strand = '+';
+                        else
+                            record.strand = '-';
 
-                    ss << (double)data.statePosteriors[s][3][i][t];
-                    ss << ";"; 
-                    if (options.useCov_RPKM)
-                        ss << (double)data.setObs[s][i].rpkms[t];
-                    else
-                        ss << 0.0;
-                    ss << ";";
-                    ss << (double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][1][i][t]));
-                    ss << ";";
+                        ss << 0;
+                        ss << ";";
+                        ss << (int)data.setObs[s][i].truncCounts[t];
+                        ss << ";";
+                        ss << (int)data.setObs[s][i].nEstimates[t];
+                        ss << ";";
+                        ss << (double)data.setObs[s][i].kdes[t];
+                        ss << ";";
 
-                    record.data = ss.str();
-                    ss.str("");  
-                    ss.clear();  
+                        ss << (double)data.statePosteriors[s][3][i][t];
+                        ss << ";"; 
+                        if (options.useCov_RPKM)
+                            ss << (double)data.setObs[s][i].rpkms[t];
+                        else
+                            ss << 0.0;
+                        ss << ";";
+                        // enrichment score
+                        ss << (double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][1][i][t]));
+                        ss << ";";
+                        // crosslink score
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][2][i][t]);
+                        ss << ";";
 
-                    writeRecord(outBed, record);
+                        record.data = ss.str();
+                        ss.str("");  
+                        ss.clear();  
+
+                        writeRecord(outBed, record);
+                    }
                 }
                 else if (data.states[s][i][t] == 3)
                 {

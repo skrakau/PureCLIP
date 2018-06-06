@@ -79,7 +79,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setValidValues(parser, "or", ".bed");
     addOption(parser, ArgParseOption("p", "par", "Output file to write learned parameters.", ArgParseArgument::OUTPUT_FILE));
     //setRequired(parser, "par", true);
-    
+    addOption(parser, ArgParseOption("oi", "oi", "File containing intervals for which to write position-wise PureCLIP output (used in preparation for differential binding sites calling).", ArgParseArgument::OUTPUT_FILE));
+    setValidValues(parser, "oi", ".bed");
+
 
     addSection(parser, "Options");
 
@@ -220,6 +222,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.rpkmFileName, parser, "is");
     getOptionValue(options.inputBamFileName, parser, "ibam");
     getOptionValue(options.inputBaiFileName, parser, "ibai");
+    getOptionValue(options.outputIntervalsFileName, parser, "oi");
+
     if ((options.rpkmFileName != "" && options.inputBamFileName != "") || 
             (options.rpkmFileName != "" && options.inputBaiFileName != "") || 
             (options.inputBamFileName != "" && options.inputBaiFileName == "") ||

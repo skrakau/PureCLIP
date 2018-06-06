@@ -47,6 +47,7 @@ namespace seqan {
         CharString inputBamFileName;
         CharString inputBaiFileName;
         CharString fimoFileName;
+	CharString outputIntervalsFileName;
 
 	bool crosslinkAtTruncSite;
         CharString                  intervals_str;
@@ -117,6 +118,7 @@ namespace seqan {
         unsigned numThreadsA;
         CharString tempPath;
         bool outputAll;
+	bool forDiff;
         // Verbosity level.  0 -- quiet, 1 -- normal, 2 -- verbose, 3 -- very verbose.
         int verbosity;
 
@@ -174,6 +176,7 @@ namespace seqan {
             numThreads(1),
             numThreadsA(1),
             outputAll(false),
+	    forDiff(true),
             verbosity(1)
         {}
     };
