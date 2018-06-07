@@ -530,8 +530,8 @@ void cleanCoveredIntervals(Data &data, unsigned contigLength, bool learning, TOp
                 count += data.setObs[s][i].truncCounts[t];
             }
 
-            if ((!options.discardSingletonIntervals || count > 1 || (options.forDiff && !learning)) && !discard)	// for diff. calling: do not discard singeltons for final application	
-            {
+            if ((!options.discardSingletonIntervals || count > 1) && !discard)	// currently singletons discarded also forDiff! anyway below KDE threshold!            
+	    {
                 tmp_setObs[j] = data.setObs[s][i];      
                 tmp_setPos[j] = data.setPos[s][i];
                 ++j;
