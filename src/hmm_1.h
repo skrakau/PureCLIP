@@ -29,6 +29,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <seqan/misc/interval_tree.h>
 
 #include "density_functions.h"
 #include "density_functions_reg.h"
@@ -1638,15 +1639,26 @@ void writeStates(BedFileOut &outBed,
 
     String<TInterval> intervalsF;
     String<TInterval> intervalsR;
+    std::cout << "Load output intervals for contig: " << store.contigNameStore[contigId] << std::endl;
     if(!empty(options.outputIntervalsFileName)) loadOutputIntervals(intervalsF, intervalsR, store.contigNameStore[contigId], options);
+    std::cout << "Load interval trees: " << store.contigNameStore[contigId] << " length intervals: " << length(intervalsF) << " " << length(intervalsR) << std::endl;
     TIntervalTree treeF(intervalsF);
     TIntervalTree treeR(intervalsR);
     ////////
+    std::cout << "TEST " << std::endl;
+    if (!empty(intervalsF)) std::cout << "first interval: " << intervalsF[0].i1 << " " << intervalsF[0].i2 << std::endl;
+    String<TCargo> r;
+    findIntervals(r, treeF, 10);
+    std::cout << "found intervals: " << length(r) << std::endl;
+    std::cout << "Write PureCLIP output... " << store.contigNameStore[contigId] << std::endl;
+
 
     for (unsigned s = 0; s < 2; ++s)
     {
+        std::cout << "s: " << s << std::endl;	
         for (unsigned i = 0; i < length(data.states[s]); ++i)
         {
+            std::cout << "s: " << s << " i: " << i << " length covered interval: " << length(data.states[s][i]) << std::endl;	
             for (unsigned t = 0; t < length(data.states[s][i]); ++t)
             {
                 if ((options.outputAll && data.setObs[s][i].truncCounts[t] >= 1) || options.forDiff)
@@ -1676,8 +1688,8 @@ void writeStates(BedFileOut &outBed,
                     String<TCargo> results;
                     if (!empty(options.outputIntervalsFileName))
                     { 
-                        if (s = 0) findIntervals(results, treeF, record.beginPos);	// TODO bool function to check if within intervals?
-                        else findIntervals(results, treeR, record.beginPos);	
+                        if (s == 0 && !empty(intervalsF)) findIntervals(results, treeF, record.beginPos);	// TODO bool function to check if within intervals?
+                        else if (!empty(intervalsR)) findIntervals(results, treeR, record.beginPos);	
                     }
                     ////
 
@@ -1788,6 +1800,7 @@ void writeStates(BedFileOut &outBed,
             }
         }
     }
+    std::cout << "Done with writing PureCLIP output... " << store.contigNameStore[contigId] << std::endl;
 }
 
 
