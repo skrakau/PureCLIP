@@ -1719,7 +1719,7 @@ void writeRegions(BedFileOut &outBed,
                         {
                             if (s == 0)         // crosslink sites (not truncation site)
                             {
-                                record.endPos = t + data.setPos[s][i] - 1;
+                                record.endPos = t + data.setPos[s][i];  
                             }
                             else
                             {
