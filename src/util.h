@@ -110,6 +110,7 @@ namespace seqan {
 
         unsigned distMerge;
         bool useHighPrecision;      // long double to compute emission probabilities, state posteriors, Forward-Backward (alpha, beta) values
+        unsigned selectRead;
 
         unsigned numThreads;
         unsigned numThreadsA;
@@ -167,6 +168,7 @@ namespace seqan {
             nInputMotifs(1),
             distMerge(8),
             useHighPrecision(false),
+            selectRead(0),
             numThreads(1),
             numThreadsA(1),
             outputAll(false),

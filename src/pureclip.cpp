@@ -109,6 +109,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     addOption(parser, ArgParseOption("ld", "ld", "Use higher precision to compute emission probabilities etc. (i.e. long double). Useful in cases of extreme outliers, e.g. extreme high read start counts whose emission probabilities are close to zero and which would be discarded in default setting (along with warning messages). Note: increases memory consumption. Use in combination with '-iv'. Default: double."));
 
+    addOption(parser, ArgParseOption("ur", "ur", "Flag to define which read should be selected for the analysis: 1->R1, 2->R2. Note: PureCLIP uses read starts corresponding to 3' cDNA ends. Thus if providing paired-end data, only the corresponding read should be selected (e.g. eCLIP->R2, iCLIP->R1). If applicable, used for input BAM file as well. Default: uses read starts of all provided reads assuming single-end or pre-filtered data.", ArgParseArgument::INTEGER));
+    setMinValue(parser, "ur", "1");
+    setMaxValue(parser, "ur", "2");
 
     addSection(parser, "Options for incorporating covariates");
 
@@ -275,6 +278,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.distMerge, parser, "dm");
     if (isSet(parser, "ld"))
         options.useHighPrecision = true;
+    getOptionValue(options.selectRead, parser, "ur");
 
     getOptionValue(options.polyAThreshold, parser, "pat");
     if (isSet(parser, "epal"))

@@ -62,6 +62,12 @@ bool parse_bamRegion(TContigObservations &contigObservationsF, TContigObservatio
         if (bamRecord.rID == -1 || bamRecord.rID > rID)
             break;
 
+        // check if read corresponds to 3' cDNA end corresponding to user parameter
+        if (options.selectRead == 1 && !hasFlagFirst(bamRecord))
+            continue;
+        else if (options.selectRead == 2 && !hasFlagLast(bamRecord))
+            continue;
+
         if (!hasFlagRC(bamRecord))          // Forward
         {
             if (contigObservationsF.truncCounts[bamRecord.beginPos] < options.maxTruncCount2)      // uint8, discard interval if > anyway ...
@@ -113,6 +119,12 @@ bool parse_bamRegion(TTruncCounts &truncCounts, TBamIn &inFile, TBai &baiIndex, 
             break;
         if (bamRecord.beginPos >= (endPos + 100))
             break;
+
+        // check if read corresponds to 3' cDNA end corresponding to user parameter
+        if (options.selectRead == 1 && !hasFlagFirst(bamRecord))
+            continue;
+        else if (options.selectRead == 2 && !hasFlagLast(bamRecord))
+            continue;
 
         if (isForward && !hasFlagRC(bamRecord))          // Forward
         {
