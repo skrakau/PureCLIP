@@ -1557,14 +1557,22 @@ void writeStates(BedFileOut &outBed,
                     BedRecord<Bed6> record;
 
                     record.ref = store.contigNameStore[contigId];
-                    if (s == 0)         // crosslink sites (not truncation site)
+                    if (s == 0)         // '+'-strand; crosslink sites (not truncation site)
                     {
-                        record.beginPos = t + data.setPos[s][i] - 1;
+                        if (!options.crosslinkAtTruncSite)  // default
+                            record.beginPos = t + data.setPos[s][i] - 1;
+                        else
+                            record.beginPos = t + data.setPos[s][i];
+
                         record.endPos = record.beginPos + 1;
                     }
-                    else
+                    else                 // '-'-strand;
                     {
-                        record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]) ;
+                        if (!options.crosslinkAtTruncSite) 
+                            record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]);
+                        else
+                            record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]) - 1;
+
                         record.endPos = record.beginPos + 1;
                     }
 
@@ -1623,12 +1631,20 @@ void writeStates(BedFileOut &outBed,
                     record.ref = store.contigNameStore[contigId];
                     if (s == 0)         // crosslink sites (not truncation site)
                     {
-                        record.beginPos = t + data.setPos[s][i] - 1;
+                        if (!options.crosslinkAtTruncSite)
+                            record.beginPos = t + data.setPos[s][i] - 1;
+                        else
+                            record.beginPos = t + data.setPos[s][i];
+
                         record.endPos = record.beginPos + 1;
                     }
                     else
                     {
-                        record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]);
+                        if (!options.crosslinkAtTruncSite)
+                            record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]);
+                        else
+                            record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]) - 1;
+
                         record.endPos = record.beginPos + 1;
                     }
 
@@ -1681,12 +1697,20 @@ void writeRegions(BedFileOut &outBed,
                     record.ref = store.contigNameStore[contigId];
                     if (s == 0)         // crosslink sites (not truncation site)
                     {
-                        record.beginPos = t + data.setPos[s][i] - 1;
+		                if (!options.crosslinkAtTruncSite)
+			                record.beginPos = t + data.setPos[s][i] - 1;
+                        else
+			                record.beginPos = t + data.setPos[s][i];
+                        
                         record.endPos = record.beginPos + 1;
                     }
                     else
                     {
-                        record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]);
+		                if (!options.crosslinkAtTruncSite)
+                            record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]);
+                        else
+                            record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]) - 1;
+
                         record.endPos = record.beginPos + 1;
                     }
 
@@ -1719,11 +1743,17 @@ void writeRegions(BedFileOut &outBed,
                         {
                             if (s == 0)         // crosslink sites (not truncation site)
                             {
-                                record.endPos = t + data.setPos[s][i];  
+                                if (!options.crosslinkAtTruncSite)
+                                    record.endPos = t + data.setPos[s][i];  
+                                else
+                                    record.endPos = t + data.setPos[s][i] + 1;  
                             }
                             else
                             {
-                                record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]);
+                                if (!options.crosslinkAtTruncSite)                                
+                                    record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]);
+                                else
+                                    record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]) - 1;
                             }
 
                             // log posterior prob. ratio score

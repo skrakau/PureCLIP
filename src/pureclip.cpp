@@ -23,7 +23,7 @@
 
 #define HMM_PROFILE
 
-
+	
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
 
@@ -53,7 +53,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     // Set short description, version, and date.
     setShortDescription(parser, "Protein-RNA interaction site detection ");
     setVersion(parser, "1.0.4");
-    setDate(parser, "December 2017");
+    setDate(parser, "July 2018");
 
     // Define usage line and long description.
     addUsageLine(parser, "[\\fIOPTIONS\\fP] <-i \\fIBAM FILE\\fP> <-bai \\fIBAI FILE\\fP> <-g \\fIGENOME FILE\\fP> <-o \\fIOUTPUT BED FILE\\fP> ");
@@ -82,6 +82,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     
 
     addSection(parser, "Options");
+
+    addOption(parser, ArgParseOption("ctr", "ctr", "Assign crosslink sites to read start positions. Note: depends on RT enzyme, buffer conditions and likely on protein. Default: assign crosslink sites to positions upstream of read starts."));
 
     addOption(parser, ArgParseOption("iv", "inter", "Genomic chromosomes to learn HMM parameters, e.g. 'chr1;chr2;chr3'. Contigs have to be in the same order as in BAM file. Useful to reduce runtime and memory consumption. Default: all contigs from reference file are used (useful when applying to transcript-wise alignments or poor data).", ArgParseArgument::STRING));
     addOption(parser, ArgParseOption("chr", "chr", "Contigs to apply HMM, e.g. 'chr1;chr2;chr3;'. Contigs have to be in the same order as in BAM file.", ArgParseArgument::STRING));
@@ -229,6 +231,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     if (options.fimoFileName != "")
         options.useFimoScore = true;
 
+    if (isSet(parser, "ctr"))
+        options.crosslinkAtTruncSite = true;
     getOptionValue(options.intervals_str, parser, "inter");
     if (isSet(parser, "vtb"))
         options.posteriorDecoding = false;

@@ -48,6 +48,7 @@ namespace seqan {
         CharString inputBaiFileName;
         CharString fimoFileName;
 
+	bool crosslinkAtTruncSite;
         CharString                  intervals_str;
         String<unsigned>            intervals_contigIds;
         String<String<unsigned> >   intervals_positions;
@@ -118,6 +119,7 @@ namespace seqan {
         int verbosity;
 
         AppOptions() :
+            crosslinkAtTruncSite(false),
             posteriorDecoding(true),
             prior_enrichmentThreshold(7),   // KDE threshold is used corresponding to 7 read starts at one position
             maxIter_brent(100),              // brent
