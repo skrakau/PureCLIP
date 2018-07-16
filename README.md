@@ -24,6 +24,15 @@ Requirements
  - GSL
  - cmake 3.0 or newer
 
+# Galaxy
+
+PureCLIP has been integrated into Galaxy, an open, web-based platform for accessible, reproducible, and transparent computational biological research
+
+https://usegalaxy.eu/root?tool_id=toolshed.g2.bx.psu.edu/repos/iuc/pureclip/pureclip/1.0.4
+
+Thanks to the Freiburg Galaxy Team!
+
+You can find further information about the Galaxy project at https://usegalaxy.eu/.
 
 # Documentation
 
