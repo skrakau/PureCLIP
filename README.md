@@ -26,9 +26,7 @@ Requirements
 
 # Galaxy
 
-PureCLIP has been integrated into Galaxy, an open, web-based platform for accessible, reproducible, and transparent computational biological research
-
-https://usegalaxy.eu/root?tool_id=toolshed.g2.bx.psu.edu/repos/iuc/pureclip/pureclip/1.0.4
+PureCLIP has been integrated into Galaxy, an open, web-based platform for accessible, reproducible, and transparent computational biological research and is available [here](https://usegalaxy.eu/root?tool_id=toolshed.g2.bx.psu.edu/repos/iuc/pureclip/pureclip/1.0.4).
 
 Thanks to the Freiburg Galaxy Team!
 
