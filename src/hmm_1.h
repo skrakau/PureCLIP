@@ -102,12 +102,12 @@ public:
     ~HMM<TGAMMA, TBIN, TDOUBLE>();
     void setInitProbs(String<double> &probs);
     bool computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, bool learning, AppOptions &options);
-    void iForward(String<String<TDOUBLE> > &alphas_1, String<String<TDOUBLE> > &alphas_2, unsigned s, unsigned i, AppOptions &options);
+    bool iForward(String<String<TDOUBLE> > &alphas_1, String<String<TDOUBLE> > &alphas_2, unsigned s, unsigned i, AppOptions &options);
     //void forward_noSc();
-    void iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i);
+    bool iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i);
     //void backward_noSc();
-    void computeStatePosteriorsFB(AppOptions &options);
-    void computeStatePosteriorsFBupdateTrans(AppOptions &options);
+    bool computeStatePosteriorsFB(AppOptions &options);
+    bool computeStatePosteriorsFBupdateTrans(AppOptions &options);
     //void updateTransition(AppOptions &options);
     //void updateTransition2();
     //void updateTransition_noSc2();
@@ -161,7 +161,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
     eProbs[3] = g2_d * bin2_d;
 
     // 
-    if (eProbs[0] == 0 && eProbs[1] == 0 && eProbs[2] == 0 && eProbs[3] == 0)
+    if (eProbs[0] == 0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0)
     {
         if (options.verbosity >= 2)
         {
@@ -218,7 +218,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     eProbs[3] = g2_d * bin2_d;
 
     // 
-    if ((eProbs[0] == 0 && eProbs[1] == 0 && eProbs[2] == 0 && eProbs[3] == 0) || 
+    if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) || 
             (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
             (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
     {
@@ -280,7 +280,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
     eProbs[3] = g2_d * bin2_d;
 
     //
-    if (eProbs[0] == 0 && eProbs[1] == 0 && eProbs[2] == 0 && eProbs[3] == 0)
+    if (eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0)
     {
         if (options.verbosity >= 2)
         {
@@ -343,7 +343,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     eProbs[3] = g2_d * bin2_d;
 
     // 
-    if ((eProbs[0] == 0 && eProbs[1] == 0 && eProbs[2] == 0 && eProbs[3] == 0) || 
+    if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) || 
             (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
             (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
     {
@@ -408,14 +408,30 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
                     discardInterval = true;
                 }
             }
-            if (!learning)
+            if (learning && discardInterval)
             {
                 SEQAN_OMP_PRAGMA(critical) 
-                if (discardInterval && s == 0) 
+                std::cout << "ERROR: Emission probability became 0.0! This might be due to a too small learning subset or due to some extreme artifacts." << std::endl;
+                SEQAN_OMP_PRAGMA(critical) 
+                if (s == 0) 
+                    std::cout << " Interval: [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand." << std::endl;
+                else 
+                    std::cout << " Interval: [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand." << std::endl;
+                stop = true;
+                if (!options.useHighPrecision)
+                {
+                    SEQAN_OMP_PRAGMA(critical) 
+                    std::cout << "NOTE: Try running PureCLIP with parameter '-ld' ()!" << std::endl;
+                }
+            }
+            else if (!learning && discardInterval)
+            {
+                SEQAN_OMP_PRAGMA(critical) 
+                if (s == 0) 
                     std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
-                else if (discardInterval)
+                else 
                     std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
-                if (discardInterval && !options.useHighPrecision)
+                if (!options.useHighPrecision)
                 {
                     SEQAN_OMP_PRAGMA(critical) 
                     std::cout << "NOTE: If this happens frequently, rerun PureCLIP with parameter '-ld' ()!" << std::endl;
@@ -535,7 +551,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::forward()
 
 // for one interval only
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-void HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, String<String<TDOUBLE> > &alphas_2, unsigned s, unsigned i, AppOptions &options)
+bool HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, String<String<TDOUBLE> > &alphas_2, unsigned s, unsigned i, AppOptions &options)
 {
     // for t = 1
     long double norm = 0.0;
@@ -546,15 +562,16 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, St
     }
     if (norm == 0.0) 
     {
+        std::cout << "ERROR: while computing forward values. All alpha values are 0 at t: "<< 0 << "  i: " << i << "." << std::endl;
         if (options.verbosity >= 2)
         {
-            std::cout << "WARNING: norm == 0 at t: "<< 0 << "  i: " << i << std::endl;
             for (unsigned k = 0; k < this->K; ++k)
             {
                 std::cout << "k: " << k << std::endl;
                 std::cout << "this->eProbs[s][i][0][k] " << this->eProbs[s][i][0][k] << std::endl;
             }
         }
+        return false;
     }
 
     for (unsigned k = 0; k < this->K; ++k)
@@ -573,12 +590,13 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, St
             
             if (sum == 0.0 || std::isnan(sum)) 
             {
+                std::cout << "ERROR: while computing forward values. Sum over previous states is " << sum << " at t: "<< t << "  i: " << i << "." << std::endl;
                 if (options.verbosity >= 2)
-                { 
-                    std::cout << "WARNING: sum = " << sum << " at t: "<< t << "  i: " << i << std::endl;
+                {
                     for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
                         std::cout << " k_2: " << k_2 <<  " alphas_2[t-1][k_2]: " << alphas_2[t-1][k_2] << " transMatrix[k_2][k]: " << this->transMatrix[k_2][k] << std::endl; 
                 }
+                return false;
             }
 
             // alpha_1
@@ -588,20 +606,22 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, St
         
         if (norm == 0.0 || std::isnan(norm)) 
         {
+            std::cout << "ERROR: while computing forward values. Sum of alpha values is " << norm << " at t: "<< t << "  i: " << i << "." << std::endl;            
             if (options.verbosity >= 2)
             {
-                std::cout << "WARNING: norm = " << norm << " at t: "<< t << "  i: " << i << std::endl;
                 for (unsigned k = 0; k < this->K; ++k)
                 {
                     std::cout << "k: " << k << std::endl;
                     std::cout << "this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
                 }
             }
+            return false;
         }
         // normalize
         for (unsigned k = 0; k < this->K; ++k)
             alphas_2[t][k] = alphas_1[t][k] / norm;   // TODO store scaling coefficients too !?
     }
+    return true;
 }
 
 
@@ -685,7 +705,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::backward()
 // need alphas_1 for scaling here,
 // only betas_2 is needed to compute posterior probs.
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-void HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i)
+bool HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i)
 {
     unsigned T = this->setObs[s][i].length();
     String<String<TDOUBLE> > betas_1;
@@ -724,6 +744,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_2, St
             betas_2[t][k] = betas_1[t][k] / norm;
         }
     }
+    return true;
 }
 
 
@@ -766,7 +787,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriors()
 // for scaling method
 // interval-wise to avoid storing alpha_1, alpha_2 and beta_1, beta_2 values for whole genome
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
+bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
 {
     String<String<double> > A = this->transMatrix;
     String<String<double> > p;
@@ -783,6 +804,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
 
     for (unsigned s = 0; s < 2; ++s)
     {
+        bool stop = false;
 #if HMM_PARALLEL
         SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
 #endif  
@@ -799,14 +821,22 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                 resize(alphas_1[t], this->K, Exact());
                 resize(alphas_2[t], this->K, Exact());
             } 
-            iForward(alphas_1, alphas_2, s, i, options);
+            if (!iForward(alphas_1, alphas_2, s, i, options))
+            {
+                stop = true;
+                continue;
+            }
 
             // backward probabilities  
             String<String<TDOUBLE> > betas_2;
             resize(betas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
                 resize(betas_2[t], this->K, Exact());
-            iBackward(betas_2, alphas_1, s, i);
+            if (!iBackward(betas_2, alphas_1, s, i))
+            {
+                stop = true;
+                continue;
+            }
            
             // compute state posterior probabilities
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
@@ -817,15 +847,17 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
 
                 if (sum == 0.0) 
                 {
+                    std::cout << "ERROR: while computing state posterior probabilities! Sum of alpha and beta values is 0 at i: " << i << " t: "<< t << "." << std::endl;
                     if (options.verbosity >= 2)
                     {
-                        std::cout << "WARNING: sum == 0 at i: " << i << " t: "<< t << std::endl;
                         for (unsigned k = 0; k < this->K; ++k)
                         {
                             std::cout << "k: " << k << std::endl;
                             std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
                         }
                     }
+                    stop = true;
+                    continue;
                 }
                 for (unsigned k = 0; k < this->K; ++k)
                     this->statePosteriors[s][k][i][t] = alphas_2[t][k] * betas_2[t][k] / sum;
@@ -865,6 +897,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             SEQAN_OMP_PRAGMA(critical)
             p_2_3 += p_2_3_i;
         }
+        if (stop) return false;
     }
     // update transition matrix
     for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
@@ -890,7 +923,6 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
         A[2][2] = sum_2_23 * p_2_2/(p_2_2 + p_2_3);
         A[2][3] = sum_2_23 * p_2_3/(p_2_2 + p_2_3);
     }
-
     // keep transProb of '2' -> '3' on min. value
     if (A[2][3] < options.minTransProbCS)
     {
@@ -901,11 +933,12 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
         std::cout << "NOTE: Prevented transition probability '2' -> '3' from dropping below min. value of " << options.minTransProbCS << ". Set for transitions '2' -> '3' (and if necessary also for '3'->'3') to " << options.minTransProbCS << "." << std::endl;
     }
     this->transMatrix = A;
+    return true;
 }
 
 // without updating transition probabilities 
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
+bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 {
     String<String<double> > A = this->transMatrix;
     String<String<double> > p;
@@ -920,6 +953,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 
     for (unsigned s = 0; s < 2; ++s)
     {
+        bool stop = false;
 #if HMM_PARALLEL
         SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
 #endif  
@@ -936,14 +970,21 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
                 resize(alphas_1[t], this->K, Exact());
                 resize(alphas_2[t], this->K, Exact());
             } 
-            iForward(alphas_1, alphas_2, s, i, options);
-
+            if (!iForward(alphas_1, alphas_2, s, i, options))
+            {
+                stop = true;
+                continue;
+            }
             // backward probabilities  
             String<String<TDOUBLE> > betas_2;
             resize(betas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
                 resize(betas_2[t], this->K, Exact());
-            iBackward(betas_2, alphas_1, s, i);
+            if (!iBackward(betas_2, alphas_1, s, i))
+            {
+                stop = true;
+                continue;
+            }
             
             // compute state posterior probabilities
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
@@ -954,15 +995,17 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 
                 if (sum == 0.0) 
                 {
+                    std::cout << "ERROR: while computing state posterior probabilities! Sum of alpha and beta values is 0 at i: " << i << " t: "<< t << "." << std::endl;
                     if (options.verbosity >= 2)
                     {
-                        std::cout << "WARNING: sum == 0 at i: " << i << " t: "<< t << std::endl;
                         for (unsigned k = 0; k < this->K; ++k)
                         {
                             std::cout << "k: " << k << std::endl;
                             std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
                         }
                     }
+                    stop = true;
+                    continue;
                 }
                 for (unsigned k = 0; k < this->K; ++k)
                     this->statePosteriors[s][k][i][t] = alphas_2[t][k] * betas_2[t][k] / sum;
@@ -972,7 +1015,9 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
             for (unsigned k = 0; k < this->K; ++k)
                 this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
         }
+        if (stop) return false;
     }
+    return true;
 }
 
 
@@ -1268,7 +1313,8 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, T
             return false;
         }
         std::cout << "                        computeStatePosteriorsFB() " << std::endl;
-        computeStatePosteriorsFBupdateTrans(options);
+        if (!computeStatePosteriorsFBupdateTrans(options))
+            return false;
         
         std::cout << "                        updateDensityParams() " << std::endl;
 
@@ -1334,7 +1380,8 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::applyParameters(TGAMMA &d1, TGAMMA &d2, TBIN &b
         std::cerr << "ERROR: Could not compute emission probabilities! " << std::endl;
         return false;
     }
-    computeStatePosteriorsFB(options);
+    if (!computeStatePosteriorsFB(options))
+        return false;
 
     return true;
 }

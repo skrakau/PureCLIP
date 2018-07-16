@@ -328,7 +328,7 @@ int callGSL_newton2(double &tp, double &k, double &b0, double &b1,
     std::cout << "Call GSL multiroot solver ..." << std::endl;
     int status;
     int iter = 0;
-    int max_iter = 50;
+    int max_iter = options.maxIter_simplex;
     const size_t n = 2; 
 
     const gsl_multimin_fdfminimizer_type *T;
@@ -554,7 +554,7 @@ bool callGSL_simplex2_fixK(int &status,
                   AppOptions const& options)
 {
     int iter = 0;
-    int max_iter = 100;
+    int max_iter = options.maxIter_simplex;
     const size_t n = 2; 
     double size;
 
@@ -631,7 +631,7 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
 
     int status;
     int iter = 0;
-    int max_iter = 200;
+    int max_iter = options.maxIter_simplex;
     const size_t n = 3; 
     double size;
 

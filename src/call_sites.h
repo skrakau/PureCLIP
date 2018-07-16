@@ -514,7 +514,7 @@ void cleanCoveredIntervals(Data &data, unsigned contigLength, bool learning, TOp
                 // do not consider intervals containing sites with extremely high read start counts at one position for learning 
                 // - possible artifacts (PCR duplicates, mapping artifacts)
                 // - causing problems when getting higher for likelihood computations
-                // - indiv. counts limited to 254 
+                // - indiv. counts limited to maxTruncCount2  
                 if (learning && (data.setObs[s][i].truncCounts[t] >= options.maxTruncCount))
                 {
                     discard = true;

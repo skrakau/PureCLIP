@@ -47,7 +47,8 @@ bool parse_bamRegion(TContigObservations &contigObservationsF, TContigObservatio
     }
     if (!hasAlignments)
     {
-        std::cout << "WARNING: no alignments here " << jump_beginPos << ":" << (length(contigObservationsF.truncCounts)-1) << "\n";
+        if (options.verbosity >= 2)
+            std::cout << "WARNING: no alignments here " << jump_beginPos << ":" << (length(contigObservationsF.truncCounts)-1) << "\n";
         return false;  
     }
 

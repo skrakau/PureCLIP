@@ -60,6 +60,7 @@ namespace seqan {
         unsigned prior_enrichmentThreshold;
         unsigned maxIter_brent;
         unsigned maxIter_bw;
+        unsigned maxIter_simplex;
         double g1_kMin;
         double g2_kMin;
         double g1_kMax;
@@ -125,8 +126,9 @@ namespace seqan {
             prior_enrichmentThreshold(7),   // KDE threshold is used corresponding to 7 read starts at one position
             maxIter_brent(100),              // brent
             maxIter_bw(50),                  // baum-welch
-            g1_kMin(0.5),                   // shape parameter for gamma distribution; set min. to avoid eProbs getting zero!
-            g2_kMin(0.5),
+            maxIter_simplex(200),           // simplex            
+            g1_kMin(1.0),                   // shape parameter for gamma distribution; set min. to avoid eProbs getting zero!
+            g2_kMin(1.0),
             g1_kMax(10.0),
             g2_kMax(10.0),
             g1_k_le_g2_k(true),
@@ -146,9 +148,9 @@ namespace seqan {
             epanechnikovKernel(false),
             useKdeThreshold(0.0),
             estimateNfromKdes(true),
-            nThresholdForP(10),              // threshold regarding n used for fitting p, if GLM, this need to be larger!
-            nThresholdForTransP(0),              // threshold regarding n used for fitting p, if GLM, this need to be larger! 
-            get_nThreshold(false),  // estimate threshold based on expected read start counts
+            nThresholdForP(10),             // threshold regarding n used for fitting p, if GLM, this need to be larger!
+            nThresholdForTransP(0),         // threshold regarding n used for fitting p, if GLM, this need to be larger! (usually state post. for 'enriched' enough) 
+            get_nThreshold(false),          // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
             polyAThreshold(10),
