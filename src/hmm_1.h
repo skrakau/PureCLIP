@@ -421,7 +421,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
                 if (!options.useHighPrecision)
                 {
                     SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "NOTE: Try running PureCLIP with parameter '-ld' ()!" << std::endl;
+                    std::cout << "NOTE: Try running PureCLIP with parameter '-ld'." << std::endl;
                 }
             }
             else if (!learning && discardInterval)
@@ -434,7 +434,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
                 if (!options.useHighPrecision)
                 {
                     SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "NOTE: If this happens frequently, rerun PureCLIP with parameter '-ld' ()!" << std::endl;
+                    std::cout << "NOTE: If this happens frequently, rerun PureCLIP with parameter '-ld'." << std::endl;
                 }
             }
         }   
