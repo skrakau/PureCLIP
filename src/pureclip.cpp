@@ -52,7 +52,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     ArgumentParser parser("pureclip");
     // Set short description, version, and date.
     setShortDescription(parser, "Protein-RNA interaction site detection ");
-    setVersion(parser, "1.0.4");
+    setVersion(parser, "1.0.5");
     setDate(parser, "July 2018");
 
     // Define usage line and long description.
