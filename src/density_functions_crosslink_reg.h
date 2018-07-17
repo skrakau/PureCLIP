@@ -288,7 +288,7 @@ bool loadBinParams(ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, AppOption
             if (!std::getline(ss, value1, '\t'))
                 std::cerr << "ERROR: could not read first value\n";
 
-            if (value1.c_str() == "bin1.b0")
+            if (value1 == "bin1.b0")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -297,7 +297,7 @@ bool loadBinParams(ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, AppOption
                 }
                 bin1.b0 = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "bin2.b0")
+            else if (value1 == "bin2.b0")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {

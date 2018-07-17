@@ -602,7 +602,7 @@ bool loadGammaParams(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOption
                 std::cerr << "ERROR: could not read first value.\n";
                 return false;
             }
-            if (value1.c_str() == "gamma1.theta")
+            if (value1 == "gamma1.theta")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -611,7 +611,7 @@ bool loadGammaParams(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOption
                 }
                 gamma1.theta = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma1.k")
+            else if (value1 == "gamma1.k")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -620,7 +620,7 @@ bool loadGammaParams(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOption
                 }
                 gamma1.k = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma1.tp")
+            else if (value1 == "gamma1.tp")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -629,7 +629,7 @@ bool loadGammaParams(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOption
                 }
                 gamma1.tp = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma2.theta")
+            else if (value1 == "gamma2.theta")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -638,7 +638,7 @@ bool loadGammaParams(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOption
                 }
                 gamma2.theta = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma2.k")
+            else if (value1 == "gamma2.k")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -647,7 +647,7 @@ bool loadGammaParams(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOption
                 }
                 gamma2.k = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma2.tp")
+            else if (value1 == "gamma2.tp")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {

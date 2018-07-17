@@ -938,7 +938,7 @@ bool loadGammaParams(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, A
                 std::cerr << "ERROR: could not read first value\n";
                 return false;
             }
-            if (value1.c_str() == "gamma1.b0")
+            if (value1 == "gamma1.b0")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -947,7 +947,7 @@ bool loadGammaParams(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, A
                 }
                 gamma1.b0 = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma1.b1")
+            else if (value1 == "gamma1.b1")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -956,7 +956,7 @@ bool loadGammaParams(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, A
                 }
                 gamma1.b1 = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma1.k")
+            else if (value1 == "gamma1.k")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -965,7 +965,7 @@ bool loadGammaParams(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, A
                 }
                 gamma1.k = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma1.tp")
+            else if (value1 == "gamma1.tp")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -974,7 +974,7 @@ bool loadGammaParams(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, A
                 }
                 gamma1.tp = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma2.b0")
+            else if (value1 == "gamma2.b0")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -983,7 +983,7 @@ bool loadGammaParams(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, A
                 }
                 gamma2.b0 = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma2.b1")
+            else if (value1 == "gamma2.b1")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -992,7 +992,7 @@ bool loadGammaParams(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, A
                 }
                 gamma2.b1 = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma2.k")
+            else if (value1 == "gamma2.k")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -1001,7 +1001,7 @@ bool loadGammaParams(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, A
                 }
                 gamma2.k = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "gamma2.tp")
+            else if (value1 == "gamma2.tp")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {

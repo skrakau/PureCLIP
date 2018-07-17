@@ -140,7 +140,7 @@ bool loadBinParams(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, AppOptions &optio
                 std::cerr << "ERROR: could not read first value.\n";
                 return false;
             }
-            if (value1.c_str() == "bin1.p")
+            if (value1 == "bin1.p")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -149,7 +149,7 @@ bool loadBinParams(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, AppOptions &optio
                 }
                 bin1.p = std::strtod(value2.c_str(), NULL);
             }
-            else if (value1.c_str() == "bin2.p")
+            else if (value1 == "bin2.p")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {

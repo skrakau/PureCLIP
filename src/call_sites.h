@@ -845,7 +845,8 @@ bool loadTransAndSLRParams(String<String<double> > &transMatrix, double &slr_Nfr
     resize(transMatrix, 4, Exact());
     for (unsigned k = 0; k < 4; ++k)
         resize(transMatrix[k], 4, 0.0, Exact());
-    
+   
+    unsigned h = 0;
     while (std::getline(ifs, lineBuffer))
     {
         //std::cout << lineBuffer << std::endl;
@@ -859,8 +860,7 @@ bool loadTransAndSLRParams(String<String<double> > &transMatrix, double &slr_Nfr
                 std::cerr << "ERROR: could not read first value\n";
                 return false;
             }
-
-            if (value1.c_str() == "Transition probabilities:")
+            if (value1 == "Transition probabilities:")
             {
                 for (unsigned i = 0; i < 4; ++i)
                 {
@@ -884,10 +884,11 @@ bool loadTransAndSLRParams(String<String<double> > &transMatrix, double &slr_Nfr
                         }
                     }
                 }
+                ++h;
                 //break;
             }
             // load regression coefficients to predict N from KDE values
-            if (value1.c_str() == "slr_NfromKDE.b0")
+            if (value1 == "slr_NfromKDE.b0")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -895,8 +896,9 @@ bool loadTransAndSLRParams(String<String<double> > &transMatrix, double &slr_Nfr
                     return false;
                 }
                 slr_NfromKDE_b0 = std::strtod(value2.c_str(), NULL);
+                ++h;
             }
-            if (value1.c_str() == "slr_NfromKDE.b1")
+            if (value1 == "slr_NfromKDE.b1")
             {
                 if (!std::getline(ss, value2, '\t')) 
                 {
@@ -904,8 +906,14 @@ bool loadTransAndSLRParams(String<String<double> > &transMatrix, double &slr_Nfr
                     return false;
                 }
                 slr_NfromKDE_b1 = std::strtod(value2.c_str(), NULL);
+                ++h;
             }
         }
+    }
+    if (h < 3) 
+    {
+        std::cerr << "ERROR: model parameter missing.\n";
+        return false;
     }
     return true;
 }
