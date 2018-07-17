@@ -582,6 +582,88 @@ long double GAMMA2<TDOUBLE>::getDensity(double const &x)
 
 
 template<typename TDOUBLE>
+bool loadGammaParams(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOptions &options)
+{
+    std::ifstream ifs(toCString(options.inParFileName));
+    if (!ifs.good())
+        std::cerr << "ERROR: Could not open file containing input parameters!\n";
+    std::string lineBuffer;
+
+    while (std::getline(ifs, lineBuffer))
+    {
+        //std::cout << lineBuffer << std::endl;
+        std::string value1;
+        std::string value2;
+        std::stringstream ss(lineBuffer);
+        if (!ss.str().empty())
+        {
+            if (!std::getline(ss, value1, '\t'))
+            {
+                std::cerr << "ERROR: could not read first value.\n";
+                return false;
+            }
+            if (value1.c_str() == "gamma1.theta")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for gamma1.theta\n";
+                    return false;
+                }
+                gamma1.theta = std::strtod(value2.c_str(), NULL);
+            }
+            else if (value1.c_str() == "gamma1.k")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for gamma1.k\n";
+                    return false;
+                }
+                gamma1.k = std::strtod(value2.c_str(), NULL);
+            }
+            else if (value1.c_str() == "gamma1.tp")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for gamma1.tp\n";
+                    return false;
+                }
+                gamma1.tp = std::strtod(value2.c_str(), NULL);
+            }
+            else if (value1.c_str() == "gamma2.theta")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for gamma2.theta\n";
+                    return false;
+                }
+                gamma2.theta = std::strtod(value2.c_str(), NULL);
+            }
+            else if (value1.c_str() == "gamma2.k")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for gamma2.k\n";
+                    return false;
+                }
+                gamma2.k = std::strtod(value2.c_str(), NULL);
+            }
+            else if (value1.c_str() == "gamma2.tp")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for gamma2.tp\n";
+                    return false;
+                }
+                gamma2.tp = std::strtod(value2.c_str(), NULL);
+            }
+        }
+    }
+    return true;
+}
+
+
+
+template<typename TDOUBLE>
 void myPrint(GAMMA2<TDOUBLE> &gamma)
 {
     std::cout << "*** GAMMA2 ***" << std::endl;
@@ -606,6 +688,7 @@ void printParams(TOut &out, GAMMA2<TDOUBLE> &gamma, int i)
     out << "gamma" << i << ".theta" << '\t' << gamma.theta << std::endl;
     out << "gamma" << i << ".k" << '\t' << gamma.k << std::endl;
     out << "gamma" << i << ".tp" << '\t' << gamma.tp << std::endl;
+    out << std::endl;
 }
 
 

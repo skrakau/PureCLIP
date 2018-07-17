@@ -1789,7 +1789,6 @@ void writeStates(BedFileOut &outBed,
             }
         }
     }
-    std::cout << "Done with writing PureCLIP output... " << store.contigNameStore[contigId] << std::endl;
 }
 
 
@@ -1910,5 +1909,19 @@ void myPrint(HMM<TGAMMA, TBIN, TDOUBLE> &hmm)
         std::cout << std::endl;
     }
 }
+
+
+template<typename TOut>
+void printParams(TOut &out, String<String<double> > &transMatrix)
+{
+    out << "Transition probabilities:" << std::endl;
+    for (unsigned k_1 = 0; k_1 < 4; ++k_1)
+    {
+        for (unsigned k_2 = 0; k_2 < 4; ++k_2)
+            out << transMatrix[k_1][k_2] << "\t";
+        out << std::endl;
+    }
+}
+
 
 #endif

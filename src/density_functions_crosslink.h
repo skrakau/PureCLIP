@@ -115,6 +115,55 @@ long double ZTBIN<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n)
 }
 
 
+//////////////////////////
+// utils
+
+
+template<typename TDOUBLE>
+bool loadBinParams(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, AppOptions &options)
+{
+    std::ifstream ifs(toCString(options.inParFileName));
+    if (!ifs.good())
+        std::cerr << "ERROR: Could not open file containing input parameters!\n";
+    std::string lineBuffer;
+
+    while (std::getline(ifs, lineBuffer))
+    {
+        //std::cout << lineBuffer << std::endl;
+        std::string value1;
+        std::string value2;
+        std::stringstream ss(lineBuffer);
+        if (!ss.str().empty())
+        {
+            if (!std::getline(ss, value1, '\t'))
+            {
+                std::cerr << "ERROR: could not read first value.\n";
+                return false;
+            }
+            if (value1.c_str() == "bin1.p")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for bin1.p\n";
+                    return false;
+                }
+                bin1.p = std::strtod(value2.c_str(), NULL);
+            }
+            else if (value1.c_str() == "bin2.p")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for bin2.p\n";
+                    return false;
+                }
+                bin2.p = std::strtod(value2.c_str(), NULL);
+            }   
+        }
+    }
+    return true;
+}
+
+
 template<typename TDOUBLE>
 void myPrint(ZTBIN<TDOUBLE> &bin)
 {
@@ -123,6 +172,13 @@ void myPrint(ZTBIN<TDOUBLE> &bin)
     std::cout << std::endl;
 }
 
+
+template<typename TOut, typename TDOUBLE>
+void printParams(TOut &out, ZTBIN<TDOUBLE> &bin, int i)
+{
+    out << "bin" << i << ".p" << '\t' << bin.p << std::endl;
+    out << std::endl;    
+}
 
 template<typename TDOUBLE>
 bool checkConvergence(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, AppOptions &options)

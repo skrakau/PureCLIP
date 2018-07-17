@@ -835,6 +835,101 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, T
 }
 
 
+bool loadTransAndSLRParams(String<String<double> > &transMatrix, double &slr_NfromKDE_b0, double &slr_NfromKDE_b1, AppOptions &options)
+{
+    std::ifstream ifs(toCString(options.inParFileName));
+    if (!ifs.good())
+        std::cerr << "ERROR: Could not open file containing input parameters!\n";
+    std::string lineBuffer;
+
+    resize(transMatrix, 4, Exact());
+    for (unsigned k = 0; k < 4; ++k)
+        resize(transMatrix[k], 4, 0.0, Exact());
+    
+    while (std::getline(ifs, lineBuffer))
+    {
+        //std::cout << lineBuffer << std::endl;
+        std::string value1;
+        std::string value2;
+        std::stringstream ss(lineBuffer);
+        if (!ss.str().empty())
+        {
+            if (!std::getline(ss, value1, '\t'))
+            {
+                std::cerr << "ERROR: could not read first value\n";
+                return false;
+            }
+
+            if (value1.c_str() == "Transition probabilities:")
+            {
+                for (unsigned i = 0; i < 4; ++i)
+                {
+                    if (!std::getline(ifs, lineBuffer))
+                    {
+                        std::cerr << "ERROR: could not read line" << i << " of transition probabilities.\n";
+                        return false;
+                    }
+                    std::stringstream sss(lineBuffer);
+                    if (!ss.str().empty())
+                    {
+                        for (unsigned j = 0; j < 4; ++j)
+                        {
+                            std::string transProb;
+                            if (!std::getline(sss, transProb, '\t'))
+                            {
+                                std::cerr << "ERROR: could not read entry" << i << ", " << j << " of transition probabilities.\n";
+                                return false;
+                            }
+                            transMatrix[i][j] = std::strtod(transProb.c_str(), NULL);
+                        }
+                    }
+                }
+                //break;
+            }
+            // load regression coefficients to predict N from KDE values
+            if (value1.c_str() == "slr_NfromKDE.b0")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for slr_NfromKDE.b0\n";
+                    return false;
+                }
+                slr_NfromKDE_b0 = std::strtod(value2.c_str(), NULL);
+            }
+            if (value1.c_str() == "slr_NfromKDE.b1")
+            {
+                if (!std::getline(ss, value2, '\t')) 
+                {
+                    std::cerr << "ERROR: could not read second value for slr_NfromKDE.b1\n";
+                    return false;
+                }
+                slr_NfromKDE_b1 = std::strtod(value2.c_str(), NULL);
+            }
+        }
+    }
+    return true;
+}
+
+
+
+template<typename TGAMMA, typename TBIN>
+bool loadParams(String<String<double> > &transMatrix, 
+                TGAMMA &gamma1, TGAMMA &gamma2, 
+                TBIN &bin1, TBIN &bin2,
+                double &slr_NfromKDE_b0, double &slr_NfromKDE_b1,
+                AppOptions &options)
+{
+    if (!loadGammaParams(gamma1, gamma2, options))
+        return false;
+    if (!loadBinParams(bin1, bin2, options))
+        return false;
+
+    if (!loadTransAndSLRParams(transMatrix, slr_NfromKDE_b0, slr_NfromKDE_b1, options))
+        return false;
+
+    return true;
+}
+
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool learnHMM(Data &data, 
               String<String<double> > &transMatrix_1,
@@ -1035,81 +1130,90 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     double slr_NfromKDE_b0 = 0.0;
     double slr_NfromKDE_b1 = 0.0;  
 
-
-    String<ContigObservations> contigObservationsF;
-    String<ContigObservations> contigObservationsR;
-    resize(contigObservationsF, length(options.intervals_contigIds), Exact());
-    resize(contigObservationsR, length(options.intervals_contigIds), Exact());
-
-    Data data;
-    resize(data.setObs, 2);
-    resize(data.setPos, 2);
-    resize(data.statePosteriors, 2);
-    resize(data.states, 2);
-    bool stop = false;
-#if HMM_PARALLEL
-    SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
-#endif  
-    for (unsigned i = 0; i < length(options.intervals_contigIds); ++i)
-    {
-        unsigned contigId = options.intervals_contigIds[i];
-
-        int r = loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, store, options);
-        if (r == 1)
-        {
-            stop = true; 
-        }
-        else if (r == 0)
-        {
-            String<double> contigCovsF;
-            String<double> contigCovsR;
-            loadCovariates(contigCovsF, contigCovsR, contigId, store, options); 
-            String<String<float> > contigCovsFimo;
-            String<String<char> > motifIds;
-            loadMotifCovariates(contigCovsFimo, motifIds, contigId, store, options); 
-
-            // Extract covered intervals for learning
-            unsigned i1 = options.intervals_positions[i][0];    // interval begin
-            unsigned i2 = options.intervals_positions[i][1];    // interval end
-            Data c_data;                
-            resize(c_data.setObs, 2);
-            resize(c_data.setPos, 2);
-            resize(c_data.statePosteriors, 2);
-            resize(c_data.states, 2);
-
-            extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, true, store, options); 
-
-            SEQAN_OMP_PRAGMA(critical)
-            append(data, c_data);  
-        }
-    }
-    if (stop) return 1;
-
-    // learn KDE - N relationship on all contigs used for other parameter learning as well
-    for (unsigned s = 0; s < 2; ++s)
-        for (unsigned i = 0; i < length(data.setObs[s]); ++i)
-            data.setObs[s][i].computeKDEs(options);
-       
-    if (options.estimateNfromKdes) 
-        computeSLR(slr_NfromKDE_b0, slr_NfromKDE_b1, data, options);
-  
-    // precompute KDE values, estimate Ns, etc.
-    preproCoveredIntervals(data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
- 
-    gamma1.tp = options.useKdeThreshold;
-    gamma2.tp = options.useKdeThreshold;       // left tuncated    
-
-    if (options.verbosity >= 1) std::cout << "Prior ML estimation of density distribution parameters using predefined cutoff ..." << std::endl;
-    prior_mle(gamma1, gamma2, data, options);
     String<String<double> > transMatrix;
-    estimateTransitions(transMatrix, gamma1, gamma2, bin1, bin2, data, options);
+    if (empty(options.inParFileName))
+    {
+        String<ContigObservations> contigObservationsF;
+        String<ContigObservations> contigObservationsR;
+        resize(contigObservationsF, length(options.intervals_contigIds), Exact());
+        resize(contigObservationsR, length(options.intervals_contigIds), Exact());
 
-    unsigned contigLen = 0; // should not be used within learning
-    if (!learnHMM(data, transMatrix, gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, contigLen, options))
-        return 1;
+        Data data;
+        resize(data.setObs, 2);
+        resize(data.setPos, 2);
+        resize(data.statePosteriors, 2);
+        resize(data.states, 2);
+        bool stop = false;
+#if HMM_PARALLEL
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
+#endif  
+            for (unsigned i = 0; i < length(options.intervals_contigIds); ++i)
+            {
+                unsigned contigId = options.intervals_contigIds[i];
 
-    clear(contigObservationsF);
-    clear(contigObservationsR);
+                int r = loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, store, options);
+                if (r == 1)
+                {
+                    stop = true; 
+                }
+                else if (r == 0)
+                {
+                    String<double> contigCovsF;
+                    String<double> contigCovsR;
+                    loadCovariates(contigCovsF, contigCovsR, contigId, store, options); 
+                    String<String<float> > contigCovsFimo;
+                    String<String<char> > motifIds;
+                    loadMotifCovariates(contigCovsFimo, motifIds, contigId, store, options); 
+
+                    // Extract covered intervals for learning
+                    unsigned i1 = options.intervals_positions[i][0];    // interval begin
+                    unsigned i2 = options.intervals_positions[i][1];    // interval end
+                    Data c_data;                
+                    resize(c_data.setObs, 2);
+                    resize(c_data.setPos, 2);
+                    resize(c_data.statePosteriors, 2);
+                    resize(c_data.states, 2);
+
+                    extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, true, store, options); 
+
+                    SEQAN_OMP_PRAGMA(critical)
+                        append(data, c_data);  
+                }
+            }
+        if (stop) return 1;
+
+        // learn KDE - N relationship on all contigs used for other parameter learning as well
+        for (unsigned s = 0; s < 2; ++s)
+            for (unsigned i = 0; i < length(data.setObs[s]); ++i)
+                data.setObs[s][i].computeKDEs(options);
+
+        if (options.estimateNfromKdes) 
+            computeSLR(slr_NfromKDE_b0, slr_NfromKDE_b1, data, options);
+
+        // precompute KDE values, estimate Ns, etc.
+        preproCoveredIntervals(data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
+
+        gamma1.tp = options.useKdeThreshold;
+        gamma2.tp = options.useKdeThreshold;       // left tuncated    
+
+        if (options.verbosity >= 1) std::cout << "Prior ML estimation of density distribution parameters using predefined cutoff ..." << std::endl;
+        prior_mle(gamma1, gamma2, data, options);
+        estimateTransitions(transMatrix, gamma1, gamma2, bin1, bin2, data, options);
+
+        unsigned contigLen = 0; // should not be used within learning
+
+        if (!learnHMM(data, transMatrix, gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, contigLen, options))
+            return 1;
+
+        clear(contigObservationsF);
+        clear(contigObservationsR);
+    }
+    else
+    {
+        std::cout << "Load model parameters provided in " << options.inParFileName << "." << std::endl;
+        if (!loadParams(transMatrix, gamma1, gamma2, bin1, bin2, slr_NfromKDE_b0, slr_NfromKDE_b1, options))
+            return 1;
+    }
 
     if (options.verbosity >= 1) std::cout << "Apply learned parameters to whole genome  ..." << std::endl;
 #if HMM_PARALLEL
@@ -1124,6 +1228,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     double timeStamp2 = sysTime();
 #endif
 
+    bool stop = false;
 #if HMM_PARALLEL
     SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreadsA)) 
 #endif  
@@ -1302,12 +1407,25 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     //std::cout << "  Time needed for applyHMM2: " << Times::instance().time_applyHMM2/60.0 << "min" << std::endl;
 #endif
 
-    CharString fileNameStats = options.outFileName;
-    append(fileNameStats, ".stats");
+    CharString fileNameStats;
+    if (!empty(options.parFileName)) 
+        fileNameStats = options.parFileName;
+    else
+    {
+        fileNameStats = options.outFileName;
+        append(fileNameStats, ".params");
+    }
     std::ofstream out(toCString(fileNameStats), std::ios::binary | std::ios::out);
+    out << "options.useKdeThreshold" << '\t' << options.useKdeThreshold << std::endl;
+    out << std::endl;    
     printParams(out, gamma1, 1);
     printParams(out, gamma2, 2);
-    out << "options.useKdeThreshold" << '\t' << options.useKdeThreshold << std::endl;
+    printParams(out, bin1, 1);
+    printParams(out, bin2, 2);
+    printParams(out, transMatrix);
+    out << std::endl;
+    out << "slr_NfromKDE.b0" << '\t' << slr_NfromKDE_b0 << std::endl;
+    out << "slr_NfromKDE.b1" << '\t' << slr_NfromKDE_b1 << std::endl;
 
     return 0;
 }

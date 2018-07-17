@@ -77,8 +77,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setRequired(parser, "out", true);
     addOption(parser, ArgParseOption("or", "or", "Output file to write binding regions.", ArgParseArgument::OUTPUT_FILE));
     setValidValues(parser, "or", ".bed");
+    addOption(parser, ArgParseOption("ip", "ipar", "Input file with parameters to use.", ArgParseArgument::INPUT_FILE));        
     addOption(parser, ArgParseOption("p", "par", "Output file to write learned parameters.", ArgParseArgument::OUTPUT_FILE));
-    //setRequired(parser, "par", true);
     addOption(parser, ArgParseOption("oi", "oi", "File containing intervals for which to write position-wise PureCLIP output (used in preparation for differential binding sites calling).", ArgParseArgument::INPUT_FILE));
     setValidValues(parser, "oi", ".bed");
 
@@ -91,7 +91,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("chr", "chr", "Contigs to apply HMM, e.g. 'chr1;chr2;chr3;'. Contigs have to be in the same order as in BAM file.", ArgParseArgument::STRING));
 
     addOption(parser, ArgParseOption("bc", "bc", "Flag to set parameters according to binding characteristics of protein: see description in section below.", ArgParseArgument::INTEGER));
-    //setValidValues(parser, "bc", "0 1");
     setMinValue(parser, "bc", "0");
     setMaxValue(parser, "bc", "1");
 
@@ -218,6 +217,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.refFileName, parser, "genome");
     getOptionValue(options.outFileName, parser, "out");
     getOptionValue(options.outRegionsFileName, parser, "or");
+    getOptionValue(options.inParFileName, parser, "ipar");
     getOptionValue(options.parFileName, parser, "par");
     getOptionValue(options.rpkmFileName, parser, "is");
     getOptionValue(options.inputBamFileName, parser, "ibam");

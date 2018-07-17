@@ -42,14 +42,15 @@ namespace seqan {
         CharString refFileName;
         CharString outFileName;
         CharString outRegionsFileName;
+        CharString inParFileName;
         CharString parFileName;
         CharString rpkmFileName;
         CharString inputBamFileName;
         CharString inputBaiFileName;
         CharString fimoFileName;
-	CharString outputIntervalsFileName;
+	    CharString outputIntervalsFileName;
 
-	bool crosslinkAtTruncSite;
+	    bool crosslinkAtTruncSite;
         CharString                  intervals_str;
         String<unsigned>            intervals_contigIds;
         String<String<unsigned> >   intervals_positions;
@@ -118,7 +119,7 @@ namespace seqan {
         unsigned numThreadsA;
         CharString tempPath;
         bool outputAll;
-	bool forDiff;
+	    bool forDiff;
         // Verbosity level.  0 -- quiet, 1 -- normal, 2 -- verbose, 3 -- very verbose.
         int verbosity;
 
