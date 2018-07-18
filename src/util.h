@@ -42,7 +42,6 @@ namespace seqan {
         CharString refFileName;
         CharString outFileName;
         CharString outRegionsFileName;
-        CharString inParFileName;
         CharString parFileName;
         CharString rpkmFileName;
         CharString inputBamFileName;
@@ -56,6 +55,7 @@ namespace seqan {
         String<String<unsigned> >   intervals_positions;
         CharString                  applyChr_str;
         String<unsigned>            applyChr_contigIds;
+        bool fixBinPvalues;
 
         bool posteriorDecoding;
         double prior_kdeThreshold;
@@ -70,6 +70,8 @@ namespace seqan {
         bool g1_k_le_g2_k;
         double p1;
         double p2;
+        //double fix_p1;
+        //double fix_p2;
         double gamma_k_conv;
         double gamma_theta_conv;
         double gamma_b_conv;
@@ -125,6 +127,7 @@ namespace seqan {
 
         AppOptions() :
             crosslinkAtTruncSite(false),
+            fixBinPvalues(false),
             posteriorDecoding(true),
             prior_enrichmentThreshold(7),   // KDE threshold is used corresponding to 7 read starts at one position
             maxIter_brent(100),              // brent
@@ -137,6 +140,8 @@ namespace seqan {
             g1_k_le_g2_k(true),
             p1(0.01),                       // initial values for bin1.p
             p2(0.15),                       // .. bin2.p
+            //fix_p1(0.01),                   // fix probability parameter 
+            //fix_p2(0.15),                   // .. 
             gamma_k_conv(0.0001),
             gamma_theta_conv(0.0001),
             gamma_b_conv(0.0001),

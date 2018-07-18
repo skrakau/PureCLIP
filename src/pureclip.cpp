@@ -77,7 +77,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setRequired(parser, "out", true);
     addOption(parser, ArgParseOption("or", "or", "Output file to write binding regions.", ArgParseArgument::OUTPUT_FILE));
     setValidValues(parser, "or", ".bed");
-    addOption(parser, ArgParseOption("ip", "ipar", "Input file with parameters to use.", ArgParseArgument::INPUT_FILE));        
     addOption(parser, ArgParseOption("p", "par", "Output file to write learned parameters.", ArgParseArgument::OUTPUT_FILE));
     addOption(parser, ArgParseOption("oi", "oi", "File containing intervals for which to write position-wise PureCLIP output (used in preparation for differential binding sites calling).", ArgParseArgument::INPUT_FILE));
     setValidValues(parser, "oi", ".bed");
@@ -150,6 +149,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setMaxValue(parser, "mkn", "1.5");
     addOption(parser, ArgParseOption("b1p", "b1p", "Initial value for binomial probability parameter of 'non-crosslink' state. Default: 0.01.", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("b2p", "b2p", "Initial value for binomial probability parameter of 'crosslink' state. Default: 0.15.", ArgParseArgument::DOUBLE));
+    addOption(parser, ArgParseOption("fb1p", "fb1p", "Fix value for binomial probability parameter of 'non-crosslink' state. Note: either fix both or none.", ArgParseArgument::DOUBLE));
+    addOption(parser, ArgParseOption("fb2p", "fb2p", "Fix value for binomial probability parameter of 'crosslink' state. Note: either fix both or none.", ArgParseArgument::DOUBLE));
+
     addOption(parser, ArgParseOption("mtp", "mtp", "Min. transition probability from state '2' to '3' (helpful for poor data, where no clear distinction between 'enriched' and 'non-enriched' is possible). Default: 0.0001.", ArgParseArgument::DOUBLE));
 
     addOption(parser, ArgParseOption("mk", "mkde", "Minimum KDE value used for fitting left-truncated gamma distributions. Default: corresponding to singleton read start.", ArgParseArgument::DOUBLE));
@@ -217,7 +219,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.refFileName, parser, "genome");
     getOptionValue(options.outFileName, parser, "out");
     getOptionValue(options.outRegionsFileName, parser, "or");
-    getOptionValue(options.inParFileName, parser, "ipar");
     getOptionValue(options.parFileName, parser, "par");
     getOptionValue(options.rpkmFileName, parser, "is");
     getOptionValue(options.inputBamFileName, parser, "ibam");
@@ -278,6 +279,16 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.maxkNratio, parser, "mkn");
     getOptionValue(options.p1, parser, "b1p");
     getOptionValue(options.p2, parser, "b2p");
+    if (isSet(parser, "fb1p") != isSet(parser, "fb2p"))
+    {
+        std::cout << "ERROR: Either fix probability parameter of both binomial distributions or none!" << std::endl;
+        return ArgumentParser::PARSE_ERROR;
+    }
+    if (isSet(parser, "fb1p"))
+        options.fixBinPvalues = true;
+    getOptionValue(options.p1, parser, "fb1p");
+    getOptionValue(options.p2, parser, "fb2p");
+    
 
     getOptionValue(options.distMerge, parser, "dm");
     if (isSet(parser, "ld"))
