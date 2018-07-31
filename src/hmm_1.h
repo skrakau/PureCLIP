@@ -136,8 +136,7 @@ HMM<TGAMMA, TBIN, TDOUBLE>::~HMM<TGAMMA, TBIN, TDOUBLE>()
    // do not touch observations
 }
 
-
-
+ 
 template<typename TEProbs, typename TSetObs, typename TDOUBLE>
 bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
 {
@@ -161,7 +160,8 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
     eProbs[3] = g2_d * bin2_d;
 
     // 
-    if (eProbs[0] == 0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0)
+    if ((eProbs[0] == 0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) ||
+            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) )
     {
         if (options.verbosity >= 2)
         {
@@ -195,6 +195,7 @@ template<typename TEProbs, typename TSetObs, typename TDOUBLE>
 bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
 {
     double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
+    x = std::max(x, options.minRPKMforE);    // currently not used
     double d1_pred = exp(d1.b0 + d1.b1 * x);
     double d2_pred = exp(d2.b0 + d2.b1 * x);
 
@@ -204,7 +205,43 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     {
         g1_d = d1.getDensity(setObs.kdes[t], d1_pred);
         g2_d = d2.getDensity(setObs.kdes[t], d2_pred); 
+        
+        // 1) if 'non-enriched' eProb = INF and pred. value < kde threshold, but 'enriched' eProb OK
+        if((std::isinf(g1_d) || std::isnan(g1_d)) && d1_pred < options.useKdeThreshold && 
+           !std::isinf(g2_d) && !std::isnan(g2_d) && g2_d > 0.0) // options.min_eProbSum) 
+        {    
+            //if (options.verbosity >= 2) std::cout << "'non-enriched' eProbs:" << g1_d << std::endl;
+            g1_d = 0.0;
+            g2_d = 0.1;
+        }
+        else if(d2_pred < options.useKdeThreshold) // NOTE count as 'enriched' from beginning on (indep. of learning)!!!! 
+        // &&       // (std::isinf(g2_d) || std::isnan(g2_d)) && 
+        // !std::isinf(g1_d) && !std::isnan(g1_d) && g1_d > 0.0) //options.min_eProbSum)
+        {       
+            //std::cout << "'non-enriched' eProbs:" << g1_d << std::endl;
+            //std::cout << "'enriched' eProbs:" << g2_d << std::endl;
+            g1_d = 0.5;     // not that obvious ..  TODO avoid post. probs. of 1! ?.
+            g2_d = 0.5;
+        }
+        //else if (d1_pred < options.useKdeThreshold && d2_pred < options.useKdeThreshold) // &&
+        //        ( ((std::isinf(g1_d) || std::isnan(g1_d)) && (std::isinf(g2_d) || std::isnan(g2_d))) ||
+        //          ((std::isinf(g1_d) || std::isnan(g1_d)) && (g2_d < options.min_eProbSum)) ||
+        //          ((g1_d < options.min_eProbSum) && (std::isinf(g2_d) || std::isnan(g2_d))) ||
+        //          ((!std::isinf(g1_d) && !std::isnan(g1_d) && !std::isinf(g2_d) && !std::isnan(g2_d)) && (g1_d + g2_d < options.min_eProbSum))) )   
+        //{      
+            // TODO not entering if g1_d + g2_d < options.min_eProbSum !!!
+
+            // 2) might happen in case of general low target, high input signals
+            // above expected value of 'enriched' distribution, error due to expected values below KDE threshold -> set 'enriched'
+            // to ensure fraction still contributes to fitting to avoid shape parameter becoming to large! 
+            //g1_d = 0.0;
+            //g2_d = 1.0; //options.min_eProbSum;  ... too small? does it matter how small eProb is, as long post. probs sum up to 1? 
+        //}
+        // TODO low signal more likely caused by 'non-enriched'?
+        // everything else catched latter
     }
+
+    // TODO catch cases ..?
     long double  bin1_d = 1.0;
     long double  bin2_d = 0.0;
     if (setObs.truncCounts[t] > 0)
@@ -219,6 +256,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
 
     // 
     if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) || 
+            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) ||
             (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
             (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
     {
@@ -233,15 +271,15 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       covariate b: " << x << std::endl;
+                std::cout << "       covariate b: " << x << " pred1: " << d1_pred << " pred2: " << d2_pred << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t], d1_pred) << std::endl;
+                std::cout << "       emission probability 'non-enriched' gamma: " << g1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t], d2_pred) << std::endl;
+                std::cout << "       emission probability 'enriched' gamma: " << g2_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]) << std::endl;
+                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]) << std::endl;
+                std::cout << "       emission probability 'crosslink' binomial: " << bin2_d << std::endl;
         }    
         eProbs[0] = 1.0;
         eProbs[1] = 0.0;
@@ -280,7 +318,8 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
     eProbs[3] = g2_d * bin2_d;
 
     //
-    if (eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0)
+    if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) ||
+            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) )
     {
         if (options.verbosity >= 2)
         {
@@ -344,6 +383,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
 
     // 
     if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) || 
+            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) ||
             (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
             (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
     {

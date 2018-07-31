@@ -903,7 +903,7 @@ long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pre
 
     // normalized lower incomplete gamma function
     double nligf = boost::math::gamma_p(this->k, this->tp/theta);
-    if ((1.0 - nligf) == 0.0) std::cout << "ERROR: (1 - nligf) is 0!"  << " kde: " << kde << " pred: " << pred << std::endl;
+    if ((1.0 - nligf) == 0.0) std::cout << "ERROR: (1 - nligf) is 0!"  << " kde: " << kde << " pred: " << pred << " f1/f2: " << (f1/f2) << " res: " << ((f1/f2)/(1.0 - nligf)) << std::endl;
 
     return  ((f1/f2)/(1.0 - nligf));
 }

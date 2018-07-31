@@ -89,6 +89,7 @@ namespace seqan {
         double get_nThreshold;
         double minTransProbCS;
         double maxkNratio;
+        long double min_eProbSum;
 
         unsigned polyAThreshold;
         bool excludePolyAFromLearning;
@@ -101,6 +102,7 @@ namespace seqan {
         bool useCov_RPKM;
         bool useLogRPKM;
         double minRPKMtoFit;
+        double minRPKMforE;        
         bool mrtf_kdeSglt;
         bool discardSingletonIntervals;
         unsigned maxTruncCount;
@@ -153,6 +155,7 @@ namespace seqan {
             get_nThreshold(false),          // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
+            min_eProbSum(1e-200),           // make sure eProbs not getting too low, will cause crash during FB-algorithm ..
             polyAThreshold(10),
             excludePolyAFromLearning(false),
             excludePolyTFromLearning(false),
@@ -162,6 +165,7 @@ namespace seqan {
             useCov_RPKM(false),
             useLogRPKM(true),
             minRPKMtoFit(-5.0),
+            minRPKMforE(-5.0),            
             mrtf_kdeSglt(true),                 // use singleton KDE value as mrtf for GLM fitting (assuming same bandwidth for input KDEs!)
             discardSingletonIntervals(true),    // delete intervals with singleton reads to save memory (and runtime) !! influence on transProbs?
             maxTruncCount(250),                 // used to ignore intervals for learning
