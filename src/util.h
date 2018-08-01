@@ -98,6 +98,9 @@ namespace seqan {
         bool excludePolyT;
 
         bool gslSimplex2;
+        long double min_nligf;
+        double kMin_simplex;
+        double kMax_simplex;
 
         bool useCov_RPKM;
         bool useLogRPKM;
@@ -162,6 +165,9 @@ namespace seqan {
             excludePolyA(false),
             excludePolyT(false),
             gslSimplex2(true),
+            min_nligf(0.999999999999999),           // min. normalized lower incomplete gamma function. NOTE: precission of boost computation is limited, set to min. value in order to avoid 1s!
+            kMin_simplex(0.5),              // not used currently ...
+            kMax_simplex(15.0),
             useCov_RPKM(false),
             useLogRPKM(true),
             minRPKMtoFit(-5.0),
@@ -231,9 +237,12 @@ namespace seqan {
         String<double>      rpkms;      // TODO change name -> e.g. bgSignal
         String<float>       fimoScores; // for each t: one motif score
         String<char>        motifIds; // for each t: one motif score
+        bool                discard;    // NOTE: only use for application, not for learning!
 
-        Observations(Infix<String<__uint16> >::Type _truncCounts) : truncCounts(_truncCounts) {}
-        Observations() : truncCounts() {}
+        Observations(Infix<String<__uint16> >::Type _truncCounts) : truncCounts(_truncCounts),
+                                                                    discard(false) {}
+        Observations() : truncCounts(),
+                         discard(false) {}
 
         void estimateNs(AppOptions &options);                       // using raw counts
         void estimateNs(double b0, double b1, AppOptions /*&options*/); // using KDEs

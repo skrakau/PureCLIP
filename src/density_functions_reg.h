@@ -41,6 +41,7 @@
 
 using namespace seqan;
 
+using namespace boost::math::policies;
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -55,7 +56,7 @@ public:
     GAMMA2_REG(double tp_): tp(tp_) {}
     GAMMA2_REG() {}
 
-    long double getDensity(double const &kde, double const &pred);
+    long double getDensity(double const &kde, double const &pred, AppOptions const& options);
     void updateMean(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
     void updateK(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
 
@@ -439,7 +440,14 @@ struct Fct_GSL_X_GAMMA2_REG
                         double x1 = setObs[s][i].rpkms[t];
                         double pred = exp(b0 + b1 * x1);
 
-                        double nligf = boost::math::gamma_p(k, (tp*k/pred));
+                        long double test_k = k;
+                        long double test_g = tp*k/pred; 
+                        long double nligf = boost::math::gamma_p(test_k, test_g);  //
+                        if (nligf == 1.0) 
+                        {
+                            if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << std::setprecision(20) << nligf << " pred: " << pred << "  x: " << x1 << std::endl;
+                            nligf = options.min_nligf;
+                        }
             
                         TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
 
@@ -498,7 +506,12 @@ struct Fct_GSL_X_GAMMA2_REG_fixK
                         double x1 = setObs[s][i].rpkms[t];
                         double pred = exp(b0 + b1 * x1);
 
-                        double nligf = boost::math::gamma_p(k, (tp*k/pred));
+                        long double nligf = boost::math::gamma_p(k, (tp*k/pred));  //policy<digits10<15> >());
+                        if (nligf == 1.0) 
+                        {
+                            if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << nligf << " pred: " << pred << "  x: " << x1 << std::endl;
+                            nligf = options.min_nligf;
+                        }
             
                         TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
 
@@ -847,7 +860,7 @@ struct Fct_GAMMA2_REG_k
                         double x1 = setObs[s][i].rpkms[t];
                         double pred = exp(b0 + b1 * x1);
 
-                        double nligf = boost::math::gamma_p(k, (options.useKdeThreshold/(pred/k)));
+                        long double nligf = boost::math::gamma_p(k, (options.useKdeThreshold/(pred/k)));
 
                         TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k);
                         p -= log(1.0 - nligf);
@@ -888,7 +901,7 @@ void GAMMA2_REG<TDOUBLE>::updateK(String<String<String<TDOUBLE> > > &statePoster
 
 
 template<typename TDOUBLE>
-long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pred)   
+long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pred, AppOptions const&options)   
 {
     if (kde < this->tp) return 0.0;
 
@@ -902,8 +915,17 @@ long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pre
 
 
     // normalized lower incomplete gamma function
-    double nligf = boost::math::gamma_p(this->k, this->tp/theta);
-    if ((1.0 - nligf) == 0.0) std::cout << "ERROR: (1 - nligf) is 0!"  << " kde: " << kde << " pred: " << pred << " f1/f2: " << (f1/f2) << " res: " << ((f1/f2)/(1.0 - nligf)) << std::endl;
+    long double nligf = boost::math::gamma_p(this->k, this->tp/theta);
+    if (nligf >= options.min_nligf && nligf < 1.0)
+    {
+        if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << std::setprecision(20) << nligf << " pred: " << pred << "  kde: " << kde << std::endl;
+    }
+    if (nligf == 1.0) 
+    {
+        if (options.verbosity >= 2) std::cout << "NOTE: (1 - nligf) is 0! nligf set to " << options.min_nligf << " (kde: " << kde << " pred: " << pred << ")" << std::endl;
+        nligf = options.min_nligf;
+        // NOTE: not possible to compute with higher precission, since other values are doubles ...?
+    }
 
     return  ((f1/f2)/(1.0 - nligf));
 }

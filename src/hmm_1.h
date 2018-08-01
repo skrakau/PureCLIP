@@ -203,26 +203,26 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     long double g2_d = 0.0;
     if (setObs.kdes[t] >= d1.tp) 
     {
-        g1_d = d1.getDensity(setObs.kdes[t], d1_pred);
-        g2_d = d2.getDensity(setObs.kdes[t], d2_pred); 
-        
+        g1_d = d1.getDensity(setObs.kdes[t], d1_pred, options);
+        g2_d = d2.getDensity(setObs.kdes[t], d2_pred, options); 
+                
         // 1) if 'non-enriched' eProb = INF and pred. value < kde threshold, but 'enriched' eProb OK
-        if((std::isinf(g1_d) || std::isnan(g1_d)) && d1_pred < options.useKdeThreshold && 
-           !std::isinf(g2_d) && !std::isnan(g2_d) && g2_d > 0.0) // options.min_eProbSum) 
-        {    
+        //if((std::isinf(g1_d) || std::isnan(g1_d)) && d1_pred < options.useKdeThreshold && 
+        //   !std::isinf(g2_d) && !std::isnan(g2_d) && g2_d > 0.0) // options.min_eProbSum) 
+        //{    
             //if (options.verbosity >= 2) std::cout << "'non-enriched' eProbs:" << g1_d << std::endl;
-            g1_d = 0.0;
-            g2_d = 0.1;
-        }
-        else if(d2_pred < options.useKdeThreshold) // NOTE count as 'enriched' from beginning on (indep. of learning)!!!! 
+        //    g1_d = 0.0;
+        //    g2_d = 1.0;
+        //}
+        //else if(d2_pred < options.useKdeThreshold) // NOTE count as 'enriched' from beginning on (indep. of learning)!!!! 
         // &&       // (std::isinf(g2_d) || std::isnan(g2_d)) && 
         // !std::isinf(g1_d) && !std::isnan(g1_d) && g1_d > 0.0) //options.min_eProbSum)
-        {       
+        //{       
             //std::cout << "'non-enriched' eProbs:" << g1_d << std::endl;
             //std::cout << "'enriched' eProbs:" << g2_d << std::endl;
-            g1_d = 0.5;     // not that obvious ..  TODO avoid post. probs. of 1! ?.
-            g2_d = 0.5;
-        }
+            //g1_d = 0.0;     // not that obvious ..  TODO avoid post. probs. of 1! ?.
+            //g2_d = 1.0;
+        //}
         //else if (d1_pred < options.useKdeThreshold && d2_pred < options.useKdeThreshold) // &&
         //        ( ((std::isinf(g1_d) || std::isnan(g1_d)) && (std::isinf(g2_d) || std::isnan(g2_d))) ||
         //          ((std::isinf(g1_d) || std::isnan(g1_d)) && (g2_d < options.min_eProbSum)) ||
@@ -362,8 +362,8 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     long double g2_d = 0.0;
     if (setObs.kdes[t] >= d1.tp) 
     {
-        g1_d = d1.getDensity(setObs.kdes[t], d1_pred);
-        g2_d = d2.getDensity(setObs.kdes[t], d2_pred); 
+        g1_d = d1.getDensity(setObs.kdes[t], d1_pred, options);
+        g2_d = d2.getDensity(setObs.kdes[t], d2_pred, options); 
     }
     unsigned mId = setObs.motifIds[t];
     double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs.fimoScores[t]));
@@ -402,9 +402,9 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       covariate x: " << setObs.fimoScores[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t], d1_pred) << std::endl;
+                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t], d1_pred, options) << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t], d2_pred) << std::endl;
+                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t], d2_pred, options) << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred) << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -466,6 +466,8 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
             }
             else if (!learning && discardInterval)
             {
+                this->setObs[s][i].discard = true;
+
                 SEQAN_OMP_PRAGMA(critical) 
                 if (s == 0) 
                     std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
@@ -999,61 +1001,64 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 #endif  
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
-            unsigned T = setObs[s][i].length();
-            // forward probabilities
-            String<String<TDOUBLE> > alphas_1;
-            String<String<TDOUBLE> > alphas_2;
-            resize(alphas_1, T, Exact());
-            resize(alphas_2, T, Exact());
-            for (unsigned t = 0; t < T; ++t)
+            if (!this->setObs[s][i].discard)
             {
-                resize(alphas_1[t], this->K, Exact());
-                resize(alphas_2[t], this->K, Exact());
-            } 
-            if (!iForward(alphas_1, alphas_2, s, i, options))
-            {
-                stop = true;
-                continue;
-            }
-            // backward probabilities  
-            String<String<TDOUBLE> > betas_2;
-            resize(betas_2, T, Exact());
-            for (unsigned t = 0; t < T; ++t)
-                resize(betas_2[t], this->K, Exact());
-            if (!iBackward(betas_2, alphas_1, s, i))
-            {
-                stop = true;
-                continue;
-            }
-            
-            // compute state posterior probabilities
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-            {
-                long double sum = 0.0;
-                for (unsigned k = 0; k < this->K; ++k)
-                    sum += alphas_2[t][k] * betas_2[t][k];
-
-                if (sum == 0.0) 
+                unsigned T = setObs[s][i].length();
+                // forward probabilities
+                String<String<TDOUBLE> > alphas_1;
+                String<String<TDOUBLE> > alphas_2;
+                resize(alphas_1, T, Exact());
+                resize(alphas_2, T, Exact());
+                for (unsigned t = 0; t < T; ++t)
                 {
-                    std::cout << "ERROR: while computing state posterior probabilities! Sum of alpha and beta values is 0 at i: " << i << " t: "<< t << "." << std::endl;
-                    if (options.verbosity >= 2)
-                    {
-                        for (unsigned k = 0; k < this->K; ++k)
-                        {
-                            std::cout << "k: " << k << std::endl;
-                            std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
-                        }
-                    }
+                    resize(alphas_1[t], this->K, Exact());
+                    resize(alphas_2[t], this->K, Exact());
+                } 
+                if (!iForward(alphas_1, alphas_2, s, i, options))
+                {
                     stop = true;
                     continue;
                 }
-                for (unsigned k = 0; k < this->K; ++k)
-                    this->statePosteriors[s][k][i][t] = alphas_2[t][k] * betas_2[t][k] / sum;
-            }
+                // backward probabilities  
+                String<String<TDOUBLE> > betas_2;
+                resize(betas_2, T, Exact());
+                for (unsigned t = 0; t < T; ++t)
+                    resize(betas_2[t], this->K, Exact());
+                if (!iBackward(betas_2, alphas_1, s, i))
+                {
+                    stop = true;
+                    continue;
+                }
 
-            // update init probs
-            for (unsigned k = 0; k < this->K; ++k)
-                this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
+                // compute state posterior probabilities
+                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+                {
+                    long double sum = 0.0;
+                    for (unsigned k = 0; k < this->K; ++k)
+                        sum += alphas_2[t][k] * betas_2[t][k];
+
+                    if (sum == 0.0) 
+                    {
+                        std::cout << "ERROR: while computing state posterior probabilities! Sum of alpha and beta values is 0 at i: " << i << " t: "<< t << "." << std::endl;
+                        if (options.verbosity >= 2)
+                        {
+                            for (unsigned k = 0; k < this->K; ++k)
+                            {
+                                std::cout << "k: " << k << std::endl;
+                                std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
+                            }
+                        }
+                        stop = true;
+                        continue;
+                    }
+                    for (unsigned k = 0; k < this->K; ++k)
+                        this->statePosteriors[s][k][i][t] = alphas_2[t][k] * betas_2[t][k] / sum;
+                }
+
+                // update init probs
+                for (unsigned k = 0; k < this->K; ++k)
+                    this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
+            }
         }
         if (stop) return false;
     }
@@ -1437,57 +1442,60 @@ long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi(String<String<String<__uint8> > 
         resize(states[s], length(this->setObs[s]), Exact());
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
-            resize(states[s][i], this->setObs[s][i].length(), Exact());
-            // store for each t and state maximizing precursor joint probability of state sequence and observation
-            String<String<TDOUBLE> > vits;
-            resize(vits, this->setObs[s][i].length(), Exact());
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-                resize(vits[t], this->K, Exact());
-            // store for each t and state maximizing precursor state
-            String<String<unsigned> > track;
-            resize(track, this->setObs[s][i].length(), Exact());
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-                resize(track[t], this->K, Exact());
+            if (!this->setObs[s][i].discard)
+            {
+                resize(states[s][i], this->setObs[s][i].length(), Exact());
+                // store for each t and state maximizing precursor joint probability of state sequence and observation
+                String<String<TDOUBLE> > vits;
+                resize(vits, this->setObs[s][i].length(), Exact());
+                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+                    resize(vits[t], this->K, Exact());
+                // store for each t and state maximizing precursor state
+                String<String<unsigned> > track;
+                resize(track, this->setObs[s][i].length(), Exact());
+                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+                    resize(track[t], this->K, Exact());
 
-            // initialize
-            for (unsigned k = 0; k < this->K; ++k)
-                vits[0][k] = this->initProbs[s][i][k] * this->eProbs[s][i][0][k];
-            // recursion
-            for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
-            {
+                // initialize
                 for (unsigned k = 0; k < this->K; ++k)
+                    vits[0][k] = this->initProbs[s][i][k] * this->eProbs[s][i][0][k];
+                // recursion
+                for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
                 {
-                    TDOUBLE max_v = vits[t-1][0] * this->transMatrix[0][k];
-                    unsigned max_k = 0;
-                    for (unsigned k_p = 1; k_p < this->K; ++k_p)
+                    for (unsigned k = 0; k < this->K; ++k)
                     {
-                        TDOUBLE v = vits[t-1][k_p] * this->transMatrix[k_p][k];
-                        if (v > max_v)
+                        TDOUBLE max_v = vits[t-1][0] * this->transMatrix[0][k];
+                        unsigned max_k = 0;
+                        for (unsigned k_p = 1; k_p < this->K; ++k_p)
                         {
-                            max_v = v;
-                            max_k = k_p;
+                            TDOUBLE v = vits[t-1][k_p] * this->transMatrix[k_p][k];
+                            if (v > max_v)
+                            {
+                                max_v = v;
+                                max_k = k_p;
+                            }
                         }
+                        vits[t][k] = max_v * this->eProbs[s][i][t][k];
+                        track[t][k] = max_k;
                     }
-                    vits[t][k] = max_v * this->eProbs[s][i][t][k];
-                    track[t][k] = max_k;
                 }
-            }
-            // backtracking
-            TDOUBLE max_v = vits[this->setObs[s][i].length() - 1][0];
-            unsigned max_k = 0;
-            for (unsigned k = 1; k < this->K; ++k)
-            {
-                if (vits[this->setObs[s][i].length() - 1][k] >= max_v)
+                // backtracking
+                TDOUBLE max_v = vits[this->setObs[s][i].length() - 1][0];
+                unsigned max_k = 0;
+                for (unsigned k = 1; k < this->K; ++k)
                 {
-                    max_v = vits[this->setObs[s][i].length() - 1][k];
-                    max_k = k;
+                    if (vits[this->setObs[s][i].length() - 1][k] >= max_v)
+                    {
+                        max_v = vits[this->setObs[s][i].length() - 1][k];
+                        max_k = k;
+                    }
                 }
+                states[s][i][this->setObs[s][i].length() - 1] = max_k;
+                for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
+                    states[s][i][t] = track[t+1][states[s][t+1]];
+
+                p *= max_v;
             }
-            states[s][i][this->setObs[s][i].length() - 1] = max_k;
-            for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
-                states[s][i][t] = track[t+1][states[s][t+1]];
-            
-            p *= max_v;
         }
     }
     return p;   
@@ -1503,59 +1511,62 @@ long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi_log(String<String<String<__uint8
         resize(states[s], length(this->setObs[s]), Exact());
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
-            resize(states[s][i], this->setObs[s][i].length(), Exact());
-            // store for each t and state maximizing precursor joint probability of state sequence and observation
-            String<String<TDOUBLE> > vits;
-            resize(vits, this->setObs[s][i].length(), Exact());
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-                resize(vits[t], this->K, Exact());
-            // store for each t and state maximizing precursor state
-            String<String<unsigned> > track;
-            resize(track, this->setObs[s][i].length(), Exact());
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-                resize(track[t], this->K, Exact());
-
-            // SEQAN_ASSERT_GT( ,0.0) or <- DBL_MIN
-
-            // initialize
-            for (unsigned k = 0; k < this->K; ++k)
-                vits[0][k] = log(this->initProbs[s][i][k]) + log(this->eProbs[s][i][0][k]);
-            // recursion
-            for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
+            if (!this->setObs[s][i].discard)
             {
+                resize(states[s][i], this->setObs[s][i].length(), Exact());
+                // store for each t and state maximizing precursor joint probability of state sequence and observation
+                String<String<TDOUBLE> > vits;
+                resize(vits, this->setObs[s][i].length(), Exact());
+                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+                    resize(vits[t], this->K, Exact());
+                // store for each t and state maximizing precursor state
+                String<String<unsigned> > track;
+                resize(track, this->setObs[s][i].length(), Exact());
+                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+                    resize(track[t], this->K, Exact());
+
+                // SEQAN_ASSERT_GT( ,0.0) or <- DBL_MIN
+
+                // initialize
                 for (unsigned k = 0; k < this->K; ++k)
+                    vits[0][k] = log(this->initProbs[s][i][k]) + log(this->eProbs[s][i][0][k]);
+                // recursion
+                for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
                 {
-                    TDOUBLE max_v = vits[t-1][0] + log(this->transMatrix[0][k]);
-                    unsigned max_k = 0;
-                    for (unsigned k_p = 1; k_p < this->K; ++k_p)
+                    for (unsigned k = 0; k < this->K; ++k)
                     {
-                        double v = vits[t-1][k_p] + log(this->transMatrix[k_p][k]);
-                        if (v > max_v)
+                        TDOUBLE max_v = vits[t-1][0] + log(this->transMatrix[0][k]);
+                        unsigned max_k = 0;
+                        for (unsigned k_p = 1; k_p < this->K; ++k_p)
                         {
-                            max_v = v;
-                            max_k = k_p;
+                            double v = vits[t-1][k_p] + log(this->transMatrix[k_p][k]);
+                            if (v > max_v)
+                            {
+                                max_v = v;
+                                max_k = k_p;
+                            }
                         }
+                        vits[t][k] = max_v + log(this->eProbs[s][i][t][k]);
+                        track[t][k] = max_k;
                     }
-                    vits[t][k] = max_v + log(this->eProbs[s][i][t][k]);
-                    track[t][k] = max_k;
                 }
-            }
-            // backtracking
-            TDOUBLE max_v = vits[this->setObs[s][i].length() - 1][0];
-            unsigned max_k = 0;
-            for (unsigned k = 1; k < this->K; ++k)
-            {
-                if (vits[this->setObs[s][i].length() - 1][k] >= max_v)
+                // backtracking
+                TDOUBLE max_v = vits[this->setObs[s][i].length() - 1][0];
+                unsigned max_k = 0;
+                for (unsigned k = 1; k < this->K; ++k)
                 {
-                    max_v = vits[this->setObs[s][i].length() - 1][k];
-                    max_k = k;
+                    if (vits[this->setObs[s][i].length() - 1][k] >= max_v)
+                    {
+                        max_v = vits[this->setObs[s][i].length() - 1][k];
+                        max_k = k;
+                    }
                 }
-            }
-            states[s][i][this->setObs[s][i].length() - 1] = max_k;
-            for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
-                states[s][i][t] = track[t+1][states[s][i][t+1]];
+                states[s][i][this->setObs[s][i].length() - 1] = max_k;
+                for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
+                    states[s][i][t] = track[t+1][states[s][i][t+1]];
 
-            p += max_v;
+                p += max_v;
+            }
         }
     }
     // NOTE p: of all sites, not only selected for parameter fitting, not necessarly increases!
@@ -1571,20 +1582,23 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::posteriorDecoding(String<String<String<__uint8>
         resize(states[s], length(this->setObs[s]), Exact());
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
-            resize(states[s][i], this->setObs[s][i].length(), Exact());
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+            if (!this->setObs[s][i].discard)
             {
-                double max_p = 0.0;
-                unsigned max_k = 0;
-                for (unsigned k = 0; k < this->K; ++k)
+                resize(states[s][i], this->setObs[s][i].length(), Exact());
+                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
                 {
-                    if (this->statePosteriors[s][k][i][t] > max_p)
+                    double max_p = 0.0;
+                    unsigned max_k = 0;
+                    for (unsigned k = 0; k < this->K; ++k)
                     {
-                        max_p = this->statePosteriors[s][k][i][t];
-                        max_k = k;
+                        if (this->statePosteriors[s][k][i][t] > max_p)
+                        {
+                            max_p = this->statePosteriors[s][k][i][t];
+                            max_k = k;
+                        }
                     }
+                    states[s][i][t] = max_k;
                 }
-                states[s][i][t] = max_k;
             }
         }
     }
@@ -1600,12 +1614,15 @@ void rmBoarderArtifacts2(String<String<String<__uint8> > > &states, String<Strin
     {
         for (unsigned i = 0; i < length(setObs[s]); ++i)
         {
-            for (unsigned t = 0; t < setObs[s][i].length(); ++t)
+            if (!setObs[s][i].discard)
             {
-                double x1 = setObs[s][i].rpkms[t];
-                double g1_pred = exp(b0 + b1 * x1);
-                if (states[s][i][t] >= 2 && setObs[s][i].kdes[t] < g1_pred)
-                    states[s][i][t] -= 2;
+                for (unsigned t = 0; t < setObs[s][i].length(); ++t)
+                {
+                    double x1 = setObs[s][i].rpkms[t];
+                    double g1_pred = exp(b0 + b1 * x1);
+                    if (states[s][i][t] >= 2 && setObs[s][i].kdes[t] < g1_pred)
+                        states[s][i][t] -= 2;
+                }
             }
         }
     }
@@ -1639,7 +1656,7 @@ void writeStates(BedFileOut &outBed,
         {
             for (unsigned t = 0; t < length(data.states[s][i]); ++t)
             {
-                if (options.outputAll && data.setObs[s][i].truncCounts[t] >= 1)
+                if (options.outputAll && data.setObs[s][i].truncCounts[t] >= 1 && !data.setObs[s][i].discard)
                 {
                     BedRecord<Bed6> record;
 
@@ -1711,7 +1728,74 @@ void writeStates(BedFileOut &outBed,
 
                     writeRecord(outBed, record);
                 }
-                else if (data.states[s][i][t] == 3)
+                else  if (options.outputAll && data.setObs[s][i].truncCounts[t] >= 1 && data.setObs[s][i].discard)  // NOTE discarded interval
+                {
+                    BedRecord<Bed6> record;
+
+                    record.ref = store.contigNameStore[contigId];
+                    if (s == 0)         // '+'-strand; crosslink sites (not truncation site)
+                    {
+                        if (!options.crosslinkAtTruncSite)  // default
+                            record.beginPos = t + data.setPos[s][i] - 1;
+                        else
+                            record.beginPos = t + data.setPos[s][i];
+
+                        record.endPos = record.beginPos + 1;
+                    }
+                    else                 // '-'-strand;
+                    {
+                        if (!options.crosslinkAtTruncSite) 
+                            record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]);
+                        else
+                            record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]) - 1;
+
+                        record.endPos = record.beginPos + 1;
+                    }
+
+                    std::stringstream ss;
+                    ss << (int)0;           // assign 'non-enriched + non-crosslink' 
+                    record.name = ss.str();
+                    ss.str("");  
+                    ss.clear();  
+
+                    // log posterior prob. ratio score                   
+                    ss << "NA";
+
+                    record.score = ss.str();
+                    ss.str("");  
+                    ss.clear();  
+                    if (s == 0)
+                        record.strand = '+';
+                    else
+                        record.strand = '-';
+
+                    ss << 0;
+                    ss << ";";
+                    ss << (int)data.setObs[s][i].truncCounts[t];
+                    ss << ";";
+                    ss << (int)data.setObs[s][i].nEstimates[t];
+                    ss << ";";
+                    ss << (double)data.setObs[s][i].kdes[t];
+                    ss << ";";
+
+                    ss << "NA";
+                    ss << ";"; 
+                    if (options.useCov_RPKM)
+                        ss << (double)data.setObs[s][i].rpkms[t];
+                    else
+                        ss << 0.0;
+                    ss << ";";
+                    ss << "NA";
+                    ss << ";";
+
+                    record.data = ss.str();
+                    ss.str("");  
+                    ss.clear();  
+
+                    writeRecord(outBed, record);
+                }
+
+                else if (data.states[s][i][t] == 3 && !data.setObs[s][i].discard)
                 {
                     BedRecord<Bed6> record;
 
@@ -1778,7 +1862,7 @@ void writeRegions(BedFileOut &outBed,
         {
             for (unsigned t = 0; t < length(data.states[s][i]); ++t)
             {
-                if (data.states[s][i][t] == 3)
+                if (data.states[s][i][t] == 3 && !data.setObs[s][i].discard)
                 {
                     BedRecord<Bed6> record;
                     record.ref = store.contigNameStore[contigId];

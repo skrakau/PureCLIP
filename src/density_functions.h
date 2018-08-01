@@ -571,6 +571,10 @@ long double GAMMA2<TDOUBLE>::getDensity(double const &x)
     
     // normalized lower incomplete gamma function
     double nligf = boost::math::gamma_p(this->k, this->tp/this->theta);
+    if (nligf == 1.0) 
+    {
+        std::cout << "ERROR: (1 - nligf) is 0!" << std::endl;
+    } 
 
     return  ( (f1/f2) / (1.0 - nligf));
 }
