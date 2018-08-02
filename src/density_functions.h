@@ -566,8 +566,8 @@ long double GAMMA2<TDOUBLE>::getDensity(double const &x)
 {
     if (x < this->tp) return 0.0; 
 
-    TDOUBLE f1 = pow(x, this->k - 1.0) * exp(-x/this->theta);
-    TDOUBLE f2 = pow(this->theta, this->k) * tgamma(this->k);
+    long double f1 = pow(x, this->k - 1.0) * exp(-x/this->theta);
+    long double f2 = pow(this->theta, this->k) * tgamma(this->k);
     
     // normalized lower incomplete gamma function
     double nligf = boost::math::gamma_p(this->k, this->tp/this->theta);

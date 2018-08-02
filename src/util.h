@@ -158,14 +158,14 @@ namespace seqan {
             get_nThreshold(false),          // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
-            min_eProbSum(1e-200),           // make sure eProbs not getting too low, will cause crash during FB-algorithm ..
+            min_eProbSum(1e-250),           // make sure eProbs not getting too low, will cause crash during FB-algorithm ..
             polyAThreshold(10),
             excludePolyAFromLearning(false),
             excludePolyTFromLearning(false),
             excludePolyA(false),
             excludePolyT(false),
             gslSimplex2(true),
-            min_nligf(0.999999999999999),           // min. normalized lower incomplete gamma function. NOTE: precission of boost computation is limited, set to min. value in order to avoid 1s!
+            min_nligf(0.99999999),          // min. normalized lower incomplete gamma function. NOTE: precission of boost computation is limited, set to min. value in order to avoid 1s!
             kMin_simplex(0.5),              // not used currently ...
             kMax_simplex(15.0),
             useCov_RPKM(false),

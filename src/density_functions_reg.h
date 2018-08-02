@@ -23,7 +23,8 @@
    
 #include <iostream>
 #include <fstream>
-#include <math.h>       // lgamma 
+#include <math.h>       // lgamma
+#include <limits>
 
 #include <boost/math/tools/minima.hpp>      // BRENT's algorithm
 #include <boost/math/distributions/negative_binomial.hpp>
@@ -440,12 +441,11 @@ struct Fct_GSL_X_GAMMA2_REG
                         double x1 = setObs[s][i].rpkms[t];
                         double pred = exp(b0 + b1 * x1);
 
-                        long double test_k = k;
-                        long double test_g = tp*k/pred; 
-                        long double nligf = boost::math::gamma_p(test_k, test_g);  //
+                        long double nligf = boost::math::gamma_p((long double)k, (long double)tp*k/pred);  //
                         if (nligf == 1.0) 
                         {
-                            if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << std::setprecision(20) << nligf << " pred: " << pred << "  x: " << x1 << std::endl;
+                            SEQAN_OMP_PRAGMA(critical)
+                            if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << std::setprecision(std::numeric_limits<long double>::digits10 + 1) << nligf << std::setprecision(6) << " pred: " << pred << "  x: " << x1 << std::endl;
                             nligf = options.min_nligf;
                         }
             
@@ -509,7 +509,8 @@ struct Fct_GSL_X_GAMMA2_REG_fixK
                         long double nligf = boost::math::gamma_p(k, (tp*k/pred));  //policy<digits10<15> >());
                         if (nligf == 1.0) 
                         {
-                            if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << nligf << " pred: " << pred << "  x: " << x1 << std::endl;
+                            SEQAN_OMP_PRAGMA(critical)
+                            if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << std::setprecision(std::numeric_limits<long double>::digits10 + 1) << nligf << std::setprecision(6) <<  " pred: " << pred << "  x: " << x1 << std::endl;
                             nligf = options.min_nligf;
                         }
             
@@ -907,25 +908,23 @@ long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pre
 
     //double pred = exp(this->b0 + this->b1 * x);
 
-    double theta = pred/this->k;
+    long double theta = (long double)pred/(long double)this->k;
     // if (kde == 0.0) should not occur, checked while computing eProbs
-    TDOUBLE f1 = pow(kde, this->k - 1.0) * exp(-kde/theta);
-    TDOUBLE f2 = pow(theta, this->k) * tgamma(this->k);
+    long double f1 = pow((long double)kde, (long double)this->k - 1.0) * exp(-(long double)kde/theta);
+    long double f2 = pow(theta, (long double)this->k) * tgamma((long double)this->k);
     if (f2 ==  0.0) std::cout << "ERROR: f2 is 0!" << std::endl;
 
 
     // normalized lower incomplete gamma function
-    long double nligf = boost::math::gamma_p(this->k, this->tp/theta);
-    if (nligf >= options.min_nligf && nligf < 1.0)
-    {
-        if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << std::setprecision(20) << nligf << " pred: " << pred << "  kde: " << kde << std::endl;
-    }
+    long double nligf = boost::math::gamma_p((long double)this->k, (long double)this->tp/theta);
     if (nligf == 1.0) 
     {
-        if (options.verbosity >= 2) std::cout << "NOTE: (1 - nligf) is 0! nligf set to " << options.min_nligf << " (kde: " << kde << " pred: " << pred << ")" << std::endl;
+        SEQAN_OMP_PRAGMA(critical)
+        if (options.verbosity >= 2) std::cout << "NOTE: (1 - nligf) is 0! nligf set to " <<  std::setprecision(std::numeric_limits<long double>::digits10 + 1) << options.min_nligf << std::setprecision(6) <<  " (kde: " << kde << " pred: " << pred << ")" << std::endl;
         nligf = options.min_nligf;
         // NOTE: not possible to compute with higher precission, since other values are doubles ...?
     }
+    if ((f1/f2) == 0.0) if (options.verbosity >= 2) std::cout << std::setprecision(std::numeric_limits<long double>::digits10 + 1) << "NOTE: (f1/f2)  is 0.0 ! f1:" << f1 << " f2:" << f2 << std::setprecision(6) << " (kde: " << kde << " pred: " << pred << ")" << std::endl;
 
     return  ((f1/f2)/(1.0 - nligf));
 }

@@ -33,6 +33,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 #include <unistd.h>     
 #include <sys/stat.h>
 #include <errno.h>
@@ -1004,6 +1005,23 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
 #endif
 
     // ******************  set some parameters
+    // some precision related:
+    options.min_nligf = std::nextafter((long double)1.0, (long double)0.0);
+    if (options.verbosity >= 2) std::cout << std::setprecision(std::numeric_limits<long double>::digits10 + 1) << "Max. nligf: " << options.min_nligf << std::setprecision(6) << std::endl;
+    int db_min_exp = DBL_MIN_10_EXP;
+    int ldb_min_exp = LDBL_MIN_10_EXP;
+    std::cout << "DBL_MIN_10_EXP: " << db_min_exp << " LDBL_MIN_10_EXP: " << ldb_min_exp << std::endl;
+    if (!options.useHighPrecision) 
+    {
+        options.min_eProbSum = pow((double)10.0, DBL_MIN_10_EXP + 50);
+        std::cout << " Set options.min_eProbSum : " << options.min_eProbSum << std::endl;  
+    }
+    else 
+    {
+        options.min_eProbSum = pow((long double)10.0, LDBL_MIN_10_EXP + 50);
+        std::cout << " Set options.min_eProbSum : " << options.min_eProbSum << std::endl;
+    }    
+    // some other thresholds and setings:
     if (options.binSize == 0.0) options.binSize = options.bandwidth * 2; 
     options.intervalOffset = options.bandwidth * 2;  
     options.prior_kdeThreshold = options.prior_enrichmentThreshold * getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth;

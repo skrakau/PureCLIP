@@ -141,14 +141,14 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
                 double pred = exp(gammaC_reg.b0 + gammaC_reg.b1 * x);
 
                 if (data.setObs[s][i].kdes[t] < pred)                       // most probably non-enriched    .. (Note: pred + 2.0 for RNA-seq data)
-                {                                                           // use 1.0; 0.0; to avoid bias by large number of zeros 
-                    statePosteriors1[s][i][t] = 0.999;
-                    statePosteriors2[s][i][t] = 0.001;
+                {                                                           // allow for variation! 
+                    statePosteriors1[s][i][t] = 0.9;
+                    statePosteriors2[s][i][t] = 0.1;
                 }
                 else                                                        // most probably enriched
                 {
-                    statePosteriors1[s][i][t] = 0.001;
-                    statePosteriors2[s][i][t] = 0.999;
+                    statePosteriors1[s][i][t] = 0.1;
+                    statePosteriors2[s][i][t] = 0.9;
                 }
             }
         }
