@@ -63,23 +63,65 @@ void prior_mle(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2,
         }
     }
 
-    gamma1.k = 0.50; 
-    gamma1.updateTheta(statePosteriors1, data.setObs, options);
-    gamma1.updateK(statePosteriors1, data.setObs, options.g1_kMin, options.g1_kMax, options);
+    gamma1.k = 0.5; 
     gamma2.k = 1.5; 
-    gamma2.updateTheta(statePosteriors2, data.setObs, options);
-    gamma2.updateK(statePosteriors2, data.setObs, options.g2_kMin, options.g2_kMax, options);
+    gamma1.b0 = -2.0; 
+    gamma2.b0 = -4.0; 
 
-    if (options.verbosity >= 1) 
+    // create set of start values for simplex algorithm
+    // gamma1
+    String<double> g1_p1;
+    appendValue(g1_p1, 1.0);                        // k
+    appendValue(g1_p1, -2.0);                       // b0
+    String<double> g1_p2;
+    appendValue(g1_p2, 2.0);
+    appendValue(g1_p2, -2.0);
+    String<double> g1_p3;
+    appendValue(g1_p3, 1.0);
+    appendValue(g1_p3, -4.0);
+    String<double> g1_p4;
+    appendValue(g1_p4, 2.0);
+    appendValue(g1_p4, -4.0);
+    String<String<double> > g1_startSet;
+    appendValue(g1_startSet, g1_p1);
+    appendValue(g1_startSet, g1_p2);
+    appendValue(g1_startSet, g1_p3);
+    appendValue(g1_startSet, g1_p4);
+    // estimate parameters using GSL simplex2
+    std::cout << "prepro... options.g1_kMax: " << options.g1_kMax << std::endl;
+    std::cout << "Initial gamma1: Run simplex algorithm using different start points." << std::endl; 
+    if (!gamma1.updateThetaAndK(g1_startSet, statePosteriors1, data.setObs, options.g1_kMin, options.g1_kMax, options))
     {
-        std::cout << "Initialization:" << std::endl;
-        std::cout << "Gamma1 theta: " << gamma1.theta << std::endl;
-        std::cout << "Gamma1 k: " << gamma1.k << std::endl;
-        std::cout << "Gamma2 theta: " << gamma2.theta << std::endl;
-        std::cout << "Gamma2 k: " << gamma2.k << std::endl;
+        std::cerr << "ERROR: in updating parameters for gamma1 distribution using GSL simplex2." << std::endl;
     }
-
+    std::cout << "Updated parameters of gamma1 distribution using  GSL simplex2:" << std::endl;
     myPrint(gamma1);
+
+    // gamma2
+    String<double> g2_p1;
+    appendValue(g2_p1, 1.0);                        // k
+    appendValue(g2_p1, 0.0);                        // b0
+    String<double> g2_p2;
+    appendValue(g2_p2, 5.0);
+    appendValue(g2_p2, 0.0);
+    String<double> g2_p3;
+    appendValue(g2_p3, 1.0);
+    appendValue(g2_p3, -2.0);
+    String<double> g2_p4;
+    appendValue(g2_p4, 5.0);
+    appendValue(g2_p4, -2.0);
+    String<String<double> > g2_startSet;
+    appendValue(g2_startSet, g2_p1);
+    appendValue(g2_startSet, g2_p2);
+    appendValue(g2_startSet, g2_p3);
+    appendValue(g2_startSet, g2_p4);
+    // estimate parameters using GSL simplex2
+    std::cout << "Initial gamma2: Run simplex algorithm using different start points." << std::endl; 
+    if (!gamma2.updateThetaAndK(g2_startSet, statePosteriors2, data.setObs, options.g2_kMin, options.g2_kMax, options))
+    {
+        std::cerr << "ERROR: in updating parameters for gamma2 distribution using GSL simplex2." << std::endl;
+    }
+    std::cout << "Updated parameters of gamma2 distribution using  GSL simplex2:" << std::endl;
     myPrint(gamma2);
 }
 
@@ -92,8 +134,42 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
     // compound gamma distribution: estimate parameters to use for initialization
     GAMMA2_REG<TDOUBLE> gammaC_reg(options.useKdeThreshold);
     gammaC_reg.k = 4.0;
-    gammaC_reg.b0 = -1.5;   // TODO auto estimate !
+    gammaC_reg.b0 = -2.0;   
     gammaC_reg.b1 = 0.9;
+
+    // create set of start values for simplex algorithm
+    // should be somehow reasonable to avoid problems during likelihood computation
+    String<double> p1;
+    appendValue(p1, 4.0);
+    appendValue(p1, -2.0);
+    appendValue(p1, 0.9);
+    String<double> p2;
+    appendValue(p2, 1.0);
+    appendValue(p2, -2.0);
+    appendValue(p2, 0.9);
+    String<double> p3;
+    appendValue(p3, 10.0);
+    appendValue(p3, -2.0);
+    appendValue(p3, 0.9);
+    String<double> p4;
+    appendValue(p4, 4.0);
+    appendValue(p4, -4.0);
+    appendValue(p4, 0.9);
+    String<double> p5;
+    appendValue(p5, 4.0);
+    appendValue(p5, -2.0);
+    appendValue(p5, 0.4);
+    String<double> p6;
+    appendValue(p6, 4.0);
+    appendValue(p6, 0.0);
+    appendValue(p6, 0.4);
+    String<String<double> > startSet;
+    appendValue(startSet, p1);
+    appendValue(startSet, p2);
+    appendValue(startSet, p3);
+    appendValue(startSet, p4);
+    appendValue(startSet, p5);
+    appendValue(startSet, p6);
 
     // assign all sites with 1.0 to compound distribution
     String<String<String<TDOUBLE> > > statePosteriors;
@@ -113,7 +189,7 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
     }
     std::cout << "Estimate parameters of compound gamma distribution:" << std::endl;    
     // estimate parameters using GSL simplex2
-    if (!gammaC_reg.updateRegCoeffsAndK(statePosteriors, data.setObs, options.g1_kMin, options.g1_kMax, options))
+    if (!gammaC_reg.updateRegCoeffsAndK(startSet, statePosteriors, data.setObs, options.g1_kMin, options.g1_kMax, options))
     {
         std::cerr << "ERROR: in updating parameters for compound gamma distribution using GSL simplex2." << std::endl;
     }
@@ -154,47 +230,76 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
         }
     }
    
-    gamma1_reg.k = 5.0;    //std::min(gammaC_reg.k + 5.0, options.g1_kMax); TODO why ??? 
+    gamma1_reg.k = gammaC_reg.k;    
     gamma2_reg.k = gammaC_reg.k;  
-    gamma1_reg.b0 = gammaC_reg.b0 - 0.25;          // TODO ?
-    gamma2_reg.b0 = gammaC_reg.b0 + 0.25; 
-    gamma1_reg.b1 = gammaC_reg.b1; // + 0.1; 
-    gamma2_reg.b1 = gammaC_reg.b1; // - 0.1; 
+    gamma1_reg.b0 = gammaC_reg.b0;          
+    gamma2_reg.b0 = gammaC_reg.b0; 
+    gamma1_reg.b1 = gammaC_reg.b1; 
+    gamma2_reg.b1 = gammaC_reg.b1;  
 
-    std::cout << "Set parameters of gamma1 distribution:" << std::endl;    
-    myPrint(gamma1_reg);
-    std::cout << "Set parameters of gamma2 distribution:" << std::endl;    
-    myPrint(gamma2_reg);
-    
+    // create set of start values for simplex algorithm
+    // gamma1
+    String<double> g1_p1;
+    appendValue(g1_p1, gammaC_reg.k);
+    appendValue(g1_p1, gammaC_reg.b0-0.25);
+    appendValue(g1_p1, gammaC_reg.b1);
+    String<double> g1_p2;
+    appendValue(g1_p2, gammaC_reg.k);
+    appendValue(g1_p2, gammaC_reg.b0-0.25);
+    appendValue(g1_p2, gammaC_reg.b1+0.1);
+    String<double> g1_p3;
+    appendValue(g1_p3, gammaC_reg.k);
+    appendValue(g1_p3, gammaC_reg.b0-1.0);
+    appendValue(g1_p3, gammaC_reg.b1);
+    String<double> g1_p4;
+    appendValue(g1_p4, gammaC_reg.k+5.0);
+    appendValue(g1_p4, gammaC_reg.b0);
+    appendValue(g1_p4, gammaC_reg.b1);
+    String<String<double> > g1_startSet;
+    appendValue(g1_startSet, g1_p1);
+    appendValue(g1_startSet, g1_p2);
+    appendValue(g1_startSet, g1_p3);
+    appendValue(g1_startSet, g1_p4);
     // estimate parameters using GSL simplex2
-    if (!gamma1_reg.updateRegCoeffsAndK(statePosteriors1, data.setObs, options.g1_kMin, options.g1_kMax, options))
+    std::cout << "Initial gamma1: Run simplex algorithm using different start points." << std::endl; 
+    if (!gamma1_reg.updateRegCoeffsAndK(g1_startSet, statePosteriors1, data.setObs, options.g1_kMin, options.g1_kMax, options))
     {
         std::cerr << "ERROR: in updating parameters for gamma1 distribution using GSL simplex2." << std::endl;
     }
     std::cout << "Updated parameters of gamma1 distribution using  GSL simplex2:" << std::endl;
     myPrint(gamma1_reg);
-    
-    if (!gamma2_reg.updateRegCoeffsAndK(statePosteriors2, data.setObs, options.g2_kMin, options.g2_kMax, options))
+
+    // gamma2
+    String<double> g2_p1;
+    appendValue(g2_p1, gammaC_reg.k);
+    appendValue(g2_p1, gammaC_reg.b0-0.25);
+    appendValue(g2_p1, gammaC_reg.b1);
+    String<double> g2_p2;
+    appendValue(g2_p2, gammaC_reg.k);
+    appendValue(g2_p2, gammaC_reg.b0-0.25);
+    appendValue(g2_p2, gammaC_reg.b1+0.1);
+    String<double> g2_p3;
+    appendValue(g2_p3, gammaC_reg.k);
+    appendValue(g2_p3, gammaC_reg.b0-1.0);
+    appendValue(g2_p3, gammaC_reg.b1);
+    String<double> g2_p4;
+    appendValue(g2_p4, gammaC_reg.k+5.0);
+    appendValue(g2_p4, gammaC_reg.b0);
+    appendValue(g2_p4, gammaC_reg.b1);
+    String<String<double> > g2_startSet;
+    appendValue(g2_startSet, g2_p1);
+    appendValue(g2_startSet, g2_p2);
+    appendValue(g2_startSet, g2_p3);
+    appendValue(g2_startSet, g2_p4);
+    // estimate parameters using GSL simplex2
+    std::cout << "Initial gamma2: Run simplex algorithm using different start points." << std::endl;     
+    if (!gamma2_reg.updateRegCoeffsAndK(g1_startSet, statePosteriors2, data.setObs, options.g2_kMin, options.g2_kMax, options))
     {
         std::cerr << "ERROR: in updating parameters for gamma2 distribution using GSL simplex2." << std::endl;
     }
     std::cout << "Updated parameters of gamma2 distribution using  GSL simplex2:" << std::endl;
     myPrint(gamma2_reg);
 
-
-    // TODO if user parameter given, set parameter to ...
-    /*gamma1_reg.b0 = options.init_g1b0;   
-    gamma2_reg.b0 = options.init_g2b0;
-    gamma1_reg.b1 = options.init_g1b1; 
-    gamma2_reg.b1 = options.init_g2b1;
-
-    gamma1_reg.k = gamma1.k;
-    gamma1_reg.tp = gamma1.tp;
-    gamma2_reg.k = gamma2.k;
-    gamma2_reg.tp = gamma2.tp;
-
-    myPrint(gamma1_reg);
-    myPrint(gamma2_reg);*/
 }
 
 

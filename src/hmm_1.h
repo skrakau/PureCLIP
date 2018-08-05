@@ -103,14 +103,9 @@ public:
     void setInitProbs(String<double> &probs);
     bool computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, bool learning, AppOptions &options);
     bool iForward(String<String<TDOUBLE> > &alphas_1, String<String<TDOUBLE> > &alphas_2, unsigned s, unsigned i, AppOptions &options);
-    //void forward_noSc();
     bool iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i);
-    //void backward_noSc();
     bool computeStatePosteriorsFB(AppOptions &options);
     bool computeStatePosteriorsFBupdateTrans(AppOptions &options);
-    //void updateTransition(AppOptions &options);
-    //void updateTransition2();
-    //void updateTransition_noSc2();
     bool updateDensityParams(TGAMMA &d1, TGAMMA &d2, AppOptions &options);
     bool updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d2*/, TBIN &bin1, TBIN &bin2, AppOptions &options);
     bool baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options);
@@ -161,11 +156,15 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
 
     // 
     if ((eProbs[0] == 0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) ||
-            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) )
+            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) ||
+            (eProbs[0] + eProbs[1] + eProbs[2] + eProbs[3] < options.min_eProbSum) ||
+            (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
+            (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
     {
         if (options.verbosity >= 2)
         {
-            std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "WARNING: emission probabilities going against 0.0!" << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       fragment coverage (kde): " << setObs.kdes[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -173,13 +172,13 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t]) << std::endl;
+                std::cout << "       emission probability 'non-enriched' gamma: " << g1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t]) << std::endl;
+                std::cout << "       emission probability 'enriched' gamma: " << g2_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]) << std::endl;
+                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]) << std::endl;
+                std::cout << "       emission probability 'crosslink' binomial: " << bin2_d << std::endl;
         }
         eProbs[0] = 1.0;
         eProbs[1] = 0.0;
@@ -195,7 +194,6 @@ template<typename TEProbs, typename TSetObs, typename TDOUBLE>
 bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
 {
     double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
-    x = std::max(x, options.minRPKMforE);    // currently not used
     double d1_pred = exp(d1.b0 + d1.b1 * x);
     double d2_pred = exp(d2.b0 + d2.b1 * x);
 
@@ -205,40 +203,6 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     {
         g1_d = d1.getDensity(setObs.kdes[t], d1_pred, options);
         g2_d = d2.getDensity(setObs.kdes[t], d2_pred, options); 
-                
-        // 1) if 'non-enriched' eProb = INF and pred. value < kde threshold, but 'enriched' eProb OK
-        //if((std::isinf(g1_d) || std::isnan(g1_d)) && d1_pred < options.useKdeThreshold && 
-        //   !std::isinf(g2_d) && !std::isnan(g2_d) && g2_d > 0.0) // options.min_eProbSum) 
-        //{    
-            //if (options.verbosity >= 2) std::cout << "'non-enriched' eProbs:" << g1_d << std::endl;
-        //    g1_d = 0.0;
-        //    g2_d = 1.0;
-        //}
-        //else if(d2_pred < options.useKdeThreshold) // NOTE count as 'enriched' from beginning on (indep. of learning)!!!! 
-        // &&       // (std::isinf(g2_d) || std::isnan(g2_d)) && 
-        // !std::isinf(g1_d) && !std::isnan(g1_d) && g1_d > 0.0) //options.min_eProbSum)
-        //{       
-            //std::cout << "'non-enriched' eProbs:" << g1_d << std::endl;
-            //std::cout << "'enriched' eProbs:" << g2_d << std::endl;
-            //g1_d = 0.0;     // not that obvious ..  TODO avoid post. probs. of 1! ?.
-            //g2_d = 1.0;
-        //}
-        //else if (d1_pred < options.useKdeThreshold && d2_pred < options.useKdeThreshold) // &&
-        //        ( ((std::isinf(g1_d) || std::isnan(g1_d)) && (std::isinf(g2_d) || std::isnan(g2_d))) ||
-        //          ((std::isinf(g1_d) || std::isnan(g1_d)) && (g2_d < options.min_eProbSum)) ||
-        //          ((g1_d < options.min_eProbSum) && (std::isinf(g2_d) || std::isnan(g2_d))) ||
-        //          ((!std::isinf(g1_d) && !std::isnan(g1_d) && !std::isinf(g2_d) && !std::isnan(g2_d)) && (g1_d + g2_d < options.min_eProbSum))) )   
-        //{      
-            // TODO not entering if g1_d + g2_d < options.min_eProbSum !!!
-
-            // 2) might happen in case of general low target, high input signals
-            // above expected value of 'enriched' distribution, error due to expected values below KDE threshold -> set 'enriched'
-            // to ensure fraction still contributes to fitting to avoid shape parameter becoming to large! 
-            //g1_d = 0.0;
-            //g2_d = 1.0; //options.min_eProbSum;  ... too small? does it matter how small eProb is, as long post. probs sum up to 1? 
-        //}
-        // TODO low signal more likely caused by 'non-enriched'?
-        // everything else catched latter
     }
 
     // TODO catch cases ..?
@@ -257,13 +221,14 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     // 
     if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) || 
             (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) ||
+            (eProbs[0] + eProbs[1] + eProbs[2] + eProbs[3] < options.min_eProbSum) ||
             (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
             (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
     {
         if (options.verbosity >= 2)
         {
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
+                std::cout << "WARNING: emission probabilities going against 0.0!" << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       fragment coverage (kde): " << setObs.kdes[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -271,7 +236,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       covariate b: " << x << " pred1: " << d1_pred << " pred2: " << d2_pred << std::endl;
+                std::cout << "       covariate b: " << x << " predicted mean 'non-enriched': " << d1_pred << " predicted mean 'enriched': " << d2_pred << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'non-enriched' gamma: " << g1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -319,11 +284,15 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
 
     //
     if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) ||
-            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) )
+            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) || 
+            (eProbs[0] + eProbs[1] + eProbs[2] + eProbs[3] < options.min_eProbSum) ||
+            (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
+            (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])) )
     {
         if (options.verbosity >= 2)
         {
-            std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
+            SEQAN_OMP_PRAGMA(critical) 
+                std::cout << "WARNING: emission probabilities going against 0.0!" << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       fragment coverage (kde): " << setObs.kdes[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -333,13 +302,13 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       covariate x: " << setObs.fimoScores[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t]) << std::endl;
+                std::cout << "       emission probability 'non-enriched' gamma: " << g1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t]) << std::endl;
+                std::cout << "       emission probability 'enriched' gamma: " << g2_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred) << std::endl;
+                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred) << std::endl;
+                std::cout << "       emission probability 'crosslink' binomial: " << bin2_d << std::endl;
         }
         eProbs[0] = 1.0;
         eProbs[1] = 0.0;
@@ -384,13 +353,14 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     // 
     if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) || 
             (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) ||
+            (eProbs[0] + eProbs[1] + eProbs[2] + eProbs[3] < options.min_eProbSum) ||
             (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
             (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
     {
         if (options.verbosity >= 2)
         {
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "WARNING: all emission probabilities are 0!" << std::endl;
+                std::cout << "WARNING: emission probabilities going against 0.0!" << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       fragment coverage (kde): " << setObs.kdes[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -398,17 +368,17 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       covariate b: " << x << std::endl;
+                std::cout << "       covariate b: " << x << " predicted mean 'non-enriched': " << d1_pred << " predicted mean 'enriched': " << d2_pred << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       covariate x: " << setObs.fimoScores[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-enriched' gamma: " << d1.getDensity(setObs.kdes[t], d1_pred, options) << std::endl;
+                std::cout << "       emission probability 'non-enriched' gamma: " << g1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'enriched' gamma: " << d2.getDensity(setObs.kdes[t], d2_pred, options) << std::endl;
+                std::cout << "       emission probability 'enriched' gamma: " << g2_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred) << std::endl;
+                std::cout << "       emission probability 'non-crosslink' binomial: " << bin1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'crosslink' binomial: " << bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred) << std::endl;
+                std::cout << "       emission probability 'crosslink' binomial: " << bin2_d << std::endl;
         }
         eProbs[0] = 1.0;
         eProbs[1] = 0.0;
@@ -451,32 +421,39 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
             if (learning && discardInterval)
             {
                 SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "ERROR: Emission probability became 0.0! This might be due to a too small learning subset or due to some extreme artifacts." << std::endl;
-                SEQAN_OMP_PRAGMA(critical) 
-                if (s == 0) 
-                    std::cout << " Interval: [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand." << std::endl;
-                else 
-                    std::cout << " Interval: [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand." << std::endl;
+                std::cout << "ERROR: Emission probability became 0.0! This might be due to artifacts or outliers." << std::endl;
+                SEQAN_OMP_PRAGMA(critical)
+                if (options.verbosity >= 2)
+                {
+                    if (s == 0) 
+                        std::cout << " Interval: [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand." << std::endl;
+                    else 
+                        std::cout << " Interval: [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand." << std::endl;
+                }
                 stop = true;
                 if (!options.useHighPrecision)
                 {
                     SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "NOTE: Try running PureCLIP with parameter '-ld'." << std::endl;
+                    std::cout << "NOTE: Try running PureCLIP in high precision mode (parameter '-ld')." << std::endl;
                 }
             }
             else if (!learning && discardInterval)
             {
                 this->setObs[s][i].discard = true;
-
                 SEQAN_OMP_PRAGMA(critical) 
-                if (s == 0) 
-                    std::cout << "Warning: discarding interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
-                else 
-                    std::cout << "Warning: discarding interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand due to emission probabilities of 0 (set to state 'non-enriched + non-crosslink')." << std::endl;
+                std::cout << "Warning: discarding interval on forward strand due to emission probabilities of 0.0 (set to state 'non-enriched + non-crosslink')." << std::endl;
+                if (options.verbosity >= 2)
+                {
+                    SEQAN_OMP_PRAGMA(critical) 
+                    if (s == 0) 
+                        std::cout << " Interval [" << (this->setPos[s][i]) << ", " << (this->setPos[s][i] + this->setObs[s][i].length()) << ") on forward strand. " << std::endl;
+                    else 
+                        std::cout << " Interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand." << std::endl;
+                }
                 if (!options.useHighPrecision)
                 {
                     SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "NOTE: If this happens frequently, rerun PureCLIP with parameter '-ld'." << std::endl;
+                    std::cout << "NOTE: If this happens frequently, rerun PureCLIP in high precision mode (parameter '-ld')." << std::endl;
                 }
             }
         }   
@@ -763,8 +740,25 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_2, St
     for (unsigned k = 0; k < this->K; ++k)
        norm += alphas_1[this->setObs[s][i].length() - 1][k];
 
+    if (norm == 0.0 || std::isnan(norm)) 
+    {
+        std::cout << "ERROR: while computing backward values. Sum over alpha values is " << norm << " at t: "<< (this->setObs[s][i].length() - 1) << "  i: " << i << "." << std::endl;
+        for (unsigned k = 0; k < this->K; ++k)
+            std::cout << "alphas_1[this->setObs[s][i].length() - 1][" << k << "]: " <<  alphas_1[this->setObs[s][i].length() - 1][k] << std::endl;
+        return false;
+    }
+
     for (unsigned k = 0; k < this->K; ++k)
+    {
        betas_2[this->setObs[s][i].length() - 1][k] = betas_1[this->setObs[s][i].length() - 1][k] / norm;
+
+       if (std::isnan(betas_2[this->setObs[s][i].length() - 1][k]) || std::isinf(betas_2[this->setObs[s][i].length() - 1][k])) 
+       {
+           std::cout << "ERROR: while computing backward values! betas_2[this->setObs[s][i].length() - 1][k] is " << betas_2[this->setObs[s][i].length() - 1][k] << " at t: "<< (this->setObs[s][i].length() - 1) << "  i: " << i << "." << std::endl;
+           std::cout << "betas_1[this->setObs[s][i].length() - 1][k]: " << betas_1[this->setObs[s][i].length() - 1][k] << " norm: " <<  norm << std::endl;
+           return false;
+       }
+    }
 
     // for t = 2:T
     for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
@@ -773,17 +767,41 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_2, St
         for (unsigned k = 0; k < this->K; ++k)      // precompute ???
             norm += alphas_1[t][k];
 
+        if (norm == 0.0 || std::isnan(norm)) 
+        {
+            std::cout << "ERROR: while computing backward values. Sum over alpha values is " << norm << " at t: "<< t << "  i: " << i << "." << std::endl;
+            for (unsigned k = 0; k < this->K; ++k)
+                std::cout << "alphas_1[t][" << k << "]: " <<  alphas_1[t][k] << std::endl;
+            return false;
+        }
+
         for (unsigned k = 0; k < this->K; ++k)
         {
             // sum over previous states
             long double sum = 0.0;
             for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
                 sum += betas_2[t+1][k_2] * this->transMatrix[k][k_2] * this->eProbs[s][i][t+1][k_2];
-            
+           
+            if (std::isnan(sum))
+            {
+                std::cout << "ERROR: while computing backward values! sum is nan at t: "<< t << "  i: " << i << " and k: " << k << "." << std::endl;
+                for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
+                    std::cout << "k_2: " << k_2 << " betas_2[t+1][k_2]: " << betas_2[t+1][k_2] << " this->transMatrix[k][k_2]: " <<  this->transMatrix[k][k_2] << " this->eProbs[s][i][t+1][k_2]: " << this->eProbs[s][i][t+1][k_2] << std::endl;
+                return false;
+            }
+
             // beta_1
             betas_1[t][k] = sum;
             // beta_2
             betas_2[t][k] = betas_1[t][k] / norm;
+
+            if (std::isnan(betas_2[t][k]) || std::isinf(betas_2[t][k])) 
+            {
+                std::cout << "ERROR: while computing backward values! betas_2[t][k] is " << betas_2[t][k] << " at t: "<< t << "  i: " << i << "." << std::endl;
+                std::cout << "betas_1[t][k]: " << betas_1[t][k] << " norm: " <<  norm << std::endl;
+                return false;
+            }
+
         }
     }
     return true;
@@ -902,7 +920,10 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                     continue;
                 }
                 for (unsigned k = 0; k < this->K; ++k)
+                {
                     this->statePosteriors[s][k][i][t] = alphas_2[t][k] * betas_2[t][k] / sum;
+                    if (std::isnan(this->statePosteriors[s][k][i][t])) std::cout << "ERROR: statePosterior is nan! (alpha_2: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << " sum: " << sum << ")" << std::endl;
+                }
             }
 
             // update init probs
@@ -1066,163 +1087,36 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 }
 
 
-// both for scaling and no-scaling
-/*template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TGAMMA, TBIN, TDOUBLE>::updateTransition(AppOptions &options)    // precompute numerator, denumerator, for each k_1, k_2 combination!!!
-{
-    String<String<double> > A = this->transMatrix;
-    String<String<double> > p;
-    resize(p, this->K, Exact());
-
-#if HMM_PARALLEL
-    SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
-#endif
-    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
-    {
-        SEQAN_OMP_PRAGMA(critical)
-        resize(p[k_1], this->K, Exact());
-
-        for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-        {
-            p[k_1][k_2] = 0.0;
-            for (unsigned s = 0; s < 2; ++s)
-                for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-                    for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
-                        p[k_1][k_2] += this->alphas_2[s][i][t-1][k_1] * this->transMatrix[k_1][k_2] *  this->eProbs[s][i][t][k_2] * betas_2[s][i][t][k_2]; 
-        }
-    }
-    
-    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
-    {
-        double denumerator = 0.0;
-        for (unsigned k_3 = 0; k_3 < this->K; ++k_3)
-        {
-            denumerator += p[k_1][k_3]; 
-        }
-        for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-        {
-            A[k_1][k_2] = p[k_1][k_2] / denumerator;
-
-            if (A[k_1][k_2] <= 0.0) 
-                A[k_1][k_2] = DBL_MIN;          // make sure not getting zero
-        }
-    }
-    // keep transProb of '2' -> '3' on min. value
-    if (A[2][3] < options.minTransProbCS)
-    {
-        A[2][3] = options.minTransProbCS;
-
-        if (A[3][3] < options.minTransProbCS)
-            A[3][3] = options.minTransProbCS;
-        // TODO normalize again ?
-        std::cout << "NOTE: Prevented transition probability '2' -> '3' from dropping below min. value of " << options.minTransProbCS << ". Set for transitions '2' -> '3' (and if necessary also for '3'->'3') to " << options.minTransProbCS << "." << std::endl;
-    }
-    this->transMatrix = A;
-}*/
-
-// no scaling, version 2 (does this work?)
-/*template<typename TD1, typename TD2>
-void HMM<TD1, TD2>::updateTransition_noSc2(String<String<double> > &A, unsigned k_1, unsigned k_2)
-{
-    double numerator = 0.0;
-    for (unsigned t = 1; t < this->T; ++t)
-    {
-        double sum1 = this->alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] *  this->eProbs[t][k_2] * betas_2[t][k_2];  
-        double sum2 = 0.0;
-        for (unsigned k = 0; k <this->K; ++k)
-            sum2 += this->alphas_2[t-1][k] * betas_2[t-1][k]; 
-        numerator += sum1 / sum2;
-    }
-    double denumerator = 0.0;
-    for (unsigned t = 0; t < this->T - 1; ++t)
-        denumerator += this->statePosteriors[k_2][t];
-    
-    A[k_1][k_2] = numerator / denumerator;  
-}
-// with scaling, version 2 (does this work ?)
-template<typename TD1, typename TD2>
-void HMM<TD1, TD2>::updateTransition2(String<String<double> > &A, unsigned k_1, unsigned k_2)
-{
-    double numerator = 0.0;
-    for (unsigned t = 1; t < this->T; ++t)
-        numerator += this->alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] *  this->eProbs[t][k_2] * betas_2[t][k_2];  
-   
-    double denumerator  = 0.0;
-    for (unsigned t = 1; t < this->T; ++t)
-    {
-        double norm = 0.0;
-        for (unsigned k = 0; k < this->K; ++k)      
-            norm += this->alphas_1[t-1][k];
-
-        denumerator  += this->alphas_2[t-1][k_1] * this->betas_2[t-1][k_1] * norm;
-    }
-    A[k_1][k_2] = numerator / denumerator ;  
-}*/
 
 template<typename TDOUBLE>
 bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, AppOptions &options)
 {
-    if (options.gslSimplex2)
-    {
-        if (!d1.updateThetaAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
-            return false;
+    if (!d1.updateThetaAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
+        return false;
 
-        if (!d2.updateThetaAndK(statePosteriors2, setObs, options.g2_kMin, options.g2_kMax, options))         // make sure g1k <= g2k
-            return false;
+    if (!d2.updateThetaAndK(statePosteriors2, setObs, options.g2_kMin, options.g2_kMax, options))         // make sure g1k <= g2k
+        return false;
 
-        // make sure gamma1.mu < gamma2.mu   
-        checkOrderG1G2(d1, d2, options);
-    }
-    else    // TODO get rid of this
-    {
-        // 
-        d1.updateTheta(statePosteriors1, setObs, options);  
-        d2.updateTheta(statePosteriors2, setObs, options);
-
-        // make sure gamma1.mu < gamma2.mu    
-        checkOrderG1G2(d1, d2, options);
-
-        d1.updateK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options);  
-
-        d2.updateK(statePosteriors2, setObs, options.g2_kMin, options.g2_kMax, options); 
-    }
+    // make sure gamma1.mu < gamma2.mu   
+    checkOrderG1G2(d1, d2, options);
     return true;
 }
 
 template<typename TDOUBLE>
 bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, AppOptions &options)
 {
-    if (options.gslSimplex2)
-    {
-        if (!d1.updateRegCoeffsAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
-            return false;
+    if (!d1.updateRegCoeffsAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
+        return false;
 
-        double g2_kMin = options.g2_kMin;
-        if (options.g1_k_le_g2_k)
-            g2_kMin = std::max(d1.k, options.g2_kMin);
+    double g2_kMin = options.g2_kMin;
+    if (options.g1_k_le_g2_k)
+        g2_kMin = std::max(d1.k, options.g2_kMin);
 
-        if (!d2.updateRegCoeffsAndK(statePosteriors2, setObs, g2_kMin, options.g2_kMax, options))
-            return false;
+    if (!d2.updateRegCoeffsAndK(statePosteriors2, setObs, g2_kMin, options.g2_kMax, options))
+        return false;
 
-        // make sure gamma1.mu < gamma2.mu    
-         checkOrderG1G2(d1, d2, options);
-    }
-    else
-    { 
-        d1.updateMean(statePosteriors1, setObs, options); 
-        d2.updateMean(statePosteriors2, setObs, options);
-
-        // make sure gamma1.mu < gamma2.mu    
-        checkOrderG1G2(d1, d2, options);
-
-        d1.updateK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options); 
-
-        double g2_kMin = options.g2_kMin;
-        if (options.g1_k_le_g2_k)
-            g2_kMin = std::max(d1.k, options.g2_kMin);
-
-        d2.updateK(statePosteriors2, setObs, g2_kMin, options.g2_kMax, options);
-    }
+    // make sure gamma1.mu < gamma2.mu    
+    checkOrderG1G2(d1, d2, options);
     return true;
 }
 
@@ -1292,54 +1186,6 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d
 
 
 // Baum-Welch
-// E: compute state posterior (gamma), transition posterior (xi)
-// M: estimate parameters
-/*template<typename TD1, typename TD2, typename TB1, typename TB2> 
-bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch_noSc(TD1 &d1, TD2 &d2, TB1 &bin1, TB2 &bin2, CharString learnTag, AppOptions &options)
-{
-    double prev_p = 666.0;
-    for (unsigned iter = 0; iter < options.maxIter_bw; ++iter)
-    {
-        std::cout << ".. " << iter << "th iteration " << std::endl;
-        if (!computeEmissionProbs(d1, d2, bin1, bin2, options))
-        {
-            std::cerr << "ERROR: Could not compute emission probabilities! " << std::endl;
-            return false;
-        }
-        // E-step
-        forward_noSc();
-         //Note: likelihood of all sites, not only selected for parameter fitting, not necessarly increases! 
-
-        backward_noSc();
-        computeStatePosteriors();
-        // M-step 
-        for (unsigned s = 0; s < 2; ++s)
-            for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-                for (unsigned k = 0; k < this->K; ++k)
-                    this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
- 
-        updateTransition(options);
-
-        if (learnTag == "LEARN_BINOMIAL")
-        {
-            if (!updateDensityParams(d1, d2, bin1, bin2, options))
-            {
-                std::cerr << "ERROR: Could not update parameters! " << std::endl;
-                return false;
-            }
-        }
-        else
-        {
-            if (!updateDensityParams(d1, d2, options))
-            {
-                std::cerr << "ERROR: Could not update parameters! " << std::endl;
-                return false;
-            }
-        }
-    }
-    return true;
-}*/
-
 // with scaling
 template<typename TGAMMA, typename TBIN, typename TDOUBLE> 
 bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options)

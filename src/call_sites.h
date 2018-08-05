@@ -1018,7 +1018,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     }
     else 
     {
-        options.min_eProbSum = pow((long double)10.0, LDBL_MIN_10_EXP + 50);
+        options.min_eProbSum = pow((long double)10.0, LDBL_MIN_10_EXP + 100);
         std::cout << " Set options.min_eProbSum : " << options.min_eProbSum << std::endl;
     }    
     // some other thresholds and setings:

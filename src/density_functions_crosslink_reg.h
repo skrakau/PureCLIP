@@ -76,10 +76,10 @@ struct FctLL_ZTBIN_REG
     }
     double operator()(double const& b)
     {
-        TDOUBLE ll = 0.0;       
+        long double ll = 0.0;       
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<TDOUBLE> lls;
+            String<long double> lls;
             resize(lls, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
             SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
@@ -93,15 +93,15 @@ struct FctLL_ZTBIN_REG
                     {
                         unsigned k = setObs[s][i].truncCounts[t];
                         unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]); 
-                        double x = setObs[s][i].fimoScores[t];
+                        long double x = setObs[s][i].fimoScores[t];
 
-                        if (((double)(k) / (double)(n)) <= options.maxkNratio)
+                        if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
                         {
-                            TDOUBLE p = 1.0/(1.0+exp(-b0 - b*x));
+                            long double p = 1.0/(1.0+exp(-b0 - b*x));
                         
                             // l = log(1.0) -log(1.0 - pow((1.0-p), n)) + log (n over k) + k*log(p) + (n-k)*log(1.0-p);
                             // ignore parts not meaning for optimization! 
-                            TDOUBLE l = -log(1.0 - pow((1.0-p), n)) + k*log(p) + (n-k)*log(1.0-p);
+                            long double l = -log(1.0 - pow((1.0-p), n)) + k*log(p) + (n-k)*log(1.0-p);
                             lls[i] += l * statePosteriors[s][i][t];
                         }
                     }
@@ -115,7 +115,7 @@ struct FctLL_ZTBIN_REG
     }
 
 private:
-    double b0;
+    long double b0;
     char m;     // motif ID
     String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > &setObs;
@@ -150,8 +150,8 @@ template<typename TDOUBLE>
 void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, AppOptions const& options)
 {
-    TDOUBLE sum1 = 0.0;
-    TDOUBLE sum2 = 0.0;
+    long double sum1 = 0.0;
+    long double sum2 = 0.0;
     for (unsigned s = 0; s < 2; ++s)
     {
         for (unsigned i = 0; i < length(setObs[s]); ++i)
@@ -163,7 +163,7 @@ void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteri
                     // p^ = (k-1)/(n-1); 'Truncated Binomial and Negative Binomial Distributions' Rider, 1955
                     unsigned k = setObs[s][i].truncCounts[t];
                     unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]);      
-                    if (((double)(k) / (double)(n)) <= options.maxkNratio)
+                    if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
                     {
                         sum1 += statePosteriors[s][i][t] * ((TDOUBLE)(k - 1) / (TDOUBLE)(n - 1));        
                         sum2 += statePosteriors[s][i][t];
@@ -173,7 +173,7 @@ void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteri
         }
     }
     //std::cout << "updateP: sum1" << sum1 << " sum2: " << sum2 << " p: " << (sum1/sum2) << std::endl;
-    TDOUBLE p = sum1/sum2;
+    long double p = sum1/sum2;
     this->b0 = log(p/(1.0-p));
 
     updateRegCoeffs(statePosteriors, setObs, options);
@@ -187,19 +187,18 @@ long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n,
     if (k == 0) return 0.0;     // zero-truncated
 
     unsigned n2 = (n > k) ? (n) : (k);           // make sure n >= k      (or limit k?) 
-   
     
     // use boost implementation, maybe avoids overflow
-    boost::math::binomial_distribution<TDOUBLE> boostBin;
-    boostBin = boost::math::binomial_distribution<TDOUBLE> ((int)n2, pred); 
+    boost::math::binomial_distribution<long double> boostBin;
+    boostBin = boost::math::binomial_distribution<long double> ((int)n2, (long double)pred); 
 
-    TDOUBLE res = boost::math::pdf(boostBin, k);
+    long double res = boost::math::pdf(boostBin, k);
     if (std::isnan(res))   // or any other error?
     {
         std::cerr << "ERROR: binomial pdf is : " << res << std::endl;
         return 0.0;
     }
-    return res * (TDOUBLE)(1.0/(1.0 - pow((1.0 - pred), n2)));     // zero-truncated      TODO ???
+    return res * (long double)(1.0/(1.0 - pow((1.0 - (long double)pred), n2)));     // zero-truncated      TODO ???
 }
 
 template<typename TDOUBLE> 
@@ -209,19 +208,19 @@ long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n)
 
     unsigned n2 = (n > k) ? (n) : (k);          // make sure n >= k      (or limit k?) 
    
-    double pred = 1.0/(1.0+exp(- this->b0));
+    long double pred = 1.0/(1.0+exp(- this->b0));
 
     // use boost implementation, maybe avoids overflow
-    boost::math::binomial_distribution<TDOUBLE> boostBin;
-    boostBin = boost::math::binomial_distribution<TDOUBLE> ((int)n2, pred); 
+    boost::math::binomial_distribution<long double> boostBin;
+    boostBin = boost::math::binomial_distribution<long double> ((int)n2, pred); 
 
-    TDOUBLE res = boost::math::pdf(boostBin, k);
+    long double res = boost::math::pdf(boostBin, k);
     if (std::isnan(res))   // or any other error?
     {
         std::cerr << "ERROR: binomial pdf is : " << res << std::endl;
         return 0.0;
     }
-    return res * (TDOUBLE)(1.0/(1.0 - pow((1.0 - pred), n2)));     // zero-truncated      TODO ???
+    return res * (long double)(1.0/(1.0 - pow((1.0 - pred), n2)));     // zero-truncated      TODO ???
 }
 
 

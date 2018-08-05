@@ -105,7 +105,6 @@ namespace seqan {
         bool useCov_RPKM;
         bool useLogRPKM;
         double minRPKMtoFit;
-        double minRPKMforE;        
         bool mrtf_kdeSglt;
         bool discardSingletonIntervals;
         unsigned maxTruncCount;
@@ -131,7 +130,7 @@ namespace seqan {
             prior_enrichmentThreshold(7),   // KDE threshold is used corresponding to 7 read starts at one position
             maxIter_brent(100),              // brent
             maxIter_bw(50),                  // baum-welch
-            maxIter_simplex(200),           // simplex            
+            maxIter_simplex(2000),           // simplex            
             g1_kMin(1.0),                   // shape parameter for gamma distribution; set min. to avoid eProbs getting zero!
             g2_kMin(1.0),
             g1_kMax(10.0),
@@ -158,7 +157,7 @@ namespace seqan {
             get_nThreshold(false),          // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
-            min_eProbSum(1e-250),           // make sure eProbs not getting too low, will cause crash during FB-algorithm ..
+            min_eProbSum(1e-200),           // make sure eProbs not getting too low, will cause crash during FB-algorithm -> set depending on precision mode 
             polyAThreshold(10),
             excludePolyAFromLearning(false),
             excludePolyTFromLearning(false),
@@ -171,7 +170,6 @@ namespace seqan {
             useCov_RPKM(false),
             useLogRPKM(true),
             minRPKMtoFit(-5.0),
-            minRPKMforE(-5.0),            
             mrtf_kdeSglt(true),                 // use singleton KDE value as mrtf for GLM fitting (assuming same bandwidth for input KDEs!)
             discardSingletonIntervals(true),    // delete intervals with singleton reads to save memory (and runtime) !! influence on transProbs?
             maxTruncCount(250),                 // used to ignore intervals for learning

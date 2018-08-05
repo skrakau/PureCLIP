@@ -139,9 +139,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setMaxValue(parser, "mibw", "500");
     addOption(parser, ArgParseOption("g1kmin", "g1kmin", "Minimum shape k of 'non-enriched' gamma distribution (g1.k).", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("g1kmax", "g1kmax", "Maximum shape k of 'non-enriched' gamma distribution (g1.k).", ArgParseArgument::DOUBLE));
+    setMinValue(parser, "g1kmin", "1.5");   
     addOption(parser, ArgParseOption("g2kmin", "g2kmin", "Minimum shape k of 'enriched' gamma distribution (g2.k).", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("g2kmax", "g2kmax", "Maximum shape k of 'enriched' gamma distribution (g2.k).", ArgParseArgument::DOUBLE));
-    //addOption(parser, ArgParseOption("g1g2k", "g1g2k", "Force 'non-enriched' gamma parameter k <= 'enriched' gamma parameter k."));
     addOption(parser, ArgParseOption("fk", "fk", "When incorporating input signal, do not constrain 'non-enriched' shape parameter k <= 'enriched' gamma parameter k."));
 
     addOption(parser, ArgParseOption("mkn", "mkn", "Max. k/N ratio (read start sites/N) used to learn truncation probabilities for 'non-crosslink' and 'crosslink' emission probabilities (high ratios might originate from mapping artifacts that can disturb parameter learning). Default: 1.0", ArgParseArgument::DOUBLE));
@@ -184,7 +184,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
 
     //addOption(parser, ArgParseOption("enk", "enk", "Estimate binomial N from KDEs values."));
-    addOption(parser, ArgParseOption("nsx", "nsx", "Do not use GSCL simplex2 to estimate Gamma parameters theta and k. Instead update parameters sequentially using the Brents methods. "));
     //addOption(parser, ArgParseOption("ulr", "ulr", "Use log RPKM values as input."));
     //addOption(parser, ArgParseOption("dis", "dis", "Discard intervals containing only one read start."));
 
@@ -317,8 +316,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     //if (isSet(parser, "enk"))
     //    options.estimateNfromKdes = true;
-    if (isSet(parser, "nsx"))
-        options.gslSimplex2 = false;   
     //if (isSet(parser, "ulr"))
     //    options.useLogRPKM = true;
     //if (isSet(parser, "dis"))
@@ -363,8 +360,8 @@ bool doIt(TDOUBLE /**/, TOptions &options)
         GAMMA2<TDOUBLE> gamma1;           
         GAMMA2<TDOUBLE> gamma2;
 
-        options.g1_kMax = 1.0;
-        if (options.verbosity > 1) std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.0." << std::endl;
+        options.g1_kMax = 1.5;
+        if (options.verbosity > 1) std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.5." << std::endl;
 
         if (options.useFimoScore)
         {
