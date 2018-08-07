@@ -1,0 +1,64 @@
+language: cpp
+matrix:
+  include:
+  - os: linux
+    dist: trusty
+    sudo: false
+    compiler: gcc-7
+    addons:
+      apt:
+        sources:
+        - ubuntu-toolchain-r-test
+        packages:
+        - g++-7
+        - cmake
+        - zlib1g-dev
+        - libbz2-dev
+        - libboost-dev
+        - libgsl0-dev
+    before_install:
+    - "python3 --version || :"
+    - "python --version || :"
+    install: export CXX="g++-7"
+    env:
+    - LINK_TOOL="ldd"
+    - DEPLOY_PATTERN="PureCLIP-*-linux64-{static,dynamic}.tar.gz"
+  - os: osx
+    osx_image: xcode9.2
+    compiler: gcc-7
+    before_install:
+    - brew ls --versions
+    - brew cask uninstall oclint
+    - brew install gcc@7 gsl
+    - brew install python || brew upgrade python
+    - brew ls --versions
+    - softwareupdate -l
+    - "python3 --version || :"
+    - "python --version || :"
+    install: export CXX="g++-7"
+    env:
+    - LINK_TOOL="otool -L"
+    - DEPLOY_PATTERN="PureCLIP-*-mac64.tar.gz"
+script:
+- ./util/pkg_check.py .
+- mkdir -p build && cd build
+- cmake ../src -DCMAKE_BUILD_TYPE=Release
+- make VERBOSE=1
+- "./pureclip --version"
+- "./winextract --version"
+- cmake . -DPKG_BUILD=1 -DSTATIC_BUILD=0
+- make package
+- "$LINK_TOOL pureclip || :"
+- cmake . -DSTATIC_BUILD=1
+- make package
+- "$LINK_TOOL pureclip || :"
+- ls -l
+deploy:
+  skip_cleanup: true
+  provider: releases
+  api_key:
+    secure: KsnzYgrpXAdynrnKKRudMImej6vTrF8zR39tvwf+gNDlLFXFA11MtXb88ZeY6rlcB0629lqleZsWDV/mBL+PXoQP9n7lmDgLwEa0vph9KWL21gRS2/remeTe4wp/WFWfdq7l0zNGpKO6dBDuw9VYdA/Hipa7uN34cqBWM2sGegsLSRV1ztcnra+5y+lQRznr8p6johYDfBGGisef/6SXDISAiZRLwtiMWfcP0tdPHgZ2FvUZsl5iJY2IkQXLMSj5zgUOdWj8Gnl8yPEnrWMBBhvjXnG4hkWCvup3KF85ggBGZrik+YhyaXFyft/TadnmmhLeSS+x4j/EVaOHEIUytI0yLsGhhthuqR5fpTFWeRbDe40hF0jQwRbM4tTQvz9tdZk4MqnAgofccCxLgoGUnUy+5wUuDUiCjF7to0o08rPxxEZPjNxSDWxIA7lYk5RoCR6XVAlCsMkJpYM0NtyvNIQRGlqLCjJZVBZXQTMS/KMtUoZ9ahhCtdTfHqQnzv7sy0Ti+ZIUbFFefOUgHIM1FklPjgktZi762+18TvPeiCTcdoeSUKbBeTHUMO+UBJ6uywvtzJqZdDOGdnXFq/uaiiHxBiIIeF0fQ880KhtBHdbB7WqoZzOfqyYcJic+m7b/eOuPOdHgUt7gokQQSSw8bgaf6OyDTRmgY5cZbu03EVo=
+  file_glob: True
+  file: $DEPLOY_PATTERN
+  on:
+    tags: True

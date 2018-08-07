@@ -1,0 +1,38 @@
+========================================================================
+PureCLIP 1.0.5
+Capturing target-specific protein-RNA interaction footprints
+
+(c) 2018 Sabrina Krakau, Max Planck Institute for Molecular Genetics
+Contact: krakau@molgen.mpg.de
+========================================================================
+
+PureCLIP is freely available and licensed under the GPLv3. A copy of the
+license is shipped with this binary.
+
+For more information and to obtain the source code please visit
+https://github.com/skrakau/PureCLIP
+
+== REQUIREMENTS ========================================================
+
+- Linux static build
+  Statically linked, should work on most 64-bit systems
+
+- Linux dynamic build
+  Dynamically linked, requires the following dependencies to be
+  installed on the system:
+    GSL (1.16)
+    zlib1g (1.2.8)
+    openMP (libgomp1 4.9.2)
+
+- Mac OS build
+  Statically linked against libstdc++, gsl and libz. Should work on
+  Mac OS 10.11 and newer.
+
+
+== USAGE ===============================================================
+
+For information on how to use pureclip, invoke pureclip with
+
+    pureclip -h
+
+and consult the online documentation available under the URL above.
