@@ -124,6 +124,14 @@ void myPrint(ZTBIN<TDOUBLE> &bin)
 }
 
 
+template<typename TOut, typename TDOUBLE>
+void printParams(TOut &out, ZTBIN<TDOUBLE> &bin, int i)
+{
+    out << "bin" << i << ".p" << '\t' << bin.p << std::endl;
+    out << std::endl;
+}
+
+
 template<typename TDOUBLE>
 bool checkConvergence(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, AppOptions &options)
 {

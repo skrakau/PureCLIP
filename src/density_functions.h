@@ -606,6 +606,7 @@ void printParams(TOut &out, GAMMA2<TDOUBLE> &gamma, int i)
     out << "gamma" << i << ".mean" << '\t' << exp(gamma.b0) << std::endl;
     out << "gamma" << i << ".k" << '\t' << gamma.k << std::endl;
     out << "gamma" << i << ".tp" << '\t' << gamma.tp << std::endl;
+    out << std::endl;
 }
 
 

@@ -541,82 +541,6 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, St
 
 
 // Backward-algorithm
-// without scaling for testing 
-/*template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TGAMMA, TBIN, TDOUBLE>::backward_noSc()
-{
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            // for t = T
-            for (unsigned k = 0; k < this->K; ++k)
-               this->betas_2[s][i][this->setObs[s][i].length() - 1][k] = 1.0;
-            
-            // for t = 2:T
-            for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
-            {
-                for (unsigned k = 0; k < this->K; ++k)
-                {
-                    // sum over previous states
-                    double sum = 0.0;
-                    for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-                        sum += betas_2[s][i][t+1][k_2] * this->transMatrix[k][k_2] * this->eProbs[s][i][t+1][k_2];
-                    // beta_1
-                    this->betas_2[s][i][t][k] = sum;
-                }
-            }
-        }
-    }
-}
-
-// with scaling method
-template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TGAMMA, TBIN, TDOUBLE>::backward()
-{
-    for (unsigned s = 0; s < 2; ++s)
-    {
-#if HMM_PARALLEL
-        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
-#endif  
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            // for t = T
-            for (unsigned k = 0; k < this->K; ++k)
-               this->betas_1[s][i][this->setObs[s][i].length() - 1][k] = 1.0;
-            
-            double norm = 0.0;      // use scaling coefficients from alphas here !
-            for (unsigned k = 0; k < this->K; ++k)
-               norm += this->alphas_1[s][i][this->setObs[s][i].length() - 1][k];
-
-            for (unsigned k = 0; k < this->K; ++k)
-               this->betas_2[s][i][this->setObs[s][i].length() - 1][k] = betas_1[s][i][this->setObs[s][i].length() - 1][k] / norm;
-
-            // for t = 2:T
-            for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
-            {
-                norm = 0.0;
-                for (unsigned k = 0; k < this->K; ++k)      // precompute ???
-                    norm += this->alphas_1[s][i][t][k];
-
-                for (unsigned k = 0; k < this->K; ++k)
-                {
-                    // sum over previous states
-                    double sum = 0.0;
-                    for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-                        sum += betas_2[s][i][t+1][k_2] * this->transMatrix[k][k_2] * this->eProbs[s][i][t+1][k_2];
-                    
-                    // beta_1
-                    this->betas_1[s][i][t][k] = sum;
-                    // beta_2
-                    this->betas_2[s][i][t][k] = this->betas_1[s][i][t][k] / norm;
-                }
-            }
-        }
-    }
-}*/
-
-
 // need alphas_1 for scaling here,
 // only betas_2 is needed to compute posterior probs.
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
@@ -1329,7 +1253,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::posteriorDecoding(String<String<String<__uint8>
                 resize(states[s][i], this->setObs[s][i].length(), Exact());
                 for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
                 {
-                    double max_p = 0.0;
+                    long double max_p = 0.0;
                     unsigned max_k = 0;
                     for (unsigned k = 0; k < this->K; ++k)
                     {
@@ -1707,6 +1631,19 @@ void myPrint(HMM<TGAMMA, TBIN, TDOUBLE> &hmm)
         for (unsigned k_2 = 0; k_2 < hmm.K; ++k_2)
             std::cout << hmm.transMatrix[k_1][k_2] << "  ";
         std::cout << std::endl;
+    }
+}
+
+
+template<typename TOut>
+void printParams(TOut &out, String<String<double> > &transMatrix)
+{
+    out << "Transition probabilities:" << std::endl;
+    for (unsigned k_1 = 0; k_1 < 4; ++k_1)
+    {
+        for (unsigned k_2 = 0; k_2 < 4; ++k_2)
+            out << transMatrix[k_1][k_2] << "\t";
+        out << std::endl;
     }
 }
 

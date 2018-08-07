@@ -1320,17 +1320,27 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     //std::cout << "  Time needed for applyHMM2: " << Times::instance().time_applyHMM2/60.0 << "min" << std::endl;
 #endif
 
-    CharString fileNameParams = options.parFileName;
-    if (empty(fileNameParams))
-    {
-        fileNameParams = options.outFileName;
-        append(fileNameStats, ".params");
-    }
 
+    CharString fileNameParams;
+    if (!empty(options.parFileName))
+        fileNameParams = options.parFileName;
+    else
+    {
+        fileNameParams = prefix(options.outFileName, length(options.outFileName)-4);
+        append(fileNameParams, ".params");
+    }
     std::ofstream out(toCString(fileNameParams), std::ios::binary | std::ios::out);
+    out << "options.useKdeThreshold" << '\t' << options.useKdeThreshold << std::endl;
+    out << std::endl;
     printParams(out, gamma1, 1);
     printParams(out, gamma2, 2);
-    out << "options.useKdeThreshold" << '\t' << options.useKdeThreshold << std::endl;
+    printParams(out, bin1, 1);
+    printParams(out, bin2, 2);
+    printParams(out, transMatrix);
+    out << std::endl;
+    out << "slr_NfromKDE.b0" << '\t' << slr_NfromKDE_b0 << std::endl;
+    out << "slr_NfromKDE.b1" << '\t' << slr_NfromKDE_b1 << std::endl;
+
 
     return 0;
 }

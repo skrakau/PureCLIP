@@ -238,6 +238,17 @@ void myPrint(ZTBIN_REG<TDOUBLE> &bin)
 }
 
 
+template<typename TOut, typename TDOUBLE>
+void printParams(TOut &out, ZTBIN_REG<TDOUBLE> &bin, int i)
+{
+    out << "bin" << i << ".b0" << '\t' << bin.b0 << std::endl;
+
+    for (unsigned m = 0; m < length(bin.regCoeffs); ++m)
+        out << "bin" << i << ".b" << (m+1) << '\t' << bin.regCoeffs[m] << std::endl;
+    out << std::endl;
+}
+
+
 template<typename TDOUBLE>
 bool checkConvergence(ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, AppOptions &options)
 {

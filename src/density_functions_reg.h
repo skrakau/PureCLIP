@@ -647,6 +647,7 @@ void printParams(TOut &out, GAMMA2_REG<TDOUBLE> &gamma, int i)
     out << "gamma" << i << ".b1" << '\t' << gamma.b1 << std::endl;
     out << "gamma" << i << ".k" << '\t' << gamma.k << std::endl;
     out << "gamma" << i << ".tp" << '\t' << gamma.tp << std::endl;
+    out << std::endl;
 }
 
 

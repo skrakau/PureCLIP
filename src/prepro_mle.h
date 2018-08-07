@@ -265,7 +265,7 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
     {
         std::cerr << "ERROR: in updating parameters for gamma1 distribution using GSL simplex2." << std::endl;
     }
-    std::cout << "Updated parameters of gamma1 distribution using  GSL simplex2:" << std::endl;
+    std::cout << "Updated parameters of gamma1 distribution using GSL simplex2:" << std::endl;
     myPrint(gamma1_reg);
 
     // gamma2
@@ -296,7 +296,7 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
     {
         std::cerr << "ERROR: in updating parameters for gamma2 distribution using GSL simplex2." << std::endl;
     }
-    std::cout << "Updated parameters of gamma2 distribution using  GSL simplex2:" << std::endl;
+    std::cout << "Updated parameters of gamma2 distribution using GSL simplex2:" << std::endl;
     myPrint(gamma2_reg);
 
 }
