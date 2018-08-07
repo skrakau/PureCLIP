@@ -88,7 +88,6 @@ void prior_mle(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2,
     appendValue(g1_startSet, g1_p3);
     appendValue(g1_startSet, g1_p4);
     // estimate parameters using GSL simplex2
-    std::cout << "prepro... options.g1_kMax: " << options.g1_kMax << std::endl;
     std::cout << "Initial gamma1: Run simplex algorithm using different start points." << std::endl; 
     if (!gamma1.updateThetaAndK(g1_startSet, statePosteriors1, data.setObs, options.g1_kMin, options.g1_kMax, options))
     {

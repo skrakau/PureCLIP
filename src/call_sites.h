@@ -1320,9 +1320,14 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     //std::cout << "  Time needed for applyHMM2: " << Times::instance().time_applyHMM2/60.0 << "min" << std::endl;
 #endif
 
-    CharString fileNameStats = options.outFileName;
-    append(fileNameStats, ".stats");
-    std::ofstream out(toCString(fileNameStats), std::ios::binary | std::ios::out);
+    CharString fileNameParams = options.parFileName;
+    if (empty(fileNameParams))
+    {
+        fileNameParams = options.outFileName;
+        append(fileNameStats, ".params");
+    }
+
+    std::ofstream out(toCString(fileNameParams), std::ios::binary | std::ios::out);
     printParams(out, gamma1, 1);
     printParams(out, gamma2, 2);
     out << "options.useKdeThreshold" << '\t' << options.useKdeThreshold << std::endl;

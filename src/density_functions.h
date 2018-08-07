@@ -393,9 +393,6 @@ bool callGSL_simplex2(double &fval, double &tp, double &k, double &b0,
     if (options.verbosity >= 2) 
         std::cout << "Call GSL multimin solver nmsimplex2 ..." << std::endl;
 
-    std::cout << "callGSL... kMax: " << kMax << std::endl;
-
-
     int status;
     int iter = 0;
     int max_iter = options.maxIter_simplex;
