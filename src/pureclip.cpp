@@ -362,7 +362,7 @@ bool doIt(TDOUBLE /**/, TOptions &options)
         GAMMA2<TDOUBLE> gamma2;
 
         options.g1_kMax = 1.0;
-        if (options.verbosity > 1) std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.5." << std::endl;
+        if (options.verbosity > 1) std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.0." << std::endl;
 
         if (options.useFimoScore)
         {
