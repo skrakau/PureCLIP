@@ -40,7 +40,7 @@ matrix:
     - LINK_TOOL="otool -L"
     - DEPLOY_PATTERN="PureCLIP-*-mac64.tar.gz"
 script:
-- ./util/pkg_check.py .
+- ./pkg_util/pkg_check.py .
 - mkdir -p build && cd build
 - cmake ../src -DCMAKE_BUILD_TYPE=Release
 - make VERBOSE=1
@@ -53,6 +53,7 @@ script:
 - make package
 - "$LINK_TOOL pureclip || :"
 - ls -l
+- 'for f in *.tar.gz; do echo "$f":; tar tf "$f"; done'
 deploy:
   skip_cleanup: true
   provider: releases
