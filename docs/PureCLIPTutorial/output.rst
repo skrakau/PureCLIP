@@ -10,7 +10,7 @@ The main output of PureCLIP is a BED6 file containing individual crosslink sites
 1. **chr:** Name of the chromosome or scaffold.
 2. **start:** Position of crosslink site.
 3. **end:** Position behind crosslink site (start+1).
-4. **state:** '3'
+4. **state:** '3' (0-based, corresponds to state '4' in the PureCLIP publication)
 5. **score:** log posterior probability ratio of the first and second likely state.
 6. **strand:** + or -
 

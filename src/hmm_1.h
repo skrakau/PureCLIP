@@ -434,7 +434,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
                 if (!options.useHighPrecision)
                 {
                     SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "NOTE: Try running PureCLIP in high precision mode (parameter '-ld')." << std::endl;
+                    std::cout << "NOTE: Try running PureCLIP in high floating-point precision mode (long double, parameter '-ld')." << std::endl;
                 }
             }
             else if (!learning && discardInterval)
@@ -453,7 +453,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
                 if (!options.useHighPrecision)
                 {
                     SEQAN_OMP_PRAGMA(critical) 
-                    std::cout << "NOTE: If this happens frequently, rerun PureCLIP in high precision mode (parameter '-ld')." << std::endl;
+                    std::cout << "NOTE: If this happens frequently, rerun PureCLIP in high floating-point precision mode (long double, parameter '-ld')." << std::endl;
                 }
             }
         }   
