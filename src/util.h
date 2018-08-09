@@ -89,6 +89,7 @@ namespace seqan {
         double get_nThreshold;
         double minTransProbCS;
         double maxkNratio;
+        unsigned maxBinN;
         long double min_eProbSum;
 
         unsigned polyAThreshold;
@@ -157,6 +158,7 @@ namespace seqan {
             get_nThreshold(false),          // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
+            maxBinN(4001),                  // avoid eProbs of 0s for extreme values, sites above not used for learning
             min_eProbSum(1e-200),           // make sure eProbs not getting too low, will cause crash during FB-algorithm -> set depending on precision mode 
             polyAThreshold(10),
             excludePolyAFromLearning(false),
@@ -173,7 +175,7 @@ namespace seqan {
             mrtf_kdeSglt(true),                 // use singleton KDE value as mrtf for GLM fitting (assuming same bandwidth for input KDEs!)
             discardSingletonIntervals(true),    // delete intervals with singleton reads to save memory (and runtime) !! influence on transProbs?
             maxTruncCount(250),                 // used to ignore intervals for learning
-            maxTruncCount2(5000),                 // to store
+            maxTruncCount2(10000),              // to store, larger values are truncated to this value, avoid overflow of n 
             useFimoScore(false),
             nInputMotifs(1),
             distMerge(8),
@@ -229,7 +231,7 @@ namespace seqan {
         Infix<String<__uint16> >::Type truncCounts;
         unsigned contigId; 
 
-        String<__uint16>    nEstimates;      
+        String<__uint32>    nEstimates;      
         String<double>      kdes;       // used for 'enriched'. 'non-enriched' classification
         String<double>      kdesN;    // used to estimate the binomial n parameters (decoupled, might be useful e.g. for longer crosslink clusters) 
         String<double>      rpkms;      // TODO change name -> e.g. bgSignal

@@ -213,7 +213,7 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
             for (unsigned t = 0; t < data.setObs[s][i].length(); ++t)
             {
                 double x = std::max(data.setObs[s][i].rpkms[t], options.minRPKMtoFit);
-                double pred = exp(gammaC_reg.b0 + gammaC_reg.b1 * x);
+                long double pred = exp(gammaC_reg.b0 + gammaC_reg.b1 * x);
 
                 if (data.setObs[s][i].kdes[t] < pred)                       // most probably non-enriched    .. (Note: pred + 2.0 for RNA-seq data)
                 {                                                           // allow for variation! 
@@ -303,7 +303,7 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
 
 
 template<typename TDOUBLE, typename TBIN>
-void estimateTransitions(String<String<double> > &initTrans, 
+void estimateTransitions(String<String<long double> > &initTrans, 
                          GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, TBIN &bin1, TBIN &bin2, 
                          Data &data,
                          AppOptions &options)
@@ -339,11 +339,11 @@ void estimateTransitions(String<String<double> > &initTrans,
             long double bin2_d = 0.0;
             if (k > 0)
             {
-                bin1_d = bin1.getDensity(k, n);
-                bin2_d = bin2.getDensity(k, n);
+                bin1_d = bin1.getDensity(k, n, options);
+                bin2_d = bin2.getDensity(k, n, options);
             }
 
-            double max = g1_d * bin1_d;   // most likely non-enriched and no crosslink "0"
+            long double max = g1_d * bin1_d;   // most likely non-enriched and no crosslink "0"
             if (g1_d * bin2_d > max)      // most likely non-enriched and crosslink "1" 
             {
                 max = g1_d * bin2_d;
@@ -379,8 +379,8 @@ void estimateTransitions(String<String<double> > &initTrans,
                 bin2_d = 0.0;
                 if (k > 0)
                 {
-                    bin1_d = bin1.getDensity(k, n);
-                    bin2_d = bin2.getDensity(k, n);
+                    bin1_d = bin1.getDensity(k, n, options);
+                    bin2_d = bin2.getDensity(k, n, options);
                 }
 
                 max = g1_d * bin1_d;          // most likely non-enriched and no crosslink "0"
@@ -423,7 +423,7 @@ void estimateTransitions(String<String<double> > &initTrans,
    
         for (unsigned k_2 = 0; k_2 < 4; ++k_2)
         {
-            initTrans[k_1][k_2] = (double)transFreqs[k_1][k_2] / (double)sum;     
+            initTrans[k_1][k_2] = (long double)transFreqs[k_1][k_2]/(long double)sum;     
         }
     }
     if (options.verbosity >= 1) 
@@ -442,7 +442,7 @@ void estimateTransitions(String<String<double> > &initTrans,
 
 
 template<typename TDOUBLE, typename TBIN>
-void estimateTransitions(String<String<double> > &initTrans, 
+void estimateTransitions(String<String<long double> > &initTrans, 
                          GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, TBIN &bin1, TBIN &bin2, 
                          Data &data,
                          AppOptions &options)
@@ -464,8 +464,8 @@ void estimateTransitions(String<String<double> > &initTrans,
             double kde = data.setObs[s][i].kdes[0];
             unsigned k = data.setObs[s][i].truncCounts[0];
             unsigned n = data.setObs[s][i].nEstimates[0];
-            double d1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[0]);
-            double d2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[0]);
+            long double d1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[0]);
+            long double d2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[0]);
             unsigned prev_state = 0;
             bool prev_valid = true;
 
@@ -480,8 +480,8 @@ void estimateTransitions(String<String<double> > &initTrans,
             long double bin2_d = 0.0;
             if (k > 0)
             {
-                bin1_d = bin1.getDensity(k, n);
-                bin2_d = bin2.getDensity(k, n);
+                bin1_d = bin1.getDensity(k, n, options);
+                bin2_d = bin2.getDensity(k, n, options);
             }
 
             long double max = g1_d * bin1_d;   // most likely non-enriched and no crosslink "0"
@@ -521,8 +521,8 @@ void estimateTransitions(String<String<double> > &initTrans,
                 bin2_d = 0.0;
                 if (k > 0)
                 {
-                    bin1_d = bin1.getDensity(k, n);
-                    bin2_d = bin2.getDensity(k, n);
+                    bin1_d = bin1.getDensity(k, n, options);
+                    bin2_d = bin2.getDensity(k, n, options);
                 }
 
                 max = g1_d * bin1_d;          // most likely non-enriched and no crosslink "0"

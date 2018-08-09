@@ -44,28 +44,20 @@ class HMM {
 
 public:
 
-    __uint8                    K;                  // no. of sates
-    String<String<String<double> > >   initProbs;          // intital probabilities
+    __uint8                                 K;                  // no. of sates
+    String<String<String<long double> > >   initProbs;          // intital probabilities
 
-    String<String<Observations> >       & setObs;          // workaround for partial specialization
-    String<String<unsigned> >           & setPos;
-    unsigned                            contigLength;
-    String<String<double> >     transMatrix;
+    String<String<Observations> >           & setObs;          // workaround for partial specialization
+    String<String<unsigned> >               & setPos;
+    unsigned                                contigLength;
+    String<String<long double> >            transMatrix;
 
-    HMM(int K_, String<String<Observations> > & setObs_, String<String<unsigned> > & setPos_, unsigned &contigLength_): K(K_), setObs(setObs_), setPos(setPos_), contigLength(contigLength)
+    HMM(int K_, String<String<Observations> > & setObs_, String<String<unsigned> > & setPos_, unsigned &contigLength_): K(K_), setObs(setObs_), setPos(setPos_), contigLength(contigLength_)
     {
         // initialize transition probabilities
         resize(transMatrix, K, Exact());
-        double trans1 = 0.6;    // increa:sed probability to stay in same state
         for (unsigned i = 0; i < K; ++i)
-        {
-            resize(transMatrix[i], K, Exact());
-            for (unsigned j = 0; j < K; ++j)
-                if (i == j)
-                    transMatrix[i][j] = trans1;
-                else
-                    transMatrix[i][j] = (1.0 - trans1) / (K - 1.0);
-        }
+            resize(transMatrix[i], K, 0.25, Exact());
        
         resize(initProbs, 2, Exact());
         resize(eProbs, 2, Exact());
@@ -83,7 +75,7 @@ public:
                 // set initial probabilities to uniform
                 resize(initProbs[s][i], K, Exact());
                 for (unsigned k = 0; k < K; ++k)
-                    initProbs[s][i][k] = 1.0 / K;
+                    initProbs[s][i][k] = 1.0/K;
 
                 unsigned T = setObs[s][i].length();
                 resize(eProbs[s][i], T, Exact());
@@ -146,8 +138,8 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
     long double bin2_d = 0.0;
     if (setObs.truncCounts[t] > 0)
     {
-        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]);
-        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]);
+        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
+        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
     }
     eProbs[0] = g1_d * bin1_d;    
     eProbs[1] = g1_d * bin2_d;
@@ -193,9 +185,9 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
 template<typename TEProbs, typename TSetObs, typename TDOUBLE>
 bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
 {
-    double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
-    double d1_pred = exp(d1.b0 + d1.b1 * x);
-    double d2_pred = exp(d2.b0 + d2.b1 * x);
+    long double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
+    long double d1_pred = exp(d1.b0 + d1.b1 * x);
+    long double d2_pred = exp(d2.b0 + d2.b1 * x);
 
     long double g1_d = 1.0;
     long double g2_d = 0.0;
@@ -210,8 +202,8 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     long double  bin2_d = 0.0;
     if (setObs.truncCounts[t] > 0)
     {
-        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]);
-        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t]);
+        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
+        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
     }
     eProbs[0] = g1_d * bin1_d;    
     eProbs[1] = g1_d * bin2_d;
@@ -267,15 +259,15 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
         g2_d = d2.getDensity(setObs.kdes[t]); 
     }
     unsigned mId = setObs.motifIds[t];
-    double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs.fimoScores[t]));
-    double bin2_pred = 1.0/(1.0+exp(-bin2.b0 - bin2.regCoeffs[mId]*setObs.fimoScores[t]));
+    long double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs.fimoScores[t]));
+    long double bin2_pred = 1.0/(1.0+exp(-bin2.b0 - bin2.regCoeffs[mId]*setObs.fimoScores[t]));
 
     long double bin1_d = 1.0;
     long double bin2_d = 0.0;
     if (setObs.truncCounts[t] > 0)
     {
-        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred);
-        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred);
+        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred, options);
+        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
     }
     eProbs[0] = g1_d * bin1_d;    
     eProbs[1] = g1_d * bin2_d;
@@ -323,9 +315,9 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
 template<typename TEProbs, typename TSetObs, typename TDOUBLE>
 bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, unsigned t, AppOptions &options)
 {
-    double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
-    double d1_pred = exp(d1.b0 + d1.b1 * x);
-    double d2_pred = exp(d2.b0 + d2.b1 * x);
+    long double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
+    long double d1_pred = exp(d1.b0 + d1.b1 * x);
+    long double d2_pred = exp(d2.b0 + d2.b1 * x);
 
     long double g1_d = 1.0;
     long double g2_d = 0.0;
@@ -335,15 +327,15 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
         g2_d = d2.getDensity(setObs.kdes[t], d2_pred, options); 
     }
     unsigned mId = setObs.motifIds[t];
-    double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs.fimoScores[t]));
-    double bin2_pred = 1.0/(1.0+exp(-bin2.b0 - bin2.regCoeffs[mId]*setObs.fimoScores[t]));
+    long double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs.fimoScores[t]));
+    long double bin2_pred = 1.0/(1.0+exp(-bin2.b0 - bin2.regCoeffs[mId]*setObs.fimoScores[t]));
 
     long double bin1_d = 1.0;
     long double bin2_d = 0.0;
     if (setObs.truncCounts[t] > 0)
     {
-        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred);
-        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred);
+        bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred, options);
+        bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
     }
     eProbs[0] = g1_d * bin1_d;    
     eProbs[1] = g1_d * bin2_d;
@@ -437,7 +429,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
                     std::cout << "NOTE: Try running PureCLIP in high floating-point precision mode (long double, parameter '-ld')." << std::endl;
                 }
             }
-            else if (!learning && discardInterval)
+            else if (!learning && discardInterval) 
             {
                 this->setObs[s][i].discard = true;
                 SEQAN_OMP_PRAGMA(critical) 
@@ -669,8 +661,8 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriors()
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
 {
-    String<String<double> > A = this->transMatrix;
-    String<String<double> > p;
+    String<String<long double> > A = this->transMatrix;
+    String<String<long double> > p;
     resize(p, this->K, Exact());
     for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
     {
@@ -679,8 +671,8 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
         for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
             p[k_1][k_2] = 0.0;
     }
-    double p_2_2 = 0.0;     // for separate learning of trans. prob from '2' -> '2'
-    double p_2_3 = 0.0;     // for separate learning of trans. prob from '2' -> '3' 
+    long double p_2_2 = 0.0;     // for separate learning of trans. prob from '2' -> '2'
+    long double p_2_3 = 0.0;     // for separate learning of trans. prob from '2' -> '3' 
 
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -751,10 +743,10 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                 this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
 
             // compute new transitioon probs
-            String<String<double> > p_i;
+            String<String<long double> > p_i;
             resize(p_i, this->K, Exact());
-            double p_2_2_i = 0.0;
-            double p_2_3_i = 0.0;
+            long double p_2_2_i = 0.0;
+            long double p_2_3_i = 0.0;
             for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
             {
                 resize(p_i[k_1], this->K, Exact());
@@ -785,7 +777,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
     // update transition matrix
     for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
     {
-        double denumerator = 0.0;
+        long double denumerator = 0.0;
         for (unsigned k_3 = 0; k_3 < this->K; ++k_3)
         {
             denumerator += p[k_1][k_3]; 
@@ -802,7 +794,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
     // Fix p[2->2/3] using only transition prob for region over nThresholdForP, while keeping sum of p[2->2] and p[2->3] constant! (if user options says so) 
     if (options.nThresholdForTransP > 0)
     {
-        double sum_2_23 = A[2][2] + A[2][3];
+        long double sum_2_23 = A[2][2] + A[2][3];
         A[2][2] = sum_2_23 * p_2_2/(p_2_2 + p_2_3);
         A[2][3] = sum_2_23 * p_2_3/(p_2_2 + p_2_3);
     }
@@ -823,8 +815,8 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 {
-    String<String<double> > A = this->transMatrix;
-    String<String<double> > p;
+    String<String<long double> > A = this->transMatrix;
+    String<String<long double> > p;
     resize(p, this->K, Exact());
     for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
     {
@@ -1112,7 +1104,7 @@ long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi(String<String<String<__uint8> > 
             {
                 resize(states[s][i], this->setObs[s][i].length(), Exact());
                 // store for each t and state maximizing precursor joint probability of state sequence and observation
-                String<String<TDOUBLE> > vits;
+                String<String<long double> > vits;
                 resize(vits, this->setObs[s][i].length(), Exact());
                 for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
                     resize(vits[t], this->K, Exact());
@@ -1130,11 +1122,11 @@ long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi(String<String<String<__uint8> > 
                 {
                     for (unsigned k = 0; k < this->K; ++k)
                     {
-                        TDOUBLE max_v = vits[t-1][0] * this->transMatrix[0][k];
+                        long double max_v = vits[t-1][0] * this->transMatrix[0][k];
                         unsigned max_k = 0;
                         for (unsigned k_p = 1; k_p < this->K; ++k_p)
                         {
-                            TDOUBLE v = vits[t-1][k_p] * this->transMatrix[k_p][k];
+                            long double v = vits[t-1][k_p] * this->transMatrix[k_p][k];
                             if (v > max_v)
                             {
                                 max_v = v;
@@ -1146,7 +1138,7 @@ long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi(String<String<String<__uint8> > 
                     }
                 }
                 // backtracking
-                TDOUBLE max_v = vits[this->setObs[s][i].length() - 1][0];
+                long double max_v = vits[this->setObs[s][i].length() - 1][0];
                 unsigned max_k = 0;
                 for (unsigned k = 1; k < this->K; ++k)
                 {
@@ -1181,7 +1173,7 @@ long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi_log(String<String<String<__uint8
             {
                 resize(states[s][i], this->setObs[s][i].length(), Exact());
                 // store for each t and state maximizing precursor joint probability of state sequence and observation
-                String<String<TDOUBLE> > vits;
+                String<String<long double> > vits;
                 resize(vits, this->setObs[s][i].length(), Exact());
                 for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
                     resize(vits[t], this->K, Exact());
@@ -1201,7 +1193,7 @@ long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi_log(String<String<String<__uint8
                 {
                     for (unsigned k = 0; k < this->K; ++k)
                     {
-                        TDOUBLE max_v = vits[t-1][0] + log(this->transMatrix[0][k]);
+                        long double max_v = vits[t-1][0] + log(this->transMatrix[0][k]);
                         unsigned max_k = 0;
                         for (unsigned k_p = 1; k_p < this->K; ++k_p)
                         {
@@ -1217,7 +1209,7 @@ long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi_log(String<String<String<__uint8
                     }
                 }
                 // backtracking
-                TDOUBLE max_v = vits[this->setObs[s][i].length() - 1][0];
+                long double max_v = vits[this->setObs[s][i].length() - 1][0];
                 unsigned max_k = 0;
                 for (unsigned k = 1; k < this->K; ++k)
                 {
@@ -1318,9 +1310,10 @@ void writeStates(BedFileOut &outBed,
 {  
     for (unsigned s = 0; s < 2; ++s)
     {
-        for (unsigned i = 0; i < length(data.states[s]); ++i)
+        for (unsigned i = 0; i < length(data.setObs[s]); ++i)    // data.states[s]
         {
-            for (unsigned t = 0; t < length(data.states[s][i]); ++t)
+            // note: could skip discarded intervals here ...
+            for (unsigned t = 0; t < data.setObs[s][i].length(); ++t)        // length(data.states[s][i])
             {
                 if (options.outputAll && data.setObs[s][i].truncCounts[t] >= 1 && !data.setObs[s][i].discard)
                 {
@@ -1394,7 +1387,7 @@ void writeStates(BedFileOut &outBed,
 
                     writeRecord(outBed, record);
                 }
-                else  if (options.outputAll && data.setObs[s][i].truncCounts[t] >= 1 && data.setObs[s][i].discard)  // NOTE discarded interval
+                else if (data.setObs[s][i].discard && options.outputAll && data.setObs[s][i].truncCounts[t] >= 1)  // discarded interval
                 {
                     BedRecord<Bed6> record;
 
@@ -1460,8 +1453,7 @@ void writeStates(BedFileOut &outBed,
 
                     writeRecord(outBed, record);
                 }
-
-                else if (data.states[s][i][t] == 3 && !data.setObs[s][i].discard)
+                else if (!data.setObs[s][i].discard && data.states[s][i][t] == 3)
                 {
                     BedRecord<Bed6> record;
 
@@ -1528,7 +1520,7 @@ void writeRegions(BedFileOut &outBed,
         {
             for (unsigned t = 0; t < length(data.states[s][i]); ++t)
             {
-                if (data.states[s][i][t] == 3 && !data.setObs[s][i].discard)
+                if (!data.setObs[s][i].discard && data.states[s][i][t] == 3)
                 {
                     BedRecord<Bed6> record;
                     record.ref = store.contigNameStore[contigId];
@@ -1636,7 +1628,7 @@ void myPrint(HMM<TGAMMA, TBIN, TDOUBLE> &hmm)
 
 
 template<typename TOut>
-void printParams(TOut &out, String<String<double> > &transMatrix)
+void printParams(TOut &out, String<String<long double> > &transMatrix)
 {
     out << "Transition probabilities:" << std::endl;
     for (unsigned k_1 = 0; k_1 < 4; ++k_1)

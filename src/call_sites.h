@@ -230,39 +230,49 @@ int loadObservations(TContigObservations &contigObservationsF, TContigObservatio
 
 
 template <typename TStore, typename TOptions>
-bool loadBAMCovariates(Data &data, TStore &store, TOptions &options)
+bool loadBAMCovariates(Data &data, TStore &store, bool parallelize, TOptions &options)
 {
-    if (options.verbosity >= 2) std::cout << "Parse alignments ... " << std::endl;
-
-    // Open BamFileIn for reading.
-    std::cout << "Open Bam and Bai file ... "  << "\n";
-    BamFileIn inFile;
-    if (!open(inFile, toCString(options.inputBamFileName)))
-    {
-        std::cerr << "ERROR: Could not open " << options.inputBamFileName << " for reading.\n";
-        return false;
-    }
-    BamHeader header;
-    readHeader(header, inFile);
-    // Read BAI index.
-    BamIndex<Bai> baiIndex;
-    if (!open(baiIndex, toCString(options.inputBaiFileName)))
-    {
-        std::cerr << "ERROR: Could not read BAI index file " << options.inputBaiFileName << "\n";
-        return false;
-    }
-
     if (options.verbosity >= 1) std::cout << "  Parse input BAM, get truncCounts, compute KDEs ... " << std::endl;
+
+    bool stop = false;
+#if HMM_PARALLEL
+    SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(parallelize ? 2 : 1))
+#endif 
     for (unsigned s = 0; s < 2; ++s)
     {
+        // Open BamFileIn for reading.
+        SEQAN_OMP_PRAGMA(critical)
+        std::cout << "Open Bam and Bai file ... (strand: " << s << ")\n";
+        BamFileIn inFile;
+        if (!open(inFile, toCString(options.inputBamFileName)))
+        {
+            SEQAN_OMP_PRAGMA(critical)
+            std::cerr << "ERROR: Could not open " << options.inputBamFileName << " for reading.\n";
+            stop = true;
+            continue;
+        }
+        BamHeader header;
+        readHeader(header, inFile);
+        // Read BAI index.
+        BamIndex<Bai> baiIndex;
+        if (!open(baiIndex, toCString(options.inputBaiFileName)))
+        {
+            SEQAN_OMP_PRAGMA(critical)
+            std::cerr << "ERROR: Could not read BAI index file " << options.inputBaiFileName << "\n";
+            stop = true;
+            continue;
+        }
+
         for (unsigned i = 0; i < length(data.setObs[s]); ++i)
         {
             // Translate from contig name to rID.
             int rID = 0;
             if (!getIdByName(rID, contigNamesCache(context(inFile)), store.contigNameStore[data.setObs[s][i].contigId]))
             {
+                SEQAN_OMP_PRAGMA(critical)
                 std::cerr << "ERROR: Contig " << store.contigNameStore[data.setObs[s][i].contigId] << " not known.\n";
-                return false; 
+                stop = true;
+                continue;
             }
             String<__uint16> truncCounts;
             resize(truncCounts, data.setObs[s][i].length(), 0, Exact());
@@ -285,6 +295,7 @@ bool loadBAMCovariates(Data &data, TStore &store, TOptions &options)
             data.setObs[s][i].computeKDEs(truncCounts, options);
         }
     }
+    if (stop) return false;
 
     if (options.verbosity >= 2) std::cout << "... BAM covariates loaded" << std::endl;
     return true;
@@ -802,13 +813,19 @@ void computeSLR(double &b0, double &b1, Data &data, TOptions &options) // TODO c
 
 
 template <typename TStore, typename TOptions>
-void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, TOptions &options)
+void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, bool parallelize, TOptions &options)
 {
     if (options.verbosity >= 1) std::cout << "  Compute KDEs ... " << std::endl;
     for (unsigned s = 0; s < 2; ++s)
+    {
+#if HMM_PARALLEL
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(parallelize ? options.numThreads : 1)) 
+#endif
         for (unsigned i = 0; i < length(data.setObs[s]); ++i)
+        {
             data.setObs[s][i].computeKDEs(options);
-    
+        }
+    } 
     
     if (options.verbosity >= 1) std::cout << "  Estiamte Ns ... " << options.estimateNfromKdes << std::endl;
     if (options.estimateNfromKdes && b0 == 0.0 && b1 == 0.0) 
@@ -817,6 +834,9 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, T
     // estimate Ns (bin(k; p, N)): either by using raw counts or by using KDEs
     for (unsigned s = 0; s < 2; ++s)
     {
+#if HMM_PARALLEL
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(parallelize ? options.numThreads : 1)) 
+#endif
         for (unsigned i = 0; i < length(data.setObs[s]); ++i)
         {
             if (options.estimateNfromKdes) 
@@ -831,14 +851,14 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, T
     // if input BAM file given
     if (options.useCov_RPKM && !empty(options.inputBamFileName))
     {
-        loadBAMCovariates(data, store, options);       // interval-wise
+        loadBAMCovariates(data, store, parallelize, options);       // interval-wise
     }
 }
 
 
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool learnHMM(Data &data, 
-              String<String<double> > &transMatrix_1,
+              String<String<long double> > &transMatrix_1,
               TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2,
               TDOUBLE /**/,
               unsigned &contigLen,
@@ -901,7 +921,7 @@ bool learnHMM(Data &data,
 
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool applyHMM(Data &data, 
-              String<String<double> > &transMatrix_1,
+              String<String<long double> > &transMatrix_1,
               TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2,
               TDOUBLE /**/,
               unsigned &contigLen,
@@ -910,6 +930,7 @@ bool applyHMM(Data &data,
 #ifdef HMM_PROFILE
     double timeStamp = sysTime();
 #endif
+
     if (options.verbosity >= 1) std::cout << "   build HMM" << std::endl;
     HMM<TGAMMA, TBIN, TDOUBLE> hmm(4, data.setObs, data.setPos, contigLen);
     hmm.transMatrix = transMatrix_1;
@@ -1112,14 +1133,14 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
         computeSLR(slr_NfromKDE_b0, slr_NfromKDE_b1, data, options);
   
     // precompute KDE values, estimate Ns, etc.
-    preproCoveredIntervals(data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
+    preproCoveredIntervals(data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, true, options);
  
     gamma1.tp = options.useKdeThreshold;
     gamma2.tp = options.useKdeThreshold;       // left tuncated    
 
     if (options.verbosity >= 1) std::cout << "Prior ML estimation of density distribution parameters using predefined cutoff ..." << std::endl;
     prior_mle(gamma1, gamma2, data, options);
-    String<String<double> > transMatrix;
+    String<String<long double> > transMatrix;
     estimateTransitions(transMatrix, gamma1, gamma2, bin1, bin2, data, options);
 
     unsigned contigLen = 0; // should not be used within learning
@@ -1177,11 +1198,9 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
             resize(c_data.states, 2); 
             extractCoveredIntervals(c_data, contigObservationsF, contigObservationsR, c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, false, store, options); 
 
-            if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   // TODO handle cases
+            if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   
             {
-
-                preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
-
+                preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, false, options);
                 // Apply learned parameters
                 unsigned contigLen = length(store.contigStore[contigId].seq);
                 if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, contigLen, options))
@@ -1189,7 +1208,6 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
                     SEQAN_OMP_PRAGMA(critical)
                     stop = true;
                 }
-
                 // Temp. output
                 CharString tempFileNameBed;
 
@@ -1210,7 +1228,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
 
                 contigTempFileNamesBed[contigId] = tempFileNameBed;
                 if (options.verbosity >= 2) std::cout << "temp file Name: " << tempFileNameBed << std::endl;
-                BedFileOut outBed(toCString(tempFileNameBed)); 
+                BedFileOut outBed(toCString(tempFileNameBed));
                 writeStates(outBed, c_data, store, contigId, options);  
                 
                 if (!empty(options.outRegionsFileName))
@@ -1242,6 +1260,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     }
     if (stop) return 1;
 
+    if (options.verbosity >= 2) std::cout << "Merge output files ... " << std::endl;
     // Append content of temp files to final output in contig order
     // crosslink sites
     BedFileOut outBed(toCString(options.outFileName)); 

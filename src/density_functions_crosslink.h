@@ -49,14 +49,14 @@ template<typename TDOUBLE>
 class ZTBIN
 {
 public:
-    ZTBIN(double p_): p(p_) {}
+    ZTBIN(long double p_): p(p_) {}
     ZTBIN() {}
  
-    long double getDensity(unsigned const &k, unsigned const &n);
+    long double getDensity(unsigned const &k, unsigned const &n, AppOptions const& options);
 
     void updateP(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
 
-    double p;
+    long double p;
 };
 
 
@@ -74,7 +74,7 @@ void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors,
         {
             for (unsigned t = 0; t < setObs[s][i].length(); ++t)
             {
-                if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0)     // avoid deviding by 0 (NOTE !), zero-truncated
+                if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && setObs[s][i].nEstimates[t] <= options.maxBinN)     // avoid deviding by 0 (NOTE !), zero-truncated
                 {
                     // p^ = (k-1)/(n-1); 'Truncated Binomial and Negative Binomial Distributions' Rider, 1955
                     unsigned k = setObs[s][i].truncCounts[t];
@@ -95,24 +95,39 @@ void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors,
 
 // k: diagnostic events (de); n: read counts (c)
 template<typename TDOUBLE> 
-long double ZTBIN<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n)
+long double ZTBIN<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, AppOptions const&options)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
-    unsigned n2 = (n > k) ? (n) : (k);          // make sure n >= k      (or limit k?) 
+    unsigned n2 = n;
+    if (n > options.maxBinN)    // limit to keep eProbs > 0.0 (might cause FPs, but probably ok if also classified as 'enriched', no need to discard whole interval here!)
+    {
+        n2 = options.maxBinN;
+        //if (options.verbosity >= 2) std::cout << "NOTE: set n from " << n << " to " << options.maxBinN << " within binomial PDF computation." << std::endl;   
+    }
+    unsigned k2 = k;
+    if (k > options.maxBinN)
+    {
+        k2 = options.maxBinN;
+        //if (options.verbosity >= 2) std::cout << "NOTE: set k from " << k << " to " << options.maxBinN << " within binomial PDF computation." << std::endl; 
+    }
+    n2 = (n2 > k2) ? (n2) : (k2);          // make sure n >= k      (or limit k?)
   
     // use boost implementation, maybe avoids overflow
     boost::math::binomial_distribution<long double> boostBin;
     boostBin = boost::math::binomial_distribution<long double> ((int)n2, this->p); 
 
-    long double res = boost::math::pdf(boostBin, k);
-    if (std::isnan(res))   // or any other error?
+    long double res = boost::math::pdf(boostBin, k2);
+    if (std::isnan(res) || std::isinf(res))   // or any other error?
     {
         std::cerr << "ERROR: binomial pdf is : " << res << std::endl;
         return 0.0;
     }
     return res * (long double)(1.0/(1.0 - pow((1.0 - this->p), n2)));     // zero-truncated
 }
+
+// max k?
+// 
 
 
 template<typename TDOUBLE>
