@@ -235,6 +235,7 @@ bool loadBAMCovariates(Data &data, TStore &store, bool parallelize, TOptions &op
     if (options.verbosity >= 1) std::cout << "  Parse input BAM, get truncCounts, compute KDEs ... " << std::endl;
 
     bool stop = false;
+    // TODO check if working
 #if HMM_PARALLEL
     SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(parallelize ? 2 : 1))
 #endif 
@@ -584,11 +585,12 @@ void extractCoveredIntervals(Data &data,
     unsigned prev_c2 = i1;
     bool prev_dis = false;
     if (options.verbosity >= 2) std::cout << "F: Parse covered intervals and get observations  ..." << "i1: " << i1 << " i2: " << i2 <<  std::endl;
-    while (i < i2)
+    while (i < i2 && (prev_c2 < i2 && !prev_dis))
     {
 
         while (i < i2 && contigObservationsF.truncCounts[i] == 0) ++i;    // find begin of covered interval     
         c1 = i;
+        //std::cout << "TEST: i " << i << std::endl;
         if (((int)c1 - (int)options.intervalOffset) > (int)prev_c2)    // if gap bigger than intervalOffset, shift c1 to left
         {
             c1 -= options.intervalOffset;
@@ -611,8 +613,9 @@ void extractCoveredIntervals(Data &data,
         else       
         {                                   // else merge with previous interval 
             c1 = prev_c1;
+            //std::cout << "TEST: eraseBack .. set c1 " << c1 << std::endl;
             eraseBack(data.setObs[0]); 
-            eraseBack(data.setPos[0]);
+            eraseBack(data.setPos[0]);    
         }
         prev_c1 = c1;
         ++i;
@@ -658,10 +661,11 @@ void extractCoveredIntervals(Data &data,
         {
             observations.fimoScores = infix(contigCovsFimo[0], c1, c2); 
             observations.motifIds = infix(motifIds[0], c1, c2); 
-        } 
+        }
+        //std::cout << "TEST: append c1 " << c1 << " c2: " << c2 << std::endl;
         appendValue(data.setObs[0], observations, Generous());
         appendValue(data.setPos[0], c1, Generous());
-    } 
+    }
     // REVERSE 
     unsigned i1_R = length(contigObservationsR.truncCounts) - i2;
     unsigned i2_R = length(contigObservationsR.truncCounts) - i1;
@@ -670,7 +674,7 @@ void extractCoveredIntervals(Data &data,
     prev_c2 = i1_R;
     prev_dis = false;
     if (options.verbosity >= 2) std::cout << "R: Parse covered intervals and get observations  ..." << "i1_R: " << i1_R << " i2_R: " << i2_R << std::endl;
-    while (i < i2_R)
+    while (i < i2_R && (prev_c2 < i2_R && !prev_dis))
     {
         while (i < i2_R && contigObservationsR.truncCounts[i] == 0) ++i;    // find begin of covered interval
         c1 = i;
@@ -941,14 +945,14 @@ bool applyHMM(Data &data,
         hmm.posteriorDecoding(data.states);
     else
         hmm.viterbi_log(data.states);
-
-    if (options.verbosity >= 2)
-    {
-        std::cout << "Intermediate parameters after applyHMM():" << std::endl;
-        myPrint(hmm);
-        myPrint(d1);
-        myPrint(d2);
-    }
+// 
+//     if (options.verbosity >= 2)
+//     {
+//         std::cout << "Intermediate parameters after applyHMM():" << std::endl;
+//         myPrint(hmm);
+//         myPrint(d1);
+//         myPrint(d2);
+//     }
  
     if (options.useCov_RPKM)    // NOTE: otherwise not necessary, since gamma1.k <= 1
         hmm.rmBoarderArtifacts(data.states, d1);

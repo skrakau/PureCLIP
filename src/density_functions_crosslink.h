@@ -100,18 +100,8 @@ long double ZTBIN<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, App
     if (k == 0) return 0.0;     // zero-truncated
 
     unsigned n2 = n;
-    if (n > options.maxBinN)    // limit to keep eProbs > 0.0 (might cause FPs, but probably ok if also classified as 'enriched', no need to discard whole interval here!)
-    {
-        n2 = options.maxBinN;
-        //if (options.verbosity >= 2) std::cout << "NOTE: set n from " << n << " to " << options.maxBinN << " within binomial PDF computation." << std::endl;   
-    }
     unsigned k2 = k;
-    if (k > options.maxBinN)
-    {
-        k2 = options.maxBinN;
-        //if (options.verbosity >= 2) std::cout << "NOTE: set k from " << k << " to " << options.maxBinN << " within binomial PDF computation." << std::endl; 
-    }
-    n2 = (n2 > k2) ? (n2) : (k2);          // make sure n >= k      (or limit k?)
+    n2 = (n2 > k2) ? n2 : k2;          // make sure n >= k      (or limit k?)
   
     // use boost implementation, maybe avoids overflow
     boost::math::binomial_distribution<long double> boostBin;

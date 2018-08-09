@@ -187,18 +187,8 @@ long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n,
     if (k == 0) return 0.0;     // zero-truncated
 
     unsigned n2 = n;
-    if (n > options.maxBinN)    // limit to keep eProbs > 0.0
-    {
-        n2 = options.maxBinN;
-        //if (options.verbosity >= 2) std::cout << "NOTE: set n from " << n << " to " << options.maxBinN << " within binomial PDF computation." << std::endl;   
-    }
     unsigned k2 = k;
-    if (k > options.maxBinN)
-    {
-        k2 = options.maxBinN;
-        //if (options.verbosity >= 2) std::cout << "NOTE: set k from " << k << " to " << options.maxBinN << " within binomial PDF computation." << std::endl; 
-    }
-    n2 = (n2 > k2) ? (n2) : (k2);          // make sure n >= k      (or limit k?)
+    n2 = (n2 > k2) ? n2 : k2;          // make sure n >= k      (or limit k?)
     
     // use boost implementation, maybe avoids overflow
     boost::math::binomial_distribution<long double> boostBin;
@@ -219,18 +209,8 @@ long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n,
     if (k == 0) return 0.0;     // zero-truncated
 
     unsigned n2 = n;
-    if (n > options.maxBinN)    // limit to keep eProbs > 0.0
-    {
-        n2 = options.maxBinN;
-        //if (options.verbosity >= 2) std::cout << "NOTE: set n from " << n << " to " << options.maxBinN << " within binomial PDF computation." << std::endl;   
-    }
     unsigned k2 = k;
-    if (k > options.maxBinN)
-    {
-        k2 = options.maxBinN;
-        //if (options.verbosity >= 2) std::cout << "NOTE: set k from " << k << " to " << options.maxBinN << " within binomial PDF computation." << std::endl; 
-    }
-    n2 = (n2 > k2) ? (n2) : (k2);          // make sure n >= k      (or limit k?)
+    n2 = (n2 > k2) ? n2 : k2;          // make sure n >= k      (or limit k?)
    
     long double pred = 1.0/(1.0+exp(- this->b0));
 

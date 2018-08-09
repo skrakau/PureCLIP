@@ -166,7 +166,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("mrtf", "mrtf", "Fit gamma shape k only for positions with min. covariate value.", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("mtc", "mtc", "Maximum number of truncations at one position used for learning. For sites with counts above threshold the whole covered regions will be ignored for learning! Default: 250.", ArgParseArgument::INTEGER));
     setMinValue(parser, "mtc", "50");
-    setMaxValue(parser, "mtc", "4000"); 
+    setMaxValue(parser, "mtc", "50000"); 
 
     addOption(parser, ArgParseOption("pet", "pet", "Prior enrichment threshold: a KDE threshold corresponding to 7 read start counts at one position will be used for initial classification of 'non-enriched' and 'enriched' site. Default: 7", ArgParseArgument::INTEGER));
     setMinValue(parser, "pet", "2");

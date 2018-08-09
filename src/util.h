@@ -48,7 +48,7 @@ namespace seqan {
         CharString inputBaiFileName;
         CharString fimoFileName;
 
-	bool crosslinkAtTruncSite;
+	    bool crosslinkAtTruncSite;
         CharString                  intervals_str;
         String<unsigned>            intervals_contigIds;
         String<String<unsigned> >   intervals_positions;
@@ -158,8 +158,8 @@ namespace seqan {
             get_nThreshold(false),          // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
-            maxBinN(4001),                  // avoid eProbs of 0s for extreme values, sites above not used for learning
-            min_eProbSum(1e-200),           // make sure eProbs not getting too low, will cause crash during FB-algorithm -> set depending on precision mode 
+            maxBinN(50000),                 // sites above not used for learning
+            min_eProbSum(1e-200),           // make sure eProbs not getting too low, will cause crash during FB-algorithm -> set depending on precision mode
             polyAThreshold(10),
             excludePolyAFromLearning(false),
             excludePolyTFromLearning(false),
@@ -174,8 +174,8 @@ namespace seqan {
             minRPKMtoFit(-5.0),
             mrtf_kdeSglt(true),                 // use singleton KDE value as mrtf for GLM fitting (assuming same bandwidth for input KDEs!)
             discardSingletonIntervals(true),    // delete intervals with singleton reads to save memory (and runtime) !! influence on transProbs?
-            maxTruncCount(250),                 // used to ignore intervals for learning
-            maxTruncCount2(10000),              // to store, larger values are truncated to this value, avoid overflow of n 
+            maxTruncCount(500),                 // used to ignore intervals for learning
+            maxTruncCount2(65000),              // to store, larger values are truncated to this value, avoid overflow of n 
             useFimoScore(false),
             nInputMotifs(1),
             distMerge(8),
