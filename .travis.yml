@@ -57,6 +57,9 @@ script:
 deploy:
   skip_cleanup: true
   provider: releases
+  draft: true
+  tag_name: $TRAVIS_TAG # Workaround for Travis bug
+  target_commitish: $TRAVIS_COMMIT # Workaround for Travis bug
   api_key:
     secure: PiqTCnGo/oM8hkj+RwNj47F9KcD7E26tdQ1ZoJlRCoG7UK35dnjBDNsK7TwUp1jT9VQ7J7WckD3VjybLkeDL0D+4rHLkBJWtmViIU/cH1aGg1ltksjREgeB8El5FUVXQkd3RND02aPjqKsIdXlIEo7Z8wmQtTPhAQULqQLUBQzT5BAZq7mQJYPo3n2MpicwFQ6BrjCB0mB9+v/hgKaxEepED+rA5WhUG8djLrrwJ9X5sIdj13kwrbJwgBwdzGAKdoabZ/Sh7+nbK/YNilntnNxEdhD+WUhswOxEPuDuB+TsdTB96wrbAdrJctHIWIlDdgFiyn+gCpvvitTNG/JPZKa0z06NpqRcwqpvzPnAmNeQHw5F7qgvqB5zhoT2e9Xfvem4Rg1MwIhte+qDLCS6s7ySOvW+4+FCZXgSDHOC+wo4e40f382UmmbPctLplw04H9uEsYpF2vzVr1KNbCqigGetLz3OEHoSmjtrxpsgrMAcfvy1nmSK6vY1ESljD0zVVShHw4sVzOprE2jY93z49hQMZo9D0PbJRIh5arydMcdD4B7BKXS1/zM1XtWZRzNaJH8Rzw0jWPSLbtx7igfyZ/jOEdNIziS3KdacEJHEU5dkGoF7WovcAffZNxpWwQefry5Es8ox4MsI+A22jZ9YBIqqLK2+Lf3aOiP9Zn39ByI4=
   file_glob: True
