@@ -23,5 +23,25 @@ For a full list of user options, please type:
     With this we avoid the parameter learning to be impaired by lower covered regions where no distinction between 'crosslink' and 'non-crosslink' states is possible.
 
 
+Remarks
+---------------
 
+Floating point precision:
+
+ - By default PureCLIP stores emission, state posterior and forward-backward probabilities as double floating-point numbers. However, for some data, in particular when including background control data that additionally contains artefacts, emission probabilities of outliers can become very small. In such cases, in order to allow the required computations, a higher floating point precision is required, i.e. long double precision, which can be applied with the parameter ``-ld``. Note that this comes with a higher memory consumption.
+
+
+Training set to learn model parameters:
+
+ - In order to reduce the memory consumption of PureCLIP, we learned the model parameters used in the PureCLIP paper only for a subset of chromosomes, i.e. ``-iv 'chr1;chr2;chr3;'``. When using PureCLIP in basic mode, i.e. without incorporating any covariates, for the evaluated data this does not significantly change the results. However, it should be noted that when incorporating input signal, PureCLIPs precision usually improves when learning on a larger set.
+
+
+Gamma shape parameters when incorporating background control data:
+
+ - By default, PureCLIP enforces the shape parameter of the 'non-enriched' gamma distribution to be less or equal than the shape parameter of the 'enriched' distribution. This constraint can be turned off using ``-fk`` (it could be observed to improve results for some datasets).
+
+
+Mapping artefacts:
+
+ - In general mapping artefacts should be handled during preprocessing. However, the parameter ``-mkn`` can be used to define the max. k/N ratio (#read start sites/fragment coverage in region) when learning truncation probabilities for the 'non-crosslink' and 'crosslink' states. A large number of extreme high ratios, e.g. 1, might originate from mapping artifacts and can disturb the parameter learning so that PureCLIP becomes insensitive for sites with lower ratios.
 

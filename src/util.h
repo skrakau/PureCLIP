@@ -93,6 +93,8 @@ namespace seqan {
         double get_nThreshold;
         double minTransProbCS;
         double maxkNratio;
+        unsigned maxBinN;
+        long double min_eProbSum;
 
         unsigned polyAThreshold;
         bool excludePolyAFromLearning;
@@ -101,6 +103,9 @@ namespace seqan {
         bool excludePolyT;
 
         bool gslSimplex2;
+        long double min_nligf;
+        double kMin_simplex;
+        double kMax_simplex;
 
         bool useCov_RPKM;
         bool useLogRPKM;
@@ -132,7 +137,7 @@ namespace seqan {
             prior_enrichmentThreshold(7),   // KDE threshold is used corresponding to 7 read starts at one position
             maxIter_brent(100),              // brent
             maxIter_bw(50),                  // baum-welch
-            maxIter_simplex(200),           // simplex            
+            maxIter_simplex(2000),           // simplex            
             g1_kMin(1.0),                   // shape parameter for gamma distribution; set min. to avoid eProbs getting zero!
             g2_kMin(1.0),
             g1_kMax(10.0),
@@ -161,19 +166,24 @@ namespace seqan {
             get_nThreshold(false),          // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
+            maxBinN(50000),                 // sites above not used for learning
+            min_eProbSum(1e-200),           // make sure eProbs not getting too low, will cause crash during FB-algorithm -> set depending on precision mode
             polyAThreshold(10),
             excludePolyAFromLearning(false),
             excludePolyTFromLearning(false),
             excludePolyA(false),
             excludePolyT(false),
             gslSimplex2(true),
+            min_nligf(0.99999999),          // min. normalized lower incomplete gamma function. NOTE: precission of boost computation is limited, set to min. value in order to avoid 1s!
+            kMin_simplex(0.5),              // not used currently ...
+            kMax_simplex(15.0),
             useCov_RPKM(false),
             useLogRPKM(true),
             minRPKMtoFit(-5.0),
             mrtf_kdeSglt(true),                 // use singleton KDE value as mrtf for GLM fitting (assuming same bandwidth for input KDEs!)
             discardSingletonIntervals(true),    // delete intervals with singleton reads to save memory (and runtime) !! influence on transProbs?
-            maxTruncCount(250),                 // used to ignore intervals for learning
-            maxTruncCount2(5000),                 // to store
+            maxTruncCount(500),                 // used to ignore intervals for learning
+            maxTruncCount2(65000),              // to store, larger values are truncated to this value, avoid overflow of n 
             useFimoScore(false),
             nInputMotifs(1),
             distMerge(8),
@@ -230,15 +240,18 @@ namespace seqan {
         Infix<String<__uint16> >::Type truncCounts;
         unsigned contigId; 
 
-        String<__uint16>    nEstimates;      
+        String<__uint32>    nEstimates;      
         String<double>      kdes;       // used for 'enriched'. 'non-enriched' classification
         String<double>      kdesN;    // used to estimate the binomial n parameters (decoupled, might be useful e.g. for longer crosslink clusters) 
         String<double>      rpkms;      // TODO change name -> e.g. bgSignal
         String<float>       fimoScores; // for each t: one motif score
         String<char>        motifIds; // for each t: one motif score
+        bool                discard;    // NOTE: only use for application, not for learning!
 
-        Observations(Infix<String<__uint16> >::Type _truncCounts) : truncCounts(_truncCounts) {}
-        Observations() : truncCounts() {}
+        Observations(Infix<String<__uint16> >::Type _truncCounts) : truncCounts(_truncCounts),
+                                                                    discard(false) {}
+        Observations() : truncCounts(),
+                         discard(false) {}
 
         void estimateNs(AppOptions &options);                       // using raw counts
         void estimateNs(double b0, double b1, AppOptions /*&options*/); // using KDEs

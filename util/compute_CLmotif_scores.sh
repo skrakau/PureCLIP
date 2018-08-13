@@ -33,12 +33,12 @@ fi
 bedtools="bedtools"
 if [ "$BEDTOOLS"x != "x" ]; then
   bedtools="$BEDTOOLS"
-  if [ ! -e "$bedtools" ]; then
+  if ! "$bedtools" --version >/dev/null 2>&1; then
     echo "Specified BEDTOOLS='$bedtools' not found."
     exit 1
   fi
 else
-  if ! type "$bedtools" >/dev/null 2>&1; then
+  if ! "$bedtools" --version >/dev/null 2>&1; then
     echo "Cannot find bedtools. Specify bedtools in BEDTOOLS environment variable"
     exit 1
   fi
@@ -47,12 +47,12 @@ fi
 fimo="fimo"
 if [ "$FIMO"x != "x" ]; then
   fimo="$FIMO"
-  if ! $fimo --version >/dev/null; then
+  if ! "$fimo" --version >/dev/null 2>&1; then
     echo "Specified FIMO='$fimo' not found."
     exit 1
   fi
 else
-  if ! type "$fimo" >/dev/null 2>&1; then
+  if ! "$fimo" --version >/dev/null 2>&1; then
     echo "Cannot find fimo. Specify fimo in FIMO environment variable"
     exit 1
   fi

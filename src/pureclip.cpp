@@ -52,8 +52,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     ArgumentParser parser("pureclip");
     // Set short description, version, and date.
     setShortDescription(parser, "Protein-RNA interaction site detection ");
-    setVersion(parser, "1.0.4");
-    setDate(parser, "July 2018");
+    setVersion(parser, "1.1.1");
+    setDate(parser, "August 2018");
 
     // Define usage line and long description.
     addUsageLine(parser, "[\\fIOPTIONS\\fP] <-i \\fIBAM FILE\\fP> <-bai \\fIBAI FILE\\fP> <-g \\fIGENOME FILE\\fP> <-o \\fIOUTPUT BED FILE\\fP> ");
@@ -139,9 +139,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setMaxValue(parser, "mibw", "500");
     addOption(parser, ArgParseOption("g1kmin", "g1kmin", "Minimum shape k of 'non-enriched' gamma distribution (g1.k).", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("g1kmax", "g1kmax", "Maximum shape k of 'non-enriched' gamma distribution (g1.k).", ArgParseArgument::DOUBLE));
+    setMinValue(parser, "g1kmin", "1.5");   
     addOption(parser, ArgParseOption("g2kmin", "g2kmin", "Minimum shape k of 'enriched' gamma distribution (g2.k).", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("g2kmax", "g2kmax", "Maximum shape k of 'enriched' gamma distribution (g2.k).", ArgParseArgument::DOUBLE));
-    //addOption(parser, ArgParseOption("g1g2k", "g1g2k", "Force 'non-enriched' gamma parameter k <= 'enriched' gamma parameter k."));
     addOption(parser, ArgParseOption("fk", "fk", "When incorporating input signal, do not constrain 'non-enriched' shape parameter k <= 'enriched' gamma parameter k."));
 
     addOption(parser, ArgParseOption("mkn", "mkn", "Max. k/N ratio (read start sites/N) used to learn truncation probabilities for 'non-crosslink' and 'crosslink' emission probabilities (high ratios might originate from mapping artifacts that can disturb parameter learning). Default: 1.0", ArgParseArgument::DOUBLE));
@@ -169,7 +169,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("mrtf", "mrtf", "Fit gamma shape k only for positions with min. covariate value.", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("mtc", "mtc", "Maximum number of truncations at one position used for learning. For sites with counts above threshold the whole covered regions will be ignored for learning! Default: 250.", ArgParseArgument::INTEGER));
     setMinValue(parser, "mtc", "50");
-    setMaxValue(parser, "mtc", "500"); 
+    setMaxValue(parser, "mtc", "50000"); 
 
     addOption(parser, ArgParseOption("pet", "pet", "Prior enrichment threshold: a KDE threshold corresponding to 7 read start counts at one position will be used for initial classification of 'non-enriched' and 'enriched' site. Default: 7", ArgParseArgument::INTEGER));
     setMinValue(parser, "pet", "2");
@@ -180,6 +180,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("nta", "nta", "Number of threads used for applying learned parameters. Increases memory usage, if greater than number of chromosomes used for learning, since HMM will be build for multiple chromosomes in parallel.", ArgParseArgument::INTEGER));
     addOption(parser, ArgParseOption("tmp", "tmp", "Path to directory to store intermediate files. Default: /tmp", ArgParseArgument::STRING));
     addOption(parser, ArgParseOption("oa", "oa", "Outputs all sites with at least one read start in extended output format."));
+    addOption(parser, ArgParseOption("oe", "oe", "Outputs additionally all sites that are 'enriched' and contain at least one read start."));
 
     addOption(parser, ArgParseOption("q", "quiet", "Set verbosity to a minimum."));
     addOption(parser, ArgParseOption("v", "verbose", "Enable verbose output."));
@@ -187,7 +188,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
 
     //addOption(parser, ArgParseOption("enk", "enk", "Estimate binomial N from KDEs values."));
-    addOption(parser, ArgParseOption("nsx", "nsx", "Do not use GSCL simplex2 to estimate Gamma parameters theta and k. Instead update parameters sequentially using the Brents methods. "));
     //addOption(parser, ArgParseOption("ulr", "ulr", "Use log RPKM values as input."));
     //addOption(parser, ArgParseOption("dis", "dis", "Discard intervals containing only one read start."));
 
@@ -332,8 +332,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     //if (isSet(parser, "enk"))
     //    options.estimateNfromKdes = true;
-    if (isSet(parser, "nsx"))
-        options.gslSimplex2 = false;   
     //if (isSet(parser, "ulr"))
     //    options.useLogRPKM = true;
     //if (isSet(parser, "dis"))

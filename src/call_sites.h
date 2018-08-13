@@ -33,6 +33,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 #include <unistd.h>     
 #include <sys/stat.h>
 #include <errno.h>
@@ -229,39 +230,50 @@ int loadObservations(TContigObservations &contigObservationsF, TContigObservatio
 
 
 template <typename TStore, typename TOptions>
-bool loadBAMCovariates(Data &data, TStore &store, TOptions &options)
+bool loadBAMCovariates(Data &data, TStore &store, bool parallelize, TOptions &options)
 {
-    if (options.verbosity >= 2) std::cout << "Parse alignments ... " << std::endl;
-
-    // Open BamFileIn for reading.
-    std::cout << "Open Bam and Bai file ... "  << "\n";
-    BamFileIn inFile;
-    if (!open(inFile, toCString(options.inputBamFileName)))
-    {
-        std::cerr << "ERROR: Could not open " << options.inputBamFileName << " for reading.\n";
-        return false;
-    }
-    BamHeader header;
-    readHeader(header, inFile);
-    // Read BAI index.
-    BamIndex<Bai> baiIndex;
-    if (!open(baiIndex, toCString(options.inputBaiFileName)))
-    {
-        std::cerr << "ERROR: Could not read BAI index file " << options.inputBaiFileName << "\n";
-        return false;
-    }
-
     if (options.verbosity >= 1) std::cout << "  Parse input BAM, get truncCounts, compute KDEs ... " << std::endl;
+
+    bool stop = false;
+    // TODO check if working
+#if HMM_PARALLEL
+    SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(parallelize ? 2 : 1))
+#endif 
     for (unsigned s = 0; s < 2; ++s)
     {
+        // Open BamFileIn for reading.
+        SEQAN_OMP_PRAGMA(critical)
+        std::cout << "Open Bam and Bai file ... (strand: " << s << ")\n";
+        BamFileIn inFile;
+        if (!open(inFile, toCString(options.inputBamFileName)))
+        {
+            SEQAN_OMP_PRAGMA(critical)
+            std::cerr << "ERROR: Could not open " << options.inputBamFileName << " for reading.\n";
+            stop = true;
+            continue;
+        }
+        BamHeader header;
+        readHeader(header, inFile);
+        // Read BAI index.
+        BamIndex<Bai> baiIndex;
+        if (!open(baiIndex, toCString(options.inputBaiFileName)))
+        {
+            SEQAN_OMP_PRAGMA(critical)
+            std::cerr << "ERROR: Could not read BAI index file " << options.inputBaiFileName << "\n";
+            stop = true;
+            continue;
+        }
+
         for (unsigned i = 0; i < length(data.setObs[s]); ++i)
         {
             // Translate from contig name to rID.
             int rID = 0;
             if (!getIdByName(rID, contigNamesCache(context(inFile)), store.contigNameStore[data.setObs[s][i].contigId]))
             {
+                SEQAN_OMP_PRAGMA(critical)
                 std::cerr << "ERROR: Contig " << store.contigNameStore[data.setObs[s][i].contigId] << " not known.\n";
-                return false; 
+                stop = true;
+                continue;
             }
             String<__uint16> truncCounts;
             resize(truncCounts, data.setObs[s][i].length(), 0, Exact());
@@ -284,6 +296,7 @@ bool loadBAMCovariates(Data &data, TStore &store, TOptions &options)
             data.setObs[s][i].computeKDEs(truncCounts, options);
         }
     }
+    if (stop) return false;
 
     if (options.verbosity >= 2) std::cout << "... BAM covariates loaded" << std::endl;
     return true;
@@ -572,11 +585,12 @@ void extractCoveredIntervals(Data &data,
     unsigned prev_c2 = i1;
     bool prev_dis = false;
     if (options.verbosity >= 2) std::cout << "F: Parse covered intervals and get observations  ..." << "i1: " << i1 << " i2: " << i2 <<  std::endl;
-    while (i < i2)
+    while (i < i2 && (prev_c2 < i2 && !prev_dis))
     {
 
         while (i < i2 && contigObservationsF.truncCounts[i] == 0) ++i;    // find begin of covered interval     
         c1 = i;
+        //std::cout << "TEST: i " << i << std::endl;
         if (((int)c1 - (int)options.intervalOffset) > (int)prev_c2)    // if gap bigger than intervalOffset, shift c1 to left
         {
             c1 -= options.intervalOffset;
@@ -599,8 +613,9 @@ void extractCoveredIntervals(Data &data,
         else       
         {                                   // else merge with previous interval 
             c1 = prev_c1;
+            //std::cout << "TEST: eraseBack .. set c1 " << c1 << std::endl;
             eraseBack(data.setObs[0]); 
-            eraseBack(data.setPos[0]);
+            eraseBack(data.setPos[0]);    
         }
         prev_c1 = c1;
         ++i;
@@ -646,10 +661,11 @@ void extractCoveredIntervals(Data &data,
         {
             observations.fimoScores = infix(contigCovsFimo[0], c1, c2); 
             observations.motifIds = infix(motifIds[0], c1, c2); 
-        } 
+        }
+        //std::cout << "TEST: append c1 " << c1 << " c2: " << c2 << std::endl;
         appendValue(data.setObs[0], observations, Generous());
         appendValue(data.setPos[0], c1, Generous());
-    } 
+    }
     // REVERSE 
     unsigned i1_R = length(contigObservationsR.truncCounts) - i2;
     unsigned i2_R = length(contigObservationsR.truncCounts) - i1;
@@ -658,7 +674,7 @@ void extractCoveredIntervals(Data &data,
     prev_c2 = i1_R;
     prev_dis = false;
     if (options.verbosity >= 2) std::cout << "R: Parse covered intervals and get observations  ..." << "i1_R: " << i1_R << " i2_R: " << i2_R << std::endl;
-    while (i < i2_R)
+    while (i < i2_R && (prev_c2 < i2_R && !prev_dis))
     {
         while (i < i2_R && contigObservationsR.truncCounts[i] == 0) ++i;    // find begin of covered interval
         c1 = i;
@@ -801,13 +817,19 @@ void computeSLR(double &b0, double &b1, Data &data, TOptions &options) // TODO c
 
 
 template <typename TStore, typename TOptions>
-void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, TOptions &options)
+void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, bool parallelize, TOptions &options)
 {
     if (options.verbosity >= 1) std::cout << "  Compute KDEs ... " << std::endl;
     for (unsigned s = 0; s < 2; ++s)
+    {
+#if HMM_PARALLEL
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(parallelize ? options.numThreads : 1)) 
+#endif
         for (unsigned i = 0; i < length(data.setObs[s]); ++i)
+        {
             data.setObs[s][i].computeKDEs(options);
-    
+        }
+    } 
     
     if (options.verbosity >= 1) std::cout << "  Estiamte Ns ... " << options.estimateNfromKdes << std::endl;
     if (options.estimateNfromKdes && b0 == 0.0 && b1 == 0.0) 
@@ -816,6 +838,9 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, T
     // estimate Ns (bin(k; p, N)): either by using raw counts or by using KDEs
     for (unsigned s = 0; s < 2; ++s)
     {
+#if HMM_PARALLEL
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(parallelize ? options.numThreads : 1)) 
+#endif
         for (unsigned i = 0; i < length(data.setObs[s]); ++i)
         {
             if (options.estimateNfromKdes) 
@@ -830,14 +855,14 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, T
     // if input BAM file given
     if (options.useCov_RPKM && !empty(options.inputBamFileName))
     {
-        loadBAMCovariates(data, store, options);       // interval-wise
+        loadBAMCovariates(data, store, parallelize, options);       // interval-wise
     }
 }
 
 
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool learnHMM(Data &data, 
-              String<String<double> > &transMatrix_1,
+              String<String<long double> > &transMatrix_1,
               TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2,
               TDOUBLE /**/,
               unsigned &contigLen,
@@ -905,7 +930,7 @@ bool learnHMM(Data &data,
 
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool applyHMM(Data &data, 
-              String<String<double> > &transMatrix_1,
+              String<String<long double> > &transMatrix_1,
               TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2,
               TDOUBLE /**/,
               unsigned &contigLen,
@@ -914,6 +939,7 @@ bool applyHMM(Data &data,
 #ifdef HMM_PROFILE
     double timeStamp = sysTime();
 #endif
+
     if (options.verbosity >= 1) std::cout << "   build HMM" << std::endl;
     HMM<TGAMMA, TBIN, TDOUBLE> hmm(4, data.setObs, data.setPos, contigLen);
     hmm.transMatrix = transMatrix_1;
@@ -924,14 +950,14 @@ bool applyHMM(Data &data,
         hmm.posteriorDecoding(data.states);
     else
         hmm.viterbi_log(data.states);
-
-    if (options.verbosity >= 2)
-    {
-        std::cout << "Intermediate parameters after applyHMM():" << std::endl;
-        myPrint(hmm);
-        myPrint(d1);
-        myPrint(d2);
-    }
+// 
+//     if (options.verbosity >= 2)
+//     {
+//         std::cout << "Intermediate parameters after applyHMM():" << std::endl;
+//         myPrint(hmm);
+//         myPrint(d1);
+//         myPrint(d2);
+//     }
  
     if (options.useCov_RPKM)    // NOTE: otherwise not necessary, since gamma1.k <= 1
         hmm.rmBoarderArtifacts(data.states, d1);
@@ -1009,6 +1035,23 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
 #endif
 
     // ******************  set some parameters
+    // some precision related:
+    options.min_nligf = std::nextafter((long double)1.0, (long double)0.0);
+    if (options.verbosity >= 2) std::cout << std::setprecision(std::numeric_limits<long double>::digits10 + 1) << "Max. nligf: " << options.min_nligf << std::setprecision(6) << std::endl;
+    int db_min_exp = DBL_MIN_10_EXP;
+    int ldb_min_exp = LDBL_MIN_10_EXP;
+    std::cout << "DBL_MIN_10_EXP: " << db_min_exp << " LDBL_MIN_10_EXP: " << ldb_min_exp << std::endl;
+    if (!options.useHighPrecision) 
+    {
+        options.min_eProbSum = pow((double)10.0, DBL_MIN_10_EXP + 50);
+        std::cout << " Set options.min_eProbSum : " << options.min_eProbSum << std::endl;  
+    }
+    else 
+    {
+        options.min_eProbSum = pow((long double)10.0, LDBL_MIN_10_EXP + 100);
+        std::cout << " Set options.min_eProbSum : " << options.min_eProbSum << std::endl;
+    }    
+    // some other thresholds and setings:
     if (options.binSize == 0.0) options.binSize = options.bandwidth * 2; 
     options.intervalOffset = options.bandwidth * 2;  
     options.prior_kdeThreshold = options.prior_enrichmentThreshold * getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth;
@@ -1039,8 +1082,6 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     // *****************
     double slr_NfromKDE_b0 = 0.0;
     double slr_NfromKDE_b1 = 0.0;  
-
-    String<String<double> > transMatrix;
 
     String<ContigObservations> contigObservationsF;
     String<ContigObservations> contigObservationsR;
@@ -1100,13 +1141,15 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
         computeSLR(slr_NfromKDE_b0, slr_NfromKDE_b1, data, options);
 
     // precompute KDE values, estimate Ns, etc.
-    preproCoveredIntervals(data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
+    preproCoveredIntervals(data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, true, options);
+ 
 
     gamma1.tp = options.useKdeThreshold;
     gamma2.tp = options.useKdeThreshold;       // left tuncated    
 
     if (options.verbosity >= 1) std::cout << "Prior ML estimation of density distribution parameters using predefined cutoff ..." << std::endl;
     prior_mle(gamma1, gamma2, data, options);
+    String<String<long double> > transMatrix;
     estimateTransitions(transMatrix, gamma1, gamma2, bin1, bin2, data, options);
 
     unsigned contigLen = 0; // should not be used within learning
@@ -1166,11 +1209,9 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
             resize(c_data.states, 2); 
             extractCoveredIntervals(c_data, contigObservationsF, contigObservationsR, c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, false, store, options); 
 
-            if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   // TODO handle cases
+            if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   
             {
-
-                preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, options);
-
+                preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, false, options);
                 // Apply learned parameters
                 unsigned contigLen = length(store.contigStore[contigId].seq);
                 if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, contigLen, options))
@@ -1178,7 +1219,6 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
                     SEQAN_OMP_PRAGMA(critical)
                     stop = true;
                 }
-
                 // Temp. output
                 CharString tempFileNameBed;
 
@@ -1199,7 +1239,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
 
                 contigTempFileNamesBed[contigId] = tempFileNameBed;
                 if (options.verbosity >= 2) std::cout << "temp file Name: " << tempFileNameBed << std::endl;
-                BedFileOut outBed(toCString(tempFileNameBed)); 
+                BedFileOut outBed(toCString(tempFileNameBed));
                 writeStates(outBed, c_data, store, contigId, options);  
                 
                 if (!empty(options.outRegionsFileName))
@@ -1231,6 +1271,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     }
     if (stop) return 1;
 
+    if (options.verbosity >= 2) std::cout << "Merge output files ... " << std::endl;
     // Append content of temp files to final output in contig order
     // crosslink sites
     BedFileOut outBed(toCString(options.outFileName)); 
@@ -1309,17 +1350,17 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     //std::cout << "  Time needed for applyHMM2: " << Times::instance().time_applyHMM2/60.0 << "min" << std::endl;
 #endif
 
-    CharString fileNameStats;
-    if (!empty(options.parFileName)) 
-        fileNameStats = options.parFileName;
+    CharString fileNameParams;
+    if (!empty(options.parFileName))
+        fileNameParams = options.parFileName;
     else
     {
-        fileNameStats = options.outFileName;
-        append(fileNameStats, ".params");
+        fileNameParams = prefix(options.outFileName, length(options.outFileName)-4);
+        append(fileNameParams, ".params");
     }
-    std::ofstream out(toCString(fileNameStats), std::ios::binary | std::ios::out);
+    std::ofstream out(toCString(fileNameParams), std::ios::binary | std::ios::out);
     out << "options.useKdeThreshold" << '\t' << options.useKdeThreshold << std::endl;
-    out << std::endl;    
+    out << std::endl;
     printParams(out, gamma1, 1);
     printParams(out, gamma2, 2);
     printParams(out, bin1, 1);

@@ -49,14 +49,14 @@ template<typename TDOUBLE>
 class ZTBIN
 {
 public:
-    ZTBIN(double p_): p(p_) {}
+    ZTBIN(long double p_): p(p_) {}
     ZTBIN() {}
  
-    long double getDensity(unsigned const &k, unsigned const &n);
+    long double getDensity(unsigned const &k, unsigned const &n, AppOptions const& options);
 
     void updateP(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
 
-    double p;
+    long double p;
 };
 
 
@@ -65,8 +65,8 @@ template<typename TDOUBLE>
 void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, AppOptions const& options)
 {
-    double sum1 = 0.0;
-    double sum2 = 0.0;
+    long double sum1 = 0.0; 
+    long double sum2 = 0.0;
 
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -74,14 +74,14 @@ void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors,
         {
             for (unsigned t = 0; t < setObs[s][i].length(); ++t)
             {
-                if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 )     // avoid deviding by 0 (NOTE !), zero-truncated
+                if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && setObs[s][i].nEstimates[t] <= options.maxBinN)     // avoid deviding by 0 (NOTE !), zero-truncated
                 {
                     // p^ = (k-1)/(n-1); 'Truncated Binomial and Negative Binomial Distributions' Rider, 1955
                     unsigned k = setObs[s][i].truncCounts[t];
                     unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]);   
-                    if (((double)(k) / (double)(n)) <= options.maxkNratio)
+                    if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
                     {
-                        sum1 += statePosteriors[s][i][t] * ((double)(k - 1) / (double)(n - 1));        
+                        sum1 += statePosteriors[s][i][t] * ((long double)(k - 1) / (long double)(n - 1));        
                         sum2 += statePosteriors[s][i][t];
                     }
                 }
@@ -89,30 +89,35 @@ void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors,
         }
     }
     //std::cout << "updateP: sum1" << sum1 << " sum2: " << sum2 << " p: " << (sum1/sum2) << std::endl;
-    this->p = sum1 / sum2;
+    this->p = sum1/sum2;
 }
 
 
 // k: diagnostic events (de); n: read counts (c)
 template<typename TDOUBLE> 
-long double ZTBIN<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n)
+long double ZTBIN<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, AppOptions const&options)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
-    unsigned n2 = (n > k) ? (n) : (k);          // make sure n >= k      (or limit k?) 
-   
+    unsigned n2 = n;
+    unsigned k2 = k;
+    n2 = (n2 > k2) ? n2 : k2;          // make sure n >= k      (or limit k?)
+  
     // use boost implementation, maybe avoids overflow
-    boost::math::binomial_distribution<TDOUBLE> boostBin;
-    boostBin = boost::math::binomial_distribution<TDOUBLE> ((int)n2, this->p); 
+    boost::math::binomial_distribution<long double> boostBin;
+    boostBin = boost::math::binomial_distribution<long double> ((int)n2, this->p); 
 
-    TDOUBLE res = boost::math::pdf(boostBin, k);
-    if (std::isnan(res))   // or any other error?
+    long double res = boost::math::pdf(boostBin, k2);
+    if (std::isnan(res) || std::isinf(res))   // or any other error?
     {
         std::cerr << "ERROR: binomial pdf is : " << res << std::endl;
         return 0.0;
     }
-    return res * (TDOUBLE)(1.0/(1.0 - pow((1.0 - this->p), n2)));     // zero-truncated      TODO ???
+    return res * (long double)(1.0/(1.0 - pow((1.0 - this->p), n2)));     // zero-truncated
 }
+
+// max k?
+// 
 
 
 //////////////////////////
@@ -132,8 +137,9 @@ template<typename TOut, typename TDOUBLE>
 void printParams(TOut &out, ZTBIN<TDOUBLE> &bin, int i)
 {
     out << "bin" << i << ".p" << '\t' << bin.p << std::endl;
-    out << std::endl;    
+    out << std::endl;
 }
+
 
 template<typename TDOUBLE>
 bool checkConvergence(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, AppOptions &options)

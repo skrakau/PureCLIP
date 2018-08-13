@@ -52,17 +52,17 @@ template<typename TDOUBLE>
 class ZTBIN_REG
 {
 public:
-    ZTBIN_REG(double b0_): b0(b0_) {}
+    ZTBIN_REG(long double b0_): b0(b0_) {}
     ZTBIN_REG() {}
  
-    long double getDensity(unsigned const &k, unsigned const &n, double const &pred);
-    long double getDensity(unsigned const &k, unsigned const &n);
+    long double getDensity(unsigned const &k, unsigned const &n, long double const &pred, AppOptions const& options);
+    long double getDensity(unsigned const &k, unsigned const &n, AppOptions const& options);
 
     void updateP(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options);
     void updateRegCoeffs(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const&options);
 
-    double b0;   // intercept
-    String<double> regCoeffs;
+    long double b0;   // intercept
+    String<long double> regCoeffs;
 };
 
 
@@ -71,15 +71,15 @@ public:
 template<typename TDOUBLE>
 struct FctLL_ZTBIN_REG
 {
-    FctLL_ZTBIN_REG(double const& b0_, char const& m_, String<String<String<TDOUBLE> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : b0(b0_), m(m_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
+    FctLL_ZTBIN_REG(long double const& b0_, char const& m_, String<String<String<TDOUBLE> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : b0(b0_), m(m_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
     { 
     }
     double operator()(double const& b)
     {
-        TDOUBLE ll = 0.0;       
+        long double ll = 0.0;       
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<TDOUBLE> lls;
+            String<long double> lls;
             resize(lls, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
             SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
@@ -89,19 +89,19 @@ struct FctLL_ZTBIN_REG
                 for (unsigned t = 0; t < setObs[s][i].length(); ++t)  
                 {
                     // only optimize for sites with fimo score > 0.0 and corresponding to current id m
-                    if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && setObs[s][i].motifIds[t] == m && setObs[s][i].fimoScores[t] > 0.0)
+                    if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && setObs[s][i].motifIds[t] == m && setObs[s][i].fimoScores[t] > 0.0 && setObs[s][i].nEstimates[t] <= options.maxBinN)
                     {
                         unsigned k = setObs[s][i].truncCounts[t];
                         unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]); 
-                        double x = setObs[s][i].fimoScores[t];
+                        long double x = setObs[s][i].fimoScores[t];
 
-                        if (((double)(k) / (double)(n)) <= options.maxkNratio)
+                        if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
                         {
-                            TDOUBLE p = 1.0/(1.0+exp(-b0 - b*x));
+                            long double p = 1.0/(1.0+exp(-b0 - b*x));
                         
                             // l = log(1.0) -log(1.0 - pow((1.0-p), n)) + log (n over k) + k*log(p) + (n-k)*log(1.0-p);
                             // ignore parts not meaning for optimization! 
-                            TDOUBLE l = -log(1.0 - pow((1.0-p), n)) + k*log(p) + (n-k)*log(1.0-p);
+                            long double l = -log(1.0 - pow((1.0-p), n)) + k*log(p) + (n-k)*log(1.0-p);
                             lls[i] += l * statePosteriors[s][i][t];
                         }
                     }
@@ -115,7 +115,7 @@ struct FctLL_ZTBIN_REG
     }
 
 private:
-    double b0;
+    long double b0;
     char m;     // motif ID
     String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > &setObs;
@@ -131,14 +131,14 @@ void ZTBIN_REG<TDOUBLE>::updateRegCoeffs(String<String<String<TDOUBLE> > > &stat
     int bits = 60;
     boost::uintmax_t maxIter = options.maxIter_brent;
     
-    double bMin = 0.0;
-    double bMax = 1.0;
+    long double bMin = 0.0;
+    long double bMax = 1.0;
 
     // for each input motif learn independent regCoeff (each position only one motif match with score assigned)
     for (unsigned char m = 0; m < options.nInputMotifs; ++m)
     {
         FctLL_ZTBIN_REG<TDOUBLE> fct_ZTBIN_REG(this->b0, m, statePosteriors, setObs, options);
-        std::pair<double, double> res = boost::math::tools::brent_find_minima(fct_ZTBIN_REG, bMin, bMax, bits, maxIter);         
+        std::pair<long double, long double> res = boost::math::tools::brent_find_minima(fct_ZTBIN_REG, bMin, bMax, bits, maxIter);         
         this->regCoeffs[m] = res.first;
     }
 }
@@ -150,20 +150,20 @@ template<typename TDOUBLE>
 void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, AppOptions const& options)
 {
-    TDOUBLE sum1 = 0.0;
-    TDOUBLE sum2 = 0.0;
+    long double sum1 = 0.0;
+    long double sum2 = 0.0;
     for (unsigned s = 0; s < 2; ++s)
     {
         for (unsigned i = 0; i < length(setObs[s]); ++i)
         {
             for (unsigned t = 0; t < setObs[s][i].length(); ++t)
             {
-                if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && setObs[s][i].fimoScores[t] == 0.0)      // avoid deviding by 0 (NOTE !), zero-truncated
+                if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && setObs[s][i].fimoScores[t] == 0.0 && setObs[s][i].nEstimates[t] <= options.maxBinN)      // avoid deviding by 0 (NOTE !), zero-truncated
                 {
                     // p^ = (k-1)/(n-1); 'Truncated Binomial and Negative Binomial Distributions' Rider, 1955
                     unsigned k = setObs[s][i].truncCounts[t];
                     unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]);      
-                    if (((double)(k) / (double)(n)) <= options.maxkNratio)
+                    if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
                     {
                         sum1 += statePosteriors[s][i][t] * ((TDOUBLE)(k - 1) / (TDOUBLE)(n - 1));        
                         sum2 += statePosteriors[s][i][t];
@@ -173,7 +173,7 @@ void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteri
         }
     }
     //std::cout << "updateP: sum1" << sum1 << " sum2: " << sum2 << " p: " << (sum1/sum2) << std::endl;
-    TDOUBLE p = sum1/sum2;
+    long double p = sum1/sum2;
     this->b0 = log(p/(1.0-p));
 
     updateRegCoeffs(statePosteriors, setObs, options);
@@ -182,46 +182,49 @@ void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteri
 
 // k: diagnostic events (de); n: read counts (c)
 template<typename TDOUBLE> 
-long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, double const &pred)
+long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, long double const &pred, AppOptions const& options)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
-    unsigned n2 = (n > k) ? (n) : (k);           // make sure n >= k      (or limit k?) 
-   
+    unsigned n2 = n;
+    unsigned k2 = k;
+    n2 = (n2 > k2) ? n2 : k2;          // make sure n >= k      (or limit k?)
     
     // use boost implementation, maybe avoids overflow
-    boost::math::binomial_distribution<TDOUBLE> boostBin;
-    boostBin = boost::math::binomial_distribution<TDOUBLE> ((int)n2, pred); 
+    boost::math::binomial_distribution<long double> boostBin;
+    boostBin = boost::math::binomial_distribution<long double> ((int)n2, (long double)pred); 
 
-    TDOUBLE res = boost::math::pdf(boostBin, k);
+    long double res = boost::math::pdf(boostBin, k2);
     if (std::isnan(res))   // or any other error?
     {
         std::cerr << "ERROR: binomial pdf is : " << res << std::endl;
         return 0.0;
     }
-    return res * (TDOUBLE)(1.0/(1.0 - pow((1.0 - pred), n2)));     // zero-truncated      TODO ???
+    return res * (long double)(1.0/(1.0 - pow((1.0 - (long double)pred), n2)));     // zero-truncated      TODO ???
 }
 
 template<typename TDOUBLE> 
-long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n)
+long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, AppOptions const&options)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
-    unsigned n2 = (n > k) ? (n) : (k);          // make sure n >= k      (or limit k?) 
+    unsigned n2 = n;
+    unsigned k2 = k;
+    n2 = (n2 > k2) ? n2 : k2;          // make sure n >= k      (or limit k?)
    
-    double pred = 1.0/(1.0+exp(- this->b0));
+    long double pred = 1.0/(1.0+exp(- this->b0));
 
     // use boost implementation, maybe avoids overflow
-    boost::math::binomial_distribution<TDOUBLE> boostBin;
-    boostBin = boost::math::binomial_distribution<TDOUBLE> ((int)n2, pred); 
+    boost::math::binomial_distribution<long double> boostBin;
+    boostBin = boost::math::binomial_distribution<long double> ((int)n2, pred); 
 
-    TDOUBLE res = boost::math::pdf(boostBin, k);
-    if (std::isnan(res))   // or any other error?
+    long double res = boost::math::pdf(boostBin, k2);
+    if (std::isnan(res) || std::isinf(res))   // or any other error?
     {
         std::cerr << "ERROR: binomial pdf is : " << res << std::endl;
         return 0.0;
     }
-    return res * (TDOUBLE)(1.0/(1.0 - pow((1.0 - pred), n2)));     // zero-truncated      TODO ???
+    return res * (long double)(1.0/(1.0 - pow((1.0 - pred), n2)));     // zero-truncated      TODO ???
 }
 
 
@@ -250,7 +253,7 @@ void printParams(TOut &out, ZTBIN_REG<TDOUBLE> &bin, int i)
 
     for (unsigned m = 0; m < length(bin.regCoeffs); ++m)
         out << "bin" << i << ".b" << (m+1) << '\t' << bin.regCoeffs[m] << std::endl;
-    out << std::endl;    
+    out << std::endl;
 }
 
 

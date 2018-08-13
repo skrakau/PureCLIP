@@ -23,7 +23,8 @@
    
 #include <iostream>
 #include <fstream>
-#include <math.h>       // lgamma 
+#include <math.h>       // lgamma
+#include <limits>
 
 #include <boost/math/tools/minima.hpp>      // BRENT's algorithm
 #include <boost/math/distributions/negative_binomial.hpp>
@@ -41,6 +42,7 @@
 
 using namespace seqan;
 
+using namespace boost::math::policies;
 
 
 //////////////////////////////////////////////////////////////////////////
@@ -51,18 +53,14 @@ template<typename TDOUBLE>
 class GAMMA2_REG  // ignore positions with KDE below theshold
 {
 public:
-    GAMMA2_REG(double mean_, double k_, double tp_): mean(mean_), k(k_), tp(tp_) {}
     GAMMA2_REG(double tp_): tp(tp_) {}
     GAMMA2_REG() {}
 
-    long double getDensity(double const &kde, double const &pred);
-    void updateMean(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
-    void updateK(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options);
-
+    long double getDensity(double const &kde, double const &pred, AppOptions const& options);
     bool updateRegCoeffsAndK(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
+    bool updateRegCoeffsAndK(String<String<double> > &startSet, String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
  
 
-    double mean;   
     double b0;
     double b1;
     double k;       // shape parameter 
@@ -71,363 +69,28 @@ public:
 
 
 
-////////////////////////////////////
-// GSL newton 
-
-template<typename TDOUBLE>
-struct Fct_GSL_N_GAMMA2_REG
-{
-    Fct_GSL_N_GAMMA2_REG(double const & tp_, double const& k_, 
-                                  String<String<String<TDOUBLE> > > const& statePosteriors_,  
-                                  String<String<Observations> > & setObs_,  
-                                  AppOptions const&options_) : tp(tp_), k(k_),
-                                                               statePosteriors(statePosteriors_),  
-                                                               setObs(setObs_), 
-                                                               options(options_)
-    { 
-    }
-    // f
-    double operator()(const gsl_vector * x)
-    {       
-        const double b0 = gsl_vector_get (x, 0);
-        const double b1 = gsl_vector_get (x, 1);
-
-        TDOUBLE f = 0.0;
-        for (unsigned s = 0; s < 2; ++s)
-        {
-            String<TDOUBLE> f_S;
-            resize(f_S, length(setObs[s]), 0.0, Exact());
-#if HMM_PARALLEL
-            SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
-#endif  
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-            {
-                for (unsigned t = 0; t < setObs[s][i].length(); ++t)
-                {    
-                    if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1 && setObs[s][i].rpkms[t] >= options.minRPKMtoFit)
-                    {
-                        double kde = setObs[s][i].kdes[t];
-                        double x1 = setObs[s][i].rpkms[t];
-                        double pred = exp(b0 + b1 * x1);
-
-                        double nligf = boost::math::gamma_p(k, (tp*k/pred));
-            
-                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
-
-                        f_S[i] +=  p * statePosteriors[s][i][t];
-                    }
-                }
-            }
-            // combine results from threads
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-                f += f_S[i];
-        }
-        return  (-f);  
-    }
-
-    // f'
-    void Gradient(const gsl_vector * x,  gsl_vector * g) {
-
-        const double b0 = gsl_vector_get (x, 0);
-        const double b1 = gsl_vector_get (x, 1);
-
-        TDOUBLE f_0 = 0.0;
-        TDOUBLE f_1 = 0.0;
-        for (unsigned s = 0; s < 2; ++s)
-        {
-            String<TDOUBLE> f_0_S;
-            String<TDOUBLE> f_1_S;
-            resize(f_0_S, length(setObs[s]), 0.0, Exact());
-            resize(f_1_S, length(setObs[s]), 0.0, Exact());
-#if HMM_PARALLEL
-            SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
-#endif  
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-            {
-                for (unsigned t = 0; t < setObs[s][i].length(); ++t)
-                {    
-                    if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1 && setObs[s][i].rpkms[t] >= options.minRPKMtoFit)
-                    {
-                        double kde = setObs[s][i].kdes[t];
-                        double x1 = setObs[s][i].rpkms[t];
-                        double pred  = exp(b0 + b1 * x1);
-
-                        double h = tp*k/pred;
-                        double ligf = boost::math::tgamma_lower(k, h);
-
-                        // b0
-                        TDOUBLE p_0 = k*kde/pred - k - exp(-h)*pow(h, k)/(tgamma(k) - ligf);   
-                        // b1
-                        TDOUBLE p_1 = x1*p_0;   
-
-                        f_0_S[i] +=  p_0 * statePosteriors[s][i][t];
-                        f_1_S[i] +=  p_1 * statePosteriors[s][i][t];
-                    }
-                }
-            }
-            // combine results from threads
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-            {
-                f_0 += f_0_S[i];
-                f_1 += f_1_S[i];
-            }
-        }
-
-        gsl_vector_set (g, 0, -f_0);
-        gsl_vector_set (g, 1, -f_1);
-    }
-    // f and f''
-    void FdF(const gsl_vector * x, double * f, gsl_vector * g) {
-
-        const double b0 = gsl_vector_get (x, 0);
-        const double b1 = gsl_vector_get (x, 1);
-
-        *f = 0.0;
-        TDOUBLE f_0 = 0.0;
-        TDOUBLE f_1 = 0.0;
-        for (unsigned s = 0; s < 2; ++s)
-        {
-            String<TDOUBLE> f_S;
-            String<TDOUBLE> f_0_S;
-            String<TDOUBLE> f_1_S;
-            resize(f_S, length(setObs[s]), 0.0, Exact());
-            resize(f_0_S, length(setObs[s]), 0.0, Exact());
-            resize(f_1_S, length(setObs[s]), 0.0, Exact());
-#if HMM_PARALLEL
-            SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
-#endif  
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-            {
-                for (unsigned t = 0; t < setObs[s][i].length(); ++t)
-                {    
-                    if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1 && setObs[s][i].rpkms[t] >= options.minRPKMtoFit)
-                    {
-                        double kde = setObs[s][i].kdes[t];
-                        double x1 = setObs[s][i].rpkms[t];
-                        double pred = exp(b0 + b1 * x1);
-
-                        double h = tp*k/pred;
-                        double nligf = boost::math::gamma_p(k, h);
-                        double ligf = boost::math::tgamma_lower(k, h);
-            
-                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
-                        f_S[i] +=  p * statePosteriors[s][i][t];
-
-                        // b0
-                        TDOUBLE p_0 = k*kde/pred - k - exp(-h)*pow(h, k)/(tgamma(k) - ligf);   
-                        // b1
-                        TDOUBLE p_1 = x1*p_0;   
-                        f_0_S[i] +=  p_0 * statePosteriors[s][i][t];
-                        f_1_S[i] +=  p_1 * statePosteriors[s][i][t];
-                    }
-                }
-            }
-            // combine results from threads
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-            {
-                *f += f_S[i];
-                f_0 += f_0_S[i];
-                f_1 += f_1_S[i];
-            }
-        }
-        *f *= (-1);
-        gsl_vector_set (g, 0, -f_0);
-        gsl_vector_set (g, 1, -f_1);
-   }
-
-private:
-    double tp;
-    double k;
-    String<String<String<TDOUBLE> > > statePosteriors;
-    String<String<Observations> > & setObs;
-    AppOptions options;
-};
-
-
-// Wrapper functions for functors
-template<typename TDOUBLE>
-double fct_GSL_N_GAMMA2_REG_f_W (const gsl_vector * x, void * p) {
-
-    Fct_GSL_N_GAMMA2_REG<TDOUBLE> * function = reinterpret_cast< Fct_GSL_N_GAMMA2_REG<TDOUBLE> *> (p);
-    return (*function)( x );        
-} 
-
-template<typename TDOUBLE>
-void fct_GSL_N_GAMMA2_REG_df_W (const gsl_vector * x, void * p,  gsl_vector * g) {
-
-    Fct_GSL_N_GAMMA2_REG<TDOUBLE> * function = reinterpret_cast< Fct_GSL_N_GAMMA2_REG<TDOUBLE> *> (p);
-    (*function).Gradient( x, g );
-}
-
-template<typename TDOUBLE>
-void fct_GSL_N_GAMMA2_REG_fdf_W (const gsl_vector * x, void * p, double *f, gsl_vector * g ) {
-
-    Fct_GSL_N_GAMMA2_REG<TDOUBLE> * function = reinterpret_cast< Fct_GSL_N_GAMMA2_REG<TDOUBLE> *> (p);
-    (*function).FdF( x, f, g);
-} 
-
-
-template<typename TDOUBLE>
-struct Params2
-{
-    double tp;
-    double k;
-    String<String<String<TDOUBLE> > > statePosteriors;
-    String<String<Observations> > setObs;
-    AppOptions options;
-};
-
-
-
-void print_state2(size_t iter, gsl_multimin_fdfminimizer * s, void * /*fct*/)
-{
-    gsl_vector *gradients = gsl_multimin_fdfminimizer_gradient (s);
-    
-    printf ("iter = %5lu b0 = % 10.7f b1 = % 10.7f  "
-            "g0 = % 10.7f g1 = % 10.7f "
-            "f(x) = % 10.7f \n",
-            iter,
-            gsl_vector_get (s->x, 0),
-            gsl_vector_get (s->x, 1),
-            gsl_vector_get (gradients, 0),
-            gsl_vector_get (gradients, 1),
-            gsl_multimin_fdfminimizer_minimum (s));
-
-    // test if left and right higher than minimum
-    /*double test_f;
-    gsl_vector *test_g = gsl_vector_alloc (2);
-
-    gsl_vector *test_x = gsl_vector_alloc (2);
-    gsl_vector_set (test_x, 0, gsl_vector_get (s->x, 0));
-    gsl_vector_set (test_x, 1, gsl_vector_get (s->x, 1));
-
-    double new_x = gsl_vector_get (test_x, 0) + 0.01;
-    gsl_vector_set (test_x, 0, new_x);
-
-    fct_GSL_N_GAMMA2_REG_fdf_W(test_x, fct, &test_f, test_g);
-    std::cout << "test: left: f(): " << test_f << '\t';
-
-    new_x = gsl_vector_get (test_x, 0) - 0.02;
-    gsl_vector_set (test_x, 0, new_x);
-
-    fct_GSL_N_GAMMA2_REG_fdf_W(test_x, fct, &test_f, test_g);
-    std::cout << "right f(): " << test_f << std::endl;
-
-    gsl_vector_free (test_x);
-    gsl_vector_free (test_g);
-    */
-}
-
-
-template<typename TDOUBLE>
-int callGSL_newton2(double &tp, double &k, double &b0, double &b1,
-                  String<String<String<TDOUBLE> > > &statePosteriors, 
-                  String<String<Observations> > &setObs, 
-                  AppOptions const& options)
-{
-    std::cout << "Call GSL multiroot solver ..." << std::endl;
-    int status;
-    int iter = 0;
-    int max_iter = options.maxIter_simplex;
-    const size_t n = 2; 
-
-    const gsl_multimin_fdfminimizer_type *T;
-    gsl_multimin_fdfminimizer *s;
-    
-    struct Params2<TDOUBLE> params = {tp, k, statePosteriors, setObs, options};
-    gsl_multimin_function_fdf f;
-
-    // instantiation of functor with all fixed params
-    Fct_GSL_N_GAMMA2_REG<TDOUBLE> fct(tp, k, statePosteriors, setObs, options);
-
-    f.n = n;
-    f.f = &fct_GSL_N_GAMMA2_REG_f_W<TDOUBLE>;        // pointer to wrapper member function
-    f.df = &fct_GSL_N_GAMMA2_REG_df_W<TDOUBLE>;
-    f.fdf = &fct_GSL_N_GAMMA2_REG_fdf_W<TDOUBLE>;
-    f.params =  &fct;       // pointer to functor (instead of to params)
-
-    gsl_vector *x = gsl_vector_alloc (n);
-
-    gsl_vector_set (x, 0, b0);
-    gsl_vector_set (x, 1, b1);
-
-    T = gsl_multimin_fdfminimizer_vector_bfgs2;
-    s = gsl_multimin_fdfminimizer_alloc (T, n);
-    gsl_multimin_fdfminimizer_set (s, &f, x, 0.0001, 1e-4);   // initial step size, line minimization parameter
-
-    print_state2 (iter, s, &fct);
-
-    do
-    {
-      iter++;
-      status = gsl_multimin_fdfminimizer_iterate (s);  
-
-      if (status)
-        break;
-
-      gsl_vector *gradients = gsl_multimin_fdfminimizer_gradient (s);
-      status = gsl_multimin_test_gradient (gradients, 1e-4);
-
-      if (status == GSL_SUCCESS)
-        printf ("Minimum found at:\n");
-
-      print_state2 (iter, s, &fct);
-    }
-    while (status == GSL_CONTINUE && iter < max_iter);
-
-    printf ("status = %s\n", gsl_strerror (status));
-
-    std::cout << "GSL newton .... b0 = " << gsl_vector_get (s->x, 0)  << " b1 = " << gsl_vector_get (s->x, 1) << std::endl;
-    b0 = gsl_vector_get (s->x, 0);
-    b1 = gsl_vector_get (s->x, 1); 
-
-    gsl_multimin_fdfminimizer_free (s);
-    gsl_vector_free (x);
-    return 0;
-}
-
-
-template<typename TDOUBLE>
-void GAMMA2_REG<TDOUBLE>::updateMean(String<String<String<TDOUBLE> > > &statePosteriors, 
-                    String<String<Observations> > &setObs,  
-                    AppOptions const&options)
-{
-    // use multidimensional rootfinding, newton
-    callGSL_newton2(this->tp, this->k, this->b0, this->b1, statePosteriors, setObs, options);
-}
-
-
 
 //////////////////////////////////////////////
 // update betas and k together using simplex2
 //////////////////////////////////////////////
 
 template<typename TDOUBLE>
-struct Fct_GSL_X_GAMMA2_REG
-{
-    Fct_GSL_X_GAMMA2_REG(double const & tp_, 
-                                  String<String<String<TDOUBLE> > > const& statePosteriors_,
-                                  String<String<Observations> > & setObs_,  
-                                  AppOptions const&options_) : tp(tp_),
-                                                               statePosteriors(statePosteriors_),  
-                                                               setObs(setObs_), 
-                                                               options(options_)
-    { 
-    }
-    // f
-    double operator()(const gsl_vector * x)
-    {      
-        const double k = gsl_vector_get (x, 0);
-        const double b0 = gsl_vector_get (x, 1);
-        const double b1 = gsl_vector_get (x, 2);
+long double my_GSL_X_GAMMA2_REG_forK(const gsl_vector * x, long double const & k, 
+        long double const & tp,
+        String<String<String<TDOUBLE> > > const& statePosteriors,
+        String<String<Observations> > & setObs,  
+        AppOptions const&options)
+{      
+    const long double b0 = gsl_vector_get (x, 1);
+    const long double b1 = gsl_vector_get (x, 2);
 
-        TDOUBLE f = 0.0;
-        for (unsigned s = 0; s < 2; ++s)
-        {
-            String<TDOUBLE> f_S;
-            resize(f_S, length(setObs[s]), 0.0, Exact());
+    long double f = 0.0;
+    for (unsigned s = 0; s < 2; ++s)
+    {
+        String<long double> f_S;
+        resize(f_S, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
-            SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
 #endif  
             for (unsigned i = 0; i < length(setObs[s]); ++i)
             {
@@ -435,28 +98,122 @@ struct Fct_GSL_X_GAMMA2_REG
                 {    
                     if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1 && setObs[s][i].rpkms[t] >= options.minRPKMtoFit)
                     {
-                        double kde = setObs[s][i].kdes[t];
-                        double x1 = setObs[s][i].rpkms[t];
-                        double pred = exp(b0 + b1 * x1);
+                        long double kde = setObs[s][i].kdes[t];
+                        long double x1 = setObs[s][i].rpkms[t];
+                        long double pred = exp(b0 + b1 * x1);
 
-                        double nligf = boost::math::gamma_p(k, (tp*k/pred));
-            
-                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
+                        long double nligf = boost::math::gamma_p(k, tp*k/pred);  //
+                        if (nligf == 1.0) 
+                        {
+                            SEQAN_OMP_PRAGMA(critical)
+                            //if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << std::setprecision(std::numeric_limits<long double>::digits10 + 1) << nligf << std::setprecision(6) << " pred: " << pred << "  x: " << x1 << std::endl;
+                            nligf = options.min_nligf;
+                        }
+
+                        long double p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
 
                         f_S[i] +=  p * statePosteriors[s][i][t];
                     }
                 }
             }
-            // combine results from threads
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-                f += f_S[i];
+        // combine results from threads
+        for (unsigned i = 0; i < length(setObs[s]); ++i)
+            f += f_S[i];
+    }
+    return  (-f);  
+}
+
+
+
+template<typename TDOUBLE>
+struct Fct_GSL_X_GAMMA2_REG
+{
+    Fct_GSL_X_GAMMA2_REG(double const & tp_,
+                                  double const & minK_,
+                                  double const & maxK_,  
+                                  double & penalty_, 
+                                  String<String<String<TDOUBLE> > > const& statePosteriors_,
+                                  String<String<Observations> > & setObs_,  
+                                  AppOptions const&options_) : tp(tp_),
+                                                               minK(minK_),
+                                                               maxK(maxK_),
+                                                               penalty(penalty_),
+                                                               statePosteriors(statePosteriors_),  
+                                                               setObs(setObs_), 
+                                                               options(options_)
+    { 
+    }
+
+
+    // f
+    long double operator()(const gsl_vector * x)
+    {      
+        const long double k = gsl_vector_get (x, 0);
+        const long double b0 = gsl_vector_get (x, 1);
+        const long double b1 = gsl_vector_get (x, 2);
+
+        long double f = 0.0;
+
+        if (k >= minK && k <= maxK)                                                                 // if valid k
+        {
+            f = my_GSL_X_GAMMA2_REG_forK(x, k, tp, statePosteriors, setObs, options);
         }
-        return  (-f);  
+        else if (k < minK)
+        {
+            //std::cout << "k < kmin " << k << std::endl;
+            long double f_c = my_GSL_X_GAMMA2_REG_forK(x, minK, tp, statePosteriors, setObs, options);                // f value at constraint
+            long double f_cn = my_GSL_X_GAMMA2_REG_forK(x, (minK+0.001), tp, statePosteriors, setObs, options);       // f value inside the constraints with distance of 0.001
+            long double d = minK - k;
+
+            // descending towards constraint:
+            // -> mirror function values at constraint line - penalty
+            // only if mirror point < maxK!
+            if (f_cn - f_c > 0.0 && (minK + d <= maxK))
+            {
+                //std::cout << "k < kmin " << k << " descending towards constraint" << std::endl;
+                f = my_GSL_X_GAMMA2_REG_forK(x, (minK+d), tp, statePosteriors, setObs, options);    // NOTE: f is already negative
+                f += pow(d*(-f)*penalty, 2.0);                                                      // penalty depending on distance to constraint -> prevent simplex from moving outside of constraints   
+            }
+            // ascending towards constraint:
+            // -> use function values at constraint line - penalty
+            else // if (f_cn - f_c >= 0)
+            {
+                //std::cout << "k < kmin " << k << " ascending towards constraint" << std::endl;
+                f = my_GSL_X_GAMMA2_REG_forK(x, minK, tp, statePosteriors, setObs, options);
+                f += pow(d*(-f)*penalty, 2.0);
+            }
+        }
+        else                                                                                                    //if (k > maxK)
+        {
+            long double f_c = my_GSL_X_GAMMA2_REG_forK(x, maxK, tp, statePosteriors, setObs, options);                // f value at constraint
+            long double f_cn = my_GSL_X_GAMMA2_REG_forK(x, (maxK-0.001), tp, statePosteriors, setObs, options);       // f value inside the constraints with distance of 0.001
+            long double d = k - maxK;
+
+            // descending towards constraint:
+            // -> mirror function values at constraint line - penalty
+            // only if mirror point > minK!
+            if (f_cn - f_c > 0.0 && (maxK - d >= minK))
+            {
+                f = my_GSL_X_GAMMA2_REG_forK(x, (maxK-d), tp, statePosteriors, setObs, options);
+                f += pow(d*(-f)*penalty, 2.0);
+            }
+            // ascending towards constraint:
+            // -> use function values at constraint line - penalty
+            else // if (f_cn - f_c >= 0)
+            {
+                f = my_GSL_X_GAMMA2_REG_forK(x, maxK, tp, statePosteriors, setObs, options); 
+                f += pow(d*(-f)*penalty, 2.0);
+            } 
+        }
+        return  f;  
     }
 
    
 private:
-    double tp;
+    long double tp;
+    long double minK;
+    long double maxK;
+    long double penalty;
     String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
@@ -475,15 +232,15 @@ struct Fct_GSL_X_GAMMA2_REG_fixK
     { 
     }
     // f
-    double operator()(const gsl_vector * x)
+    long double operator()(const gsl_vector * x)
     {      
-        const double b0 = gsl_vector_get (x, 0);
-        const double b1 = gsl_vector_get (x, 1);
+        const long double b0 = gsl_vector_get (x, 0);
+        const long double b1 = gsl_vector_get (x, 1);
 
-        TDOUBLE f = 0.0;
+        long double f = 0.0;
         for (unsigned s = 0; s < 2; ++s)
         {
-            String<TDOUBLE> f_S;
+            String<long double> f_S;
             resize(f_S, length(setObs[s]), 0.0, Exact());
 #if HMM_PARALLEL
             SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
@@ -494,13 +251,19 @@ struct Fct_GSL_X_GAMMA2_REG_fixK
                 {    
                     if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1 && setObs[s][i].rpkms[t] >= options.minRPKMtoFit)
                     {
-                        double kde = setObs[s][i].kdes[t];
-                        double x1 = setObs[s][i].rpkms[t];
-                        double pred = exp(b0 + b1 * x1);
+                        long double kde = setObs[s][i].kdes[t];
+                        long double x1 = setObs[s][i].rpkms[t];
+                        long double pred = exp(b0 + b1 * x1);
 
-                        double nligf = boost::math::gamma_p(k, (tp*k/pred));
+                        long double nligf = boost::math::gamma_p(k, (tp*k/pred)); 
+                        if (nligf == 1.0) 
+                        {
+                            //SEQAN_OMP_PRAGMA(critical)
+                            //if (options.verbosity >= 2) std::cout << "NOTE: nligf: " << std::setprecision(std::numeric_limits<long double>::digits10 + 1) << nligf << std::setprecision(6) <<  " pred: " << pred << "  x: " << x1 << std::endl;
+                            nligf = options.min_nligf;
+                        }
             
-                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
+                        long double p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k) - log(1.0 - nligf);
 
                         f_S[i] +=  p * statePosteriors[s][i][t];
                     }
@@ -514,8 +277,8 @@ struct Fct_GSL_X_GAMMA2_REG_fixK
     }
 
 private:
-    double tp;
-    double k;
+    long double tp;
+    long double k;
     String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
@@ -537,10 +300,24 @@ double fct_GSL_X_GAMMA2_REG_fixK_W (const gsl_vector * x, void * p) {
     return (*function)( x );        
 } 
 
+
+template<typename TDOUBLE>
+struct Params2
+{
+    double tp;
+    double k;
+    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<Observations> > setObs;
+    AppOptions options;
+};
+
 template<typename TDOUBLE>
 struct Params5
 {
     double tp;
+    double minK;
+    double maxK;
+    double penalty;
     String<String<String<TDOUBLE> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
@@ -548,6 +325,7 @@ struct Params5
 
 template<typename TDOUBLE>
 bool callGSL_simplex2_fixK(int &status, 
+                  double &fval,
                   double &tp, double &k, double &b0, double &b1,
                   String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
@@ -609,6 +387,7 @@ bool callGSL_simplex2_fixK(int &status,
         }
     }
     while (status == GSL_CONTINUE && iter < max_iter);
+    fval = s->fval;
 
     b0 = gsl_vector_get (s->x, 0);
     b1 = gsl_vector_get (s->x, 1);
@@ -620,7 +399,7 @@ bool callGSL_simplex2_fixK(int &status,
 }
 
 template<typename TDOUBLE>
-bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
+bool callGSL_simplex2(double &fval, double &tp, double &k, double &b0, double &b1,
                   String<String<String<TDOUBLE> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   double &kMin, double &kMax,
@@ -634,15 +413,16 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
     int max_iter = options.maxIter_simplex;
     const size_t n = 3; 
     double size;
+    double penalty = 0.01;  // fraction of function value*(-1) 
 
     const gsl_multimin_fminimizer_type *T;
     gsl_multimin_fminimizer *s = NULL;
     
-    struct Params5<TDOUBLE> params = {tp, statePosteriors, setObs, options};
+    struct Params5<TDOUBLE> params = {tp, kMin, kMax, penalty, statePosteriors, setObs, options};
     gsl_multimin_function f;
 
     // instantiation of functor with all fixed params
-    Fct_GSL_X_GAMMA2_REG<TDOUBLE> fct(tp, statePosteriors, setObs, options);
+    Fct_GSL_X_GAMMA2_REG<TDOUBLE> fct(tp, kMin, kMax, penalty, statePosteriors, setObs, options);
 
     /* Set initial step sizes to 0.0001 */
     gsl_vector *ss = gsl_vector_alloc (n);
@@ -687,33 +467,6 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
             if (status == GSL_SUCCESS)
                 printf ("Minimum found at:\n");
         }
-        // if k < kMin: fix k and optimize only for theta
-        if (gsl_vector_get (s->x, 0) < kMin)
-        {
-            std::cout << "Note: limited shape parameter k to: " << kMin << std::endl;   //". This could be caused by outliers: high peaks, potentially background binding. Check if transcripts/chromosomes used for learning are representative." <<  std::endl;
-
-            b0 = gsl_vector_get (s->x, 1);
-            b1 = gsl_vector_get (s->x, 2);
-            callGSL_simplex2_fixK(status, tp, kMin, b0, b1, statePosteriors, setObs, options);  
-
-            gsl_vector_set (s->x, 0, kMin);
-            gsl_vector_set (s->x, 1, b0);
-            gsl_vector_set (s->x, 2, b1);
-            break;
-        }
-        else if (gsl_vector_get (s->x, 0) > kMax)
-        {
-            std::cout << "Note: limited shape parameter k to: " << kMax << std::endl; 
-
-            b0 = gsl_vector_get (s->x, 1);
-            b1 = gsl_vector_get (s->x, 2);
-            callGSL_simplex2_fixK(status, tp, kMax, b0, b1, statePosteriors, setObs, options);  
-
-            gsl_vector_set (s->x, 0, kMax);
-            gsl_vector_set (s->x, 1, b0);
-            gsl_vector_set (s->x, 2, b1);
-           break;
-        }
 
         if (options.verbosity >= 2)
         {
@@ -726,6 +479,32 @@ bool callGSL_simplex2(double &tp, double &k, double &b0, double &b1,
         }
     }
     while (status == GSL_CONTINUE && iter < max_iter);
+    fval = s->fval;
+
+    // if k < kMin: fix k and optimize only for theta
+    if (gsl_vector_get (s->x, 0) < kMin)
+    {
+        std::cout << "Note: fixed shape parameter k to: " << kMin << std::endl;   
+        b0 = gsl_vector_get (s->x, 1);
+        b1 = gsl_vector_get (s->x, 2);
+        callGSL_simplex2_fixK(status, fval, tp, kMin, b0, b1, statePosteriors, setObs, options);  
+
+        gsl_vector_set (s->x, 0, kMin);
+        gsl_vector_set (s->x, 1, b0);
+        gsl_vector_set (s->x, 2, b1);
+    }
+    else if (gsl_vector_get (s->x, 0) > kMax)
+    {
+        std::cout << "Note: fixed shape parameter k to: " << kMax << std::endl; 
+        b0 = gsl_vector_get (s->x, 1);
+        b1 = gsl_vector_get (s->x, 2);
+        callGSL_simplex2_fixK(status, fval, tp, kMax, b0, b1, statePosteriors, setObs, options);  
+
+        gsl_vector_set (s->x, 0, kMax);
+        gsl_vector_set (s->x, 1, b0);
+        gsl_vector_set (s->x, 2, b1);
+    }
+
 
     if (options.verbosity >= 2)
     {
@@ -757,159 +536,82 @@ bool GAMMA2_REG<TDOUBLE>::updateRegCoeffsAndK(String<String<String<TDOUBLE> > > 
                     double &kMin, double &kMax,
                     AppOptions const&options)
 {
-    // use multidimensional rootfinding, newton
-    return callGSL_simplex2(this->tp, this->k, this->b0, this->b1, statePosteriors, setObs, kMin, kMax, options);
+    // use multidimensional minimzation
+    double fval = 100000.0;  // note: f was negated before, we minimze
+    return callGSL_simplex2(fval, this->tp, this->k, this->b0, this->b1, statePosteriors, setObs, kMin, kMax, options);
+}
+
+template<typename TDOUBLE>
+bool GAMMA2_REG<TDOUBLE>::updateRegCoeffsAndK(String<String<double> > &startSet,
+                    String<String<String<TDOUBLE> > > &statePosteriors, 
+                    String<String<Observations> > &setObs,  
+                    double &kMin, double &kMax,
+                    AppOptions const&options)
+{
+    String<double> fvals;
+    String<double> ks;
+    String<double> b0s;
+    String<double> b1s;
+    resize(fvals, length(startSet), 100000.0, Exact()); // note: f was negated before, we minimze
+    resize(ks, length(startSet), Exact());
+    resize(b0s, length(startSet), Exact());
+    resize(b1s, length(startSet), Exact());
+
+    // use multidimensional minimzation
+    for (unsigned i = 0; i < length(startSet); ++i)
+    {
+        double k = startSet[i][0];  
+        double b0 = startSet[i][1];
+        double b1 = startSet[i][2];
+        if(!callGSL_simplex2(fvals[i], this->tp, k, b0, b1, statePosteriors, setObs, kMin, kMax, options))
+        {
+            std::cout << "ERROR: during simplex optimization!" << std::endl;
+            return false;
+        }
+        ks[i] = k;
+        b0s[i] = b0;
+        b1s[i] = b1;
+    }
+    double min_fval = 100000.0;
+    for (unsigned i = 0; i < length(startSet); ++i)
+    {
+        if (fvals[i] < min_fval)
+        {
+            min_fval = fvals[i];
+            this->k = ks[i];
+            this->b0 = b0s[i];
+            this->b1 = b1s[i];
+        }
+    }
+    return true;
 }
 
 
-
-
-///////////////////////////////////////
-// update k
-///////////////////////////////////////
-
-
-/*void GAMMA2_REG::approximateK(String<String<double> > &statePosteriorsF, 
-                              String<String<double> > &statePosteriorsR, 
-                              String<Observations> &setObsF, String<Observations> &setObsR, 
-                              AppOptions const&options)
-{
-    double sum1 = 0.0;
-    double sum2 = 0.0;
-    double sum3 = 0.0;
-    // forward
-    for (unsigned i = 0; i < length(setObsF); ++i)
-    {
-        for (unsigned t = 0; t < setObsF[i].length(); ++t)
-        {
-            if (setObsF[i].kdes[t] >= options.useKdeThreshold && setObsF[i].kdes[t] >= this->tp && setObsF[i].truncCounts[t] >= 1 && setObsF[i].rpkms[t] >= options.minRPKMtoFit)
-            {
-                sum1 += statePosteriorsF[i][t] * setObsF[i].kdes[t];
-                sum2 += statePosteriorsF[i][t] * log(setObsF[i].kdes[t]);
-                sum3 += statePosteriorsF[i][t];
-            }
-        }
-    }
-    // reverse
-    for (unsigned i = 0; i < length(setObsR); ++i)
-    {
-        for (unsigned t = 0; t < setObsR[i].length(); ++t)
-        {
-            if (setObsR[i].kdes[t] >= options.useKdeThreshold && setObsR[i].kdes[t] >= this->tp && setObsR[i].truncCounts[t] >= 1 && setObsR[i].rpkms[t] >= options.minRPKMtoFit)
-            {
-                sum1 += statePosteriorsR[i][t] * setObsR[i].kdes[t];
-                sum2 += statePosteriorsR[i][t] * log(setObsR[i].kdes[t]);
-                sum3 += statePosteriorsR[i][t];
-            }
-        }
-    }
-    double s = log(sum1/sum3) - (sum2/sum3);
-
-    this->k = (3.0 - s + sqrt(pow(s - 3.0, 2) + 24.0*s))/(12.0 * s);
-}*/
-
-
-
-// Functor for Brent's algorithm
-// maximize for k
-template<typename TDOUBLE>
-struct Fct_GAMMA2_REG_k
-{
-    Fct_GAMMA2_REG_k(double const& b0_, double const& b1_, 
-                                  String<String<String<TDOUBLE> > > const& statePosteriors_, 
-                                  String<String<Observations> > & setObs_, 
-                                  AppOptions const&options_) : b0(b0_), b1(b1_), 
-                                                               statePosteriors(statePosteriors_),  
-                                                               setObs(setObs_), 
-                                                               options(options_)
-    { 
-    }
-    double operator()(double const& k)
-    {
-        // Group log-likelihood function evaluations regarding binned kde vaues ! todo
-
-        TDOUBLE ll = 0.0;
-        for (unsigned s = 0; s < 2; ++s)
-        {
-            String<TDOUBLE> llsS;
-            resize(llsS, length(setObs[s]), 0.0, Exact());
-#if HMM_PARALLEL
-            SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
-#endif 
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-            {
-                for (unsigned t = 0; t < setObs[s][i].length(); ++t)  
-                {
-                    if (setObs[s][i].kdes[t] >= options.useKdeThreshold && setObs[s][i].truncCounts[t] >= 1 && 
-                        setObs[s][i].rpkms[t] >= options.minRPKMtoFit)
-                    {
-                        double kde = setObs[s][i].kdes[t];
-                        double x1 = setObs[s][i].rpkms[t];
-                        double pred = exp(b0 + b1 * x1);
-
-                        double nligf = boost::math::gamma_p(k, (options.useKdeThreshold/(pred/k)));
-
-                        TDOUBLE p = (k-1.0)*log(kde) - k * (kde/pred + log(pred)) - k*log(1.0/k) - lgamma(k);
-                        p -= log(1.0 - nligf);
-                        llsS[i] +=  p * statePosteriors[s][i][t];
-                    }
-                }
-            }
-            // combine results from threads
-            for (unsigned i = 0; i < length(setObs[s]); ++i)
-                ll += llsS[i];
-        }
-        return (-ll);
-    }
-
-private:
-    double b0;
-    double b1;
-    String<String<String<TDOUBLE> > > statePosteriors;
-    String<String<Observations> > & setObs;
-    AppOptions options;
-};
+/////
 
 
 template<typename TDOUBLE>
-void GAMMA2_REG<TDOUBLE>::updateK(String<String<String<TDOUBLE> > > &statePosteriors, 
-                         String<String<Observations> > &setObs, 
-                         double &kMin, double &kMax,
-                         AppOptions const&options)
-{ 
-    int bits = 60;
-    boost::uintmax_t maxIter = options.maxIter_brent;
-    
-    Fct_GAMMA2_REG_k<TDOUBLE> fct_GAMMA2_REG_k(this->b0, this->b1, statePosteriors, setObs, options);
-    std::pair<double, double> res = boost::math::tools::brent_find_minima(fct_GAMMA2_REG_k, kMin, kMax, bits, maxIter);         // use somehow initial guess to save time? or interval around prev. value?
-
-    this->k = res.first;
-}
-
-
-template<typename TDOUBLE>
-long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pred)   
+long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pred, AppOptions const&options)   
 {
     if (kde < this->tp) return 0.0;
 
-    //double pred = exp(this->b0 + this->b1 * x);
-
-    double theta = pred/this->k;
+    long double theta = (long double)pred/(long double)this->k;
     // if (kde == 0.0) should not occur, checked while computing eProbs
-    TDOUBLE f1 = pow(kde, this->k - 1.0) * exp(-kde/theta);
-    TDOUBLE f2 = pow(theta, this->k) * tgamma(this->k);
+    long double f1 = pow((long double)kde, (long double)this->k - 1.0) * exp(-(long double)kde/theta);
+    long double f2 = pow(theta, (long double)this->k) * tgamma((long double)this->k);
     if (f2 ==  0.0) std::cout << "ERROR: f2 is 0!" << std::endl;
 
-
     // normalized lower incomplete gamma function
-    double nligf = boost::math::gamma_p(this->k, this->tp/theta);
-    if ((1.0 - nligf) == 0.0) std::cout << "ERROR: (1 - nligf) is 0!"  << " kde: " << kde << " pred: " << pred << std::endl;
+    long double nligf = boost::math::gamma_p((long double)this->k, (long double)this->tp/theta);
+    if (nligf == 1.0) 
+    {
+        //SEQAN_OMP_PRAGMA(critical)
+        //if (options.verbosity >= 2) std::cout << "NOTE: (1 - nligf) is 0! nligf set to " <<  std::setprecision(std::numeric_limits<long double>::digits10 + 1) << options.min_nligf << std::setprecision(6) <<  " (kde: " << kde << " pred: " << pred << ")" << std::endl;
+        nligf = options.min_nligf;
+    }
 
     return  ((f1/f2)/(1.0 - nligf));
 }
-
-
-
 
 
 
@@ -923,7 +625,6 @@ void myPrint(GAMMA2_REG<TDOUBLE> &gamma)
     std::cout << "*** GAMMA2_REG ***" << std::endl;
     std::cout << "    b0:"<< gamma.b0 << std::endl;
     std::cout << "    b1:"<< gamma.b1 << std::endl;
-    std::cout << "    mean:"<< gamma.mean << std::endl;
     std::cout << "    k:" << gamma.k << std::endl;
     std::cout << "    tp:" << gamma.tp << std::endl;
     std::cout << std::endl;
@@ -944,10 +645,10 @@ void printParams(TOut &out, GAMMA2_REG<TDOUBLE> &gamma, int i)
 {
     out << "gamma" << i << ".b0" << '\t' << gamma.b0 << std::endl;
     out << "gamma" << i << ".b1" << '\t' << gamma.b1 << std::endl;
-    out << "gamma" << i << ".theta" << '\t' << exp(gamma.b0)/gamma.k << std::endl;
     out << "gamma" << i << ".k" << '\t' << gamma.k << std::endl;
     out << "gamma" << i << ".tp" << '\t' << gamma.tp << std::endl;
-    out << std::endl;    
+    out << std::endl;
+
 }
 
 
