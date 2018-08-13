@@ -192,7 +192,7 @@ namespace seqan {
             numThreads(1),
             numThreadsA(1),
             outputAll(false),
-	    forDiff(true),
+	        forDiff(true),
             verbosity(1)
         {}
     };
