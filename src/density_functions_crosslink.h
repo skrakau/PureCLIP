@@ -60,6 +60,62 @@ public:
 };
 
 
+
+// Functor for Brent's algorithm: 
+template<typename TDOUBLE>
+struct FctLL_ZTBIN_TEST
+{
+    FctLL_ZTBIN_TEST(String<String<String<TDOUBLE> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
+    { 
+    }
+    double operator()(double const& p)
+    {
+        long double ll = 0.0;       
+        for (unsigned s = 0; s < 2; ++s)
+        {
+            String<long double> lls;
+            resize(lls, length(setObs[s]), 0.0, Exact());
+#if HMM_PARALLEL
+            SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
+#endif  
+            for (unsigned i = 0; i < length(setObs[s]); ++i)
+            {
+                for (unsigned t = 0; t < setObs[s][i].length(); ++t)  
+                {
+                    // only optimize for sites with fimo score > 0.0 and corresponding to current id m
+                    if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && setObs[s][i].nEstimates[t] <= options.maxBinN)
+                    {
+                        unsigned k = setObs[s][i].truncCounts[t];
+                        unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]); 
+
+                        if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
+                        {
+                            // l = log(1.0) -log(1.0 - pow((1.0-p), n)) + log (n over k) + k*log(p) + (n-k)*log(1.0-p);
+                            // ignore parts not meaning for optimization! 
+                            long double l = -log(1.0 - pow((1.0-p), n)) + k*log(p) + (n-k)*log(1.0-p);  
+                            lls[i] += l * statePosteriors[s][i][t];
+                        }
+                    }
+                }
+            }
+            // combine results from threads
+            for (unsigned i = 0; i < length(setObs[s]); ++i)
+                ll += lls[i];
+        }
+        if (std::isnan(ll) || std::isinf(ll) || (ll == 0.0))
+            std::cout << "ERROR: Brent ll: " << ll << " with p: " << p << std::endl;
+
+        return (-ll);
+    }
+
+private:
+    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<Observations> > &setObs;
+    AppOptions options;
+};
+
+
+
 // use truncCounts
 template<typename TDOUBLE>
 void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
@@ -88,8 +144,21 @@ void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors,
             }
         }
     }
-    //std::cout << "updateP: sum1" << sum1 << " sum2: " << sum2 << " p: " << (sum1/sum2) << std::endl;
-    this->p = sum1/sum2;
+    std::cout << "updateP: sum1" << sum1 << " sum2: " << sum2 << " p: " << (sum1/sum2) << std::endl;
+    //this->p = sum1/sum2;
+
+    // Test if numerical solutions gives same results ....
+    int bits = 60;
+    boost::uintmax_t maxIter = options.maxIter_brent;
+    
+    long double pMin = 0.00001; //make sure not becoming invalid ...logs!
+    long double pMax = 0.9;
+
+    FctLL_ZTBIN_TEST<TDOUBLE> fct_ZTBIN_TEST(statePosteriors, setObs, options);
+    std::pair<long double, long double> res = boost::math::tools::brent_find_minima(fct_ZTBIN_TEST, pMin, pMax, bits, maxIter);         
+    std::cout << "updateP using brent...  p: " << res.first << std::endl;
+    this->p = res.first;
+
 }
 
 
