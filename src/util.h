@@ -120,7 +120,6 @@ namespace seqan {
 
         unsigned numThreads;
         unsigned numThreadsA;
-        CharString tempPath;
         bool outputAll;
         // Verbosity level.  0 -- quiet, 1 -- normal, 2 -- verbose, 3 -- very verbose.
         int verbosity;
@@ -182,7 +181,7 @@ namespace seqan {
             useHighPrecision(false),
             selectRead(0),
             numThreads(1),
-            numThreadsA(1),
+            numThreadsA(0),
             outputAll(false),
             verbosity(1)
         {}
@@ -446,6 +445,7 @@ namespace seqan {
         clear(data.statePosteriors);
         clear(data.states);
     }
+
 
 }
 

@@ -164,7 +164,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("et2", "epta", "Exclude intervals containing poly-U stretches from analysis."));
  
     addOption(parser, ArgParseOption("mrtf", "mrtf", "Fit gamma shape k only for positions with min. covariate value.", ArgParseArgument::DOUBLE));
-    addOption(parser, ArgParseOption("mtc", "mtc", "Maximum number of truncations at one position used for learning. For sites with counts above threshold the whole covered regions will be ignored for learning! Default: 250.", ArgParseArgument::INTEGER));
+    addOption(parser, ArgParseOption("mtc", "mtc", "Maximum number of read starts at one position used for learning. For sites with counts above threshold the whole covered regions will be ignored for learning! Default: 500.", ArgParseArgument::INTEGER));
     setMinValue(parser, "mtc", "50");
     setMaxValue(parser, "mtc", "50000"); 
 
@@ -174,8 +174,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     addSection(parser, "General user options");
     addOption(parser, ArgParseOption("nt", "nt", "Number of threads used for learning.", ArgParseArgument::INTEGER));
-    addOption(parser, ArgParseOption("nta", "nta", "Number of threads used for applying learned parameters. Increases memory usage, if greater than number of chromosomes used for learning, since HMM will be build for multiple chromosomes in parallel.", ArgParseArgument::INTEGER));
-    addOption(parser, ArgParseOption("tmp", "tmp", "Path to directory to store intermediate files. Default: /tmp", ArgParseArgument::STRING));
+    addOption(parser, ArgParseOption("nta", "nta", "Number of threads used for applying learned parameters. Increases memory usage, if greater than number of chromosomes used for learning, since HMM will be build for multiple chromosomes in parallel. Default: min(nt, no. of chromosomes/transcripts used for learning).", ArgParseArgument::INTEGER));
     addOption(parser, ArgParseOption("oa", "oa", "Outputs all sites with at least one read start in extended output format."));
     addOption(parser, ArgParseOption("oe", "oe", "Outputs additionally all sites that are 'enriched' and contain at least one read start."));
 
@@ -302,7 +301,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     getOptionValue(options.numThreads, parser, "nt");
     getOptionValue(options.numThreadsA, parser, "nta");
-    getOptionValue(options.tempPath, parser, "tmp");
+
     if (isSet(parser, "oa"))
         options.outputAll = true;
  

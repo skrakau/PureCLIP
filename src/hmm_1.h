@@ -1373,7 +1373,7 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::rmBoarderArtifacts(String<String<String<__uint8
 }
 
 
-void writeStates(BedFileOut &outBed,
+void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                  Data &data,
                  FragmentStore<> &store, 
                  unsigned contigId,
@@ -1462,7 +1462,7 @@ void writeStates(BedFileOut &outBed,
                     ss.str("");  
                     ss.clear();  
 
-                    writeRecord(outBed, record);
+                    appendValue(bedRecords_sites, record);
                 }
                 else if (data.setObs[s][i].discard && options.outputAll && data.setObs[s][i].truncCounts[t] >= 1)  // discarded interval
                 {
@@ -1528,7 +1528,7 @@ void writeStates(BedFileOut &outBed,
                     ss.str("");  
                     ss.clear();  
 
-                    writeRecord(outBed, record);
+                    appendValue(bedRecords_sites, record);
                 }
                 else if (!data.setObs[s][i].discard && data.states[s][i][t] == 3)
                 {
@@ -1577,7 +1577,7 @@ void writeStates(BedFileOut &outBed,
                     else
                         record.strand = '-';
 
-                    writeRecord(outBed, record);
+                    appendValue(bedRecords_sites, record);
                 }               
             }
         }
@@ -1585,7 +1585,7 @@ void writeStates(BedFileOut &outBed,
 }
 
 
-void writeRegions(BedFileOut &outBed,
+void writeRegions(String<BedRecord<Bed6> > &bedRecords_regions,
                  Data &data,
                  FragmentStore<> &store, 
                  unsigned contigId,
@@ -1689,7 +1689,8 @@ void writeRegions(BedFileOut &outBed,
                     record.name = ss_indivScores.str();
                     ss_indivScores.str("");  
                     ss_indivScores.clear(); 
-                    writeRecord(outBed, record);
+                    
+                    appendValue(bedRecords_regions, record);
                 }      
             }
         }

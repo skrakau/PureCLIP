@@ -55,6 +55,8 @@ bool parse_bamRegion(TContigObservations &contigObservationsF, TContigObservatio
     // Seek linearly to the selected position
     BamAlignmentRecord bamRecord;
     BamAlignmentRecord newBamRecord;
+
+    SEQAN_OMP_PRAGMA(critical)
     while (!atEnd(inFile))
     {
         readRecord(bamRecord, inFile);
@@ -111,6 +113,8 @@ bool parse_bamRegion(TTruncCounts &truncCounts, TBamIn &inFile, TBai &baiIndex, 
     // Seek linearly to the selected position
     BamAlignmentRecord bamRecord;
     BamAlignmentRecord newBamRecord;
+
+    SEQAN_OMP_PRAGMA(critical)
     while (!atEnd(inFile))
     {
         readRecord(bamRecord, inFile);

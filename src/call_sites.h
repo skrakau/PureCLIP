@@ -178,8 +178,8 @@ bool loadApplyChrs(AppOptions &options, TStore &store)
 
 
 
-template <typename TContigObservations, typename TStore>
-int loadObservations(TContigObservations &contigObservationsF, TContigObservations &contigObservationsR, unsigned contigId, TStore &store, AppOptions &options)
+template <typename TContigObservations, typename TBai, typename TStore>
+int loadObservations(TContigObservations &contigObservationsF, TContigObservations &contigObservationsR, unsigned contigId, TBai &baiIndex, TStore &store, AppOptions &options)
 {
 #ifdef HMM_PROFILE
     double timeStamp = sysTime();
@@ -197,13 +197,7 @@ int loadObservations(TContigObservations &contigObservationsF, TContigObservatio
     }
     BamHeader header;
     readHeader(header, inFile);
-    // Read BAI index.
-    BamIndex<Bai> baiIndex;
-    if (!open(baiIndex, toCString(options.baiFileName)))
-    {
-        std::cerr << "ERROR: Could not read BAI index file " << options.baiFileName << "\n";
-        return 1;
-    }
+
     // Translate from contig name to rID.
     int rID = 0;
     if (!getIdByName(rID, contigNamesCache(context(inFile)), store.contigNameStore[contigId]))
@@ -229,8 +223,8 @@ int loadObservations(TContigObservations &contigObservationsF, TContigObservatio
 }
 
 
-template <typename TStore, typename TOptions>
-bool loadBAMCovariates(Data &data, TStore &store, bool parallelize, TOptions &options)
+template <typename TBai, typename TStore, typename TOptions>
+bool loadBAMCovariates(Data &data, TBai &inputBaiIndex, TStore &store, bool parallelize, TOptions &options)
 {
     if (options.verbosity >= 1) std::cout << "  Parse input BAM, get truncCounts, compute KDEs ... " << std::endl;
 
@@ -254,15 +248,6 @@ bool loadBAMCovariates(Data &data, TStore &store, bool parallelize, TOptions &op
         }
         BamHeader header;
         readHeader(header, inFile);
-        // Read BAI index.
-        BamIndex<Bai> baiIndex;
-        if (!open(baiIndex, toCString(options.inputBaiFileName)))
-        {
-            SEQAN_OMP_PRAGMA(critical)
-            std::cerr << "ERROR: Could not read BAI index file " << options.inputBaiFileName << "\n";
-            stop = true;
-            continue;
-        }
 
         for (unsigned i = 0; i < length(data.setObs[s]); ++i)
         {
@@ -281,14 +266,14 @@ bool loadBAMCovariates(Data &data, TStore &store, bool parallelize, TOptions &op
             {
                 unsigned beginPos = data.setPos[s][i];
                 unsigned endPos = data.setPos[s][i] + data.setObs[s][i].length();
-                parse_bamRegion(truncCounts, inFile, baiIndex, rID, beginPos, endPos, true, options);
+                parse_bamRegion(truncCounts, inFile, inputBaiIndex, rID, beginPos, endPos, true, options);
             }
             else
             {
                 unsigned beginPos = length(store.contigStore[data.setObs[s][i].contigId].seq) - (data.setObs[s][i].length() + data.setPos[s][i]);
                 unsigned endPos = beginPos + data.setObs[s][i].length();
 
-                parse_bamRegion(truncCounts, inFile, baiIndex, rID, beginPos, endPos, false, options);
+                parse_bamRegion(truncCounts, inFile, inputBaiIndex, rID, beginPos, endPos, false, options);
                 // reverse
                 reverse(truncCounts);
             }
@@ -816,8 +801,8 @@ void computeSLR(double &b0, double &b1, Data &data, TOptions &options) // TODO c
 }
 
 
-template <typename TStore, typename TOptions>
-void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, bool parallelize, TOptions &options)
+template <typename TBai, typename TStore, typename TOptions>
+void preproCoveredIntervals(Data &data, double &b0, double &b1, TBai &inputBaiIndex, TStore &store, bool parallelize, TOptions &options)
 {
     if (options.verbosity >= 1) std::cout << "  Compute KDEs ... " << std::endl;
     for (unsigned s = 0; s < 2; ++s)
@@ -855,7 +840,7 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TStore &store, b
     // if input BAM file given
     if (options.useCov_RPKM && !empty(options.inputBamFileName))
     {
-        loadBAMCovariates(data, store, parallelize, options);       // interval-wise
+        loadBAMCovariates(data, inputBaiIndex, store, parallelize, options);       // interval-wise
     }
 }
 
@@ -966,36 +951,6 @@ bool applyHMM(Data &data,
 }
 
 
-inline
-const char * myTempFileName(std::string const suffix = "", std::string const tempPath = "")
-{
-    if (mkdir(tempPath.c_str(), 0777) == -1)
-    {
-        if(errno == EEXIST ) {
-            //std::cout << "Directory already exists " << std::endl;
-        } else {
-            std::cerr << tempPath << std::endl;
-            throw std::runtime_error("ERROR: Could not create directory");
-        }
-    }
-
-    static char fileNameBuffer[1000];
-    strcpy(fileNameBuffer, (tempPath + "PURECLIP.XXXXXX" + suffix).c_str());
-
-    int _tmp = mkstemps(fileNameBuffer, suffix.size());
-    if (_tmp == -1)
-        throw std::runtime_error("Could not create temp file");
-
-    close(_tmp);    
-    return fileNameBuffer;
-}
-
-inline bool exists_test(const CharString& fileName) {
-    std::ifstream f(toCString(fileName));
-    return f.good();
-}
-
-
 template <typename TGamma, typename TBIN, typename TDOUBLE, typename TOptions>
 bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, TOptions &options)
 {
@@ -1023,6 +978,12 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     }
     loadIntervals(options, store);
     loadApplyChrs(options, store);
+    if (options.numThreadsA == 0)
+    {
+        options.numThreadsA = std::min((int)options.numThreads, (int)length(options.intervals_contigIds));
+        if (options.verbosity >= 2)  std::cout << "Set no. of threads for applying HMM to: " << options.numThreadsA << std::endl;
+    }
+ 
 #if SEQAN_HAS_ZLIB
     if (options.verbosity > 1) std::cout << "SEQAN_HAS_ZLIB" << std::endl;
 #else
@@ -1074,6 +1035,23 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
         std::cout << "Set n threshold used for learning of binomial p parameters and transition probabilities '2' -> '2'/'3' to: " << options.nThresholdForTransP << std::endl;
     } 
 
+    // Read BAI index.
+    BamIndex<Bai> baiIndex;
+    if (!open(baiIndex, toCString(options.baiFileName)))
+    {
+        std::cerr << "ERROR: Could not read BAI index file " << options.baiFileName << "\n";
+        return 1;
+    }
+    // Read control BAI index.
+    BamIndex<Bai> inputBaiIndex;
+    if (options.useCov_RPKM && !empty(options.inputBaiFileName))
+    {
+        if (!open(inputBaiIndex, toCString(options.inputBaiFileName)))
+        {
+            std::cerr << "ERROR: Could not read input control BAI index file " << options.inputBaiFileName << "\n";
+            return 1;
+        }
+    }
     // *****************
     double slr_NfromKDE_b0 = 0.0;
     double slr_NfromKDE_b1 = 0.0;  
@@ -1097,7 +1075,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     {
         unsigned contigId = options.intervals_contigIds[i];
 
-        int r = loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, store, options);
+        int r = loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, baiIndex, store, options);
         if (r == 1)
         {
             stop = true; 
@@ -1137,7 +1115,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
         computeSLR(slr_NfromKDE_b0, slr_NfromKDE_b1, data, options);
   
     // precompute KDE values, estimate Ns, etc.
-    preproCoveredIntervals(data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, true, options);
+    preproCoveredIntervals(data, slr_NfromKDE_b0, slr_NfromKDE_b1, inputBaiIndex, store, true, options);
  
     gamma1.tp = options.useKdeThreshold;
     gamma2.tp = options.useKdeThreshold;       // left tuncated    
@@ -1158,10 +1136,12 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
 #if HMM_PARALLEL
     omp_set_num_threads(options.numThreadsA);
 #endif  
-    String<CharString> contigTempFileNamesBed;
-    String<CharString> contigTempFileNamesBed2;  
-    resize(contigTempFileNamesBed, length(store.contigStore));
-    resize(contigTempFileNamesBed2, length(store.contigStore));
+
+    // store contig-wise bedRecords
+    String<String<BedRecord<Bed6> > > bedRecords_sites;
+    String<String<BedRecord<Bed6> > > bedRecords_regions;
+    resize(bedRecords_sites, length(options.applyChr_contigIds), Exact());
+    resize(bedRecords_regions, length(options.applyChr_contigIds), Exact());
 
 #ifdef HMM_PROFILE
     double timeStamp2 = sysTime();
@@ -1178,7 +1158,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
         ContigObservations contigObservationsF;
         ContigObservations contigObservationsR;
 
-        int r = loadObservations(contigObservationsF, contigObservationsR, contigId, store, options);
+        int r = loadObservations(contigObservationsF, contigObservationsR, contigId, baiIndex, store, options);
         if (r == 1)
         {
             stop = true; 
@@ -1204,7 +1184,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
 
             if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   
             {
-                preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, store, false, options);
+                preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, inputBaiIndex, store, false, options);
                 // Apply learned parameters
                 unsigned contigLen = length(store.contigStore[contigId].seq);
                 if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, contigLen, options))
@@ -1212,91 +1192,30 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
                     SEQAN_OMP_PRAGMA(critical)
                     stop = true;
                 }
-                // Temp. output
-                CharString tempFileNameBed;
 
-                if (empty(options.tempPath))
-                {
-                    SEQAN_OMP_PRAGMA(critical)
-                    append(tempFileNameBed, SEQAN_TEMP_FILENAME());
-                    std::stringstream ss;
-                    ss << contigId;
-                    append(tempFileNameBed, ss.str());
-                    append(tempFileNameBed, ".bed");
-                }
-                else
-                {
-                    SEQAN_OMP_PRAGMA(critical)
-                    tempFileNameBed = myTempFileName(".bed", toCString(options.tempPath));
-                }
-
-                contigTempFileNamesBed[contigId] = tempFileNameBed;
-                if (options.verbosity >= 2) std::cout << "temp file Name: " << tempFileNameBed << std::endl;
-                BedFileOut outBed(toCString(tempFileNameBed));
-                writeStates(outBed, c_data, store, contigId, options);  
+                writeStates(bedRecords_sites[contigId], c_data, store, contigId, options);  
                 
                 if (!empty(options.outRegionsFileName))
                 {
-                    if (empty(options.tempPath))
-                    {
-
-                        SEQAN_OMP_PRAGMA(critical)
-                        tempFileNameBed = SEQAN_TEMP_FILENAME();
-                        std::stringstream ss;
-                        ss << contigId;
-                        append(tempFileNameBed, ss.str());
-                        append(tempFileNameBed, ".regions.bed");
-                    }
-                    else
-                    {
-                        SEQAN_OMP_PRAGMA(critical)
-                        tempFileNameBed = myTempFileName(".regions.bed", toCString(options.tempPath));
-                    }
-
-                    contigTempFileNamesBed2[contigId] = tempFileNameBed;
-                    if (options.verbosity >= 2) std::cout << "temp file Name: " << tempFileNameBed << std::endl;
-                    BedFileOut outBed2(toCString(tempFileNameBed)); 
-
-                    writeRegions(outBed2, c_data, store, contigId, options);              
+                    writeRegions(bedRecords_regions[contigId], c_data, store, contigId, options);              
                 }
             }
         }
     }
     if (stop) return 1;
 
-    if (options.verbosity >= 2) std::cout << "Merge output files ... " << std::endl;
-    // Append content of temp files to final output in contig order
+    if (options.verbosity >= 2) std::cout << "Write bedRecords to BED files ... " << std::endl;
     // crosslink sites
     BedFileOut outBed(toCString(options.outFileName)); 
     for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
     {
         unsigned contigId = options.applyChr_contigIds[i];
-        if (!empty(contigTempFileNamesBed[contigId]))
+        for (unsigned j = 0; j < length(bedRecords_sites[contigId]); ++j)
         {
-            // BED
-            BedFileIn bedFileIn;
-            if (!open(bedFileIn, toCString(contigTempFileNamesBed[contigId])))
-            {
-                //std::cerr << "ERROR: Could not open temporary bed file: " << contigTempFileNamesBed[contigId] << "\n";
-                continue;
-            }
-
-            BedRecord<seqan::Bed6> bedRecord;
-            while (!atEnd(bedFileIn))
-            {
-                readRecord(bedRecord, bedFileIn);
-                writeRecord(outBed, bedRecord);
-            }
-            std::remove(toCString(contigTempFileNamesBed[contigId]));
-            if (exists_test(contigTempFileNamesBed[contigId]))
-            {
-                std::cerr << "ERROR: Could open temporary bed file which should be deleted: " << contigTempFileNamesBed[contigId]  << std::endl;
-                return 1;
-            }
+            writeRecord(outBed, bedRecords_sites[contigId][j]);
         }
     }
 
-    // Append content of temp files to final output in contig order
     // binding regions
     if (!empty(options.outRegionsFileName))
     {
@@ -1304,28 +1223,9 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
         for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
         {
             unsigned contigId = options.applyChr_contigIds[i];
-            if (!empty(contigTempFileNamesBed2[contigId]))
+            for (unsigned j = 0; j < length(bedRecords_regions[contigId]); ++j)
             {
-                // BED
-                BedFileIn bedFileIn;
-                if (!open(bedFileIn, toCString(contigTempFileNamesBed2[contigId])))
-                {
-                    //std::cerr << "ERROR: Could not open temporary bed file: " << contigTempFileNamesBed[contigId] << "\n";
-                    continue;
-                }
-
-                BedRecord<seqan::Bed6> bedRecord;
-                while (!atEnd(bedFileIn))
-                {
-                    readRecord(bedRecord, bedFileIn);
-                    writeRecord(outBed2, bedRecord);
-                }
-                std::remove(toCString(contigTempFileNamesBed2[contigId]));
-                if (exists_test(contigTempFileNamesBed2[contigId]))
-                {
-                    std::cerr << "ERROR: Could open temporary bed file which should be deleted: " << contigTempFileNamesBed2[contigId]  << std::endl;
-                    return 1;
-                }
+                writeRecord(outBed2, bedRecords_regions[contigId][j]);
             }
         }
     }
