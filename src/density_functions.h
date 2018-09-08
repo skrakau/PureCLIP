@@ -613,7 +613,7 @@ void printParams(TOut &out, GAMMA2<TDOUBLE> &gamma, int i)
 template<typename TDOUBLE>
 void checkOrderG1G2(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, AppOptions &options)
 {
-    if (gamma1.k*gamma1.b0 > gamma2.b0)
+    if (exp(gamma1.b0) > exp(gamma2.b0))
     {
         std::swap(gamma1.b0, gamma2.b0);
         std::cout << "NOTE: swapped gamma1.b0 and gamma2.b0 ! " << std::endl;
