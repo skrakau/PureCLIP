@@ -100,6 +100,7 @@ awk 'BEGIN{FS="\t"; OFS="\t"} {print $1, $2, $3, ".", 0, $4};' "$TEMP_DIR/alignm
 # version 4.11.3: fimo.txt: #pattern name   sequence_name    ...
 echo "Run FIMO ..."
 "$fimo" -oc "$TEMP_DIR/FIMO_CL_MOTIFS" --verbosity 2 --norc --motif-pseudo 0.1 --max-stored-scores 50000000 --thresh 0.01 "$MOTIFS_XML" "$TEMP_DIR/alignment.covered_regions.sequences.fasta"
+
 if head -n1 "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.tsv" 2>/dev/null | fgrep "motif_id	motif_alt_id	sequence_name	start	stop	strand	score	p-value	q-value	matched_sequence" >/dev/null 2>&1; then
     #echo "...parse fimo output version >= 5.0"
     awk 'BEGIN{FS=OFS="\t"} $1 !~ "motif_id" && $7 > 0 {print $3, ($4-1), ($5-1), $1, $7, $6};' "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.tsv" > "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.tmp.txt"
@@ -114,9 +115,12 @@ else
     exit 1
 fi
 
+# split sequence name containing position and strand information at end separated with "_" (cand_IDwithMaybe_bla_beginPos_endPos_strand) 
+awk 'BEGIN{FS="_"; OFS="\t"; ORS=""} {contig=$2; start=$(NF-2); end = $(NF-1); rem=$NF; print contig; for (i=3;i<=NF-3;i++){print "_" $i} print "\t" start, end, rem"\n"};' "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.tmp.txt" > "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.tmp2.txt"
 
 # convert back to original positions
-awk 'BEGIN{FS="\t|_"; OFS="\t"} $5 == "F" {print $2, ($3+$6), ($3+$7), $8, $9, "+"}; $5 == "R" {print $2, ($4-$7-1), ($4-$6-1), $8, $9, "-"};' "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.tmp.txt" > "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.origPos.txt"
+awk 'BEGIN{FS="\t"; OFS="\t"} $4 == "F" {print $1, ($2+$5), ($2+$6), $7, $8, "+"}; $4 == "R" {print $1, ($3-$6-1), ($3-$5-1), $7, $8, "-"};' "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.tmp2.txt" > "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.origPos.txt"
+#awk 'BEGIN{FS="\t|_"; OFS="\t"} $5 == "F" {print $2, ($3+$6), ($3+$7), $8, $9, "+"}; $5 == "R" {print $2, ($4-$7-1), ($4-$6-1), $8, $9, "-"};' "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.tmp2.txt" > "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.origPos.txt"
 
 # get single nucleotide resolution
 awk 'BEGIN{FS=OFS="\t"}{chr=$1; beginPos=$2; endPos=$3; motif=$4; score=$5; strand=$6; for(i=beginPos; i <= endPos; i+=1){print chr"\t"i"\t"(i+1)"\t"motif"\t"score"\t"strand} }' "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.origPos.txt" > "$TEMP_DIR/FIMO_CL_MOTIFS/fimo.origPos.sn.txt"
