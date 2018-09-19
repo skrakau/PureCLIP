@@ -41,9 +41,8 @@
 #include "util.h"
 #include "call_sites.h"
 
-using namespace seqan;
 
- 
+using namespace seqan;
 
 ArgumentParser::ParseResult
 parseCommandLine(AppOptions & options, int argc, char const ** argv)

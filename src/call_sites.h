@@ -1153,6 +1153,7 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
     for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
     {
         unsigned contigId = options.applyChr_contigIds[i];
+
         if (options.verbosity >= 1) std::cout << "  " << store.contigNameStore[contigId] << std::endl;
 
         ContigObservations contigObservationsF;
@@ -1193,40 +1194,33 @@ bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, 
                     stop = true;
                 }
 
-                writeStates(bedRecords_sites[contigId], c_data, store, contigId, options);  
+                writeStates(bedRecords_sites[i], c_data, store, contigId, options);  
                 
                 if (!empty(options.outRegionsFileName))
                 {
-                    writeRegions(bedRecords_regions[contigId], c_data, store, contigId, options);              
+                    writeRegions(bedRecords_regions[i], c_data, store, contigId, options);              
                 }
             }
         }
     }
     if (stop) return 1;
 
-    if (options.verbosity >= 2) std::cout << "Write bedRecords to BED files ... " << std::endl;
+    if (options.verbosity >= 2) std::cout << "Write bedRecords to BED file ... " << options.outFileName << std::endl;
     // crosslink sites
     BedFileOut outBed(toCString(options.outFileName)); 
     for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
     {
-        unsigned contigId = options.applyChr_contigIds[i];
-        for (unsigned j = 0; j < length(bedRecords_sites[contigId]); ++j)
-        {
-            writeRecord(outBed, bedRecords_sites[contigId][j]);
-        }
+        for (unsigned j = 0; j < length(bedRecords_sites[i]); ++j)
+            writeRecord(outBed, bedRecords_sites[i][j]);
     }
-
     // binding regions
     if (!empty(options.outRegionsFileName))
     {
         BedFileOut outBed2(toCString(options.outRegionsFileName)); 
         for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
         {
-            unsigned contigId = options.applyChr_contigIds[i];
-            for (unsigned j = 0; j < length(bedRecords_regions[contigId]); ++j)
-            {
-                writeRecord(outBed2, bedRecords_regions[contigId][j]);
-            }
+            for (unsigned j = 0; j < length(bedRecords_regions[i]); ++j)
+                writeRecord(outBed2, bedRecords_regions[i][j]);
         }
     }
 
