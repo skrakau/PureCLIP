@@ -66,6 +66,182 @@ public:
 };
 
 
+// SIMPLEX
+//
+
+template<typename TDOUBLE>
+struct Fct_GSL_X_ZTB_REG
+{
+    Fct_GSL_X_ZTB_REG(String<String<String<TDOUBLE> > > const& statePosteriors_,
+                                  String<String<Observations> > & setObs_,
+                                  AppOptions const&options_) : statePosteriors(statePosteriors_),
+                                                               setObs(setObs_),  
+                                                               options(options_)
+    { 
+    }
+    // f
+    long double operator()(const gsl_vector * xv)
+    {      
+        const long double b0 = gsl_vector_get (xv, 0);
+        const long double b1 = gsl_vector_get (xv, 1);
+
+        long double ll = 0.0;       
+        for (unsigned s = 0; s < 2; ++s)
+        {
+            String<long double> lls;
+            resize(lls, length(setObs[s]), 0.0, Exact());
+#if HMM_PARALLEL
+            SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
+#endif  
+            for (unsigned i = 0; i < length(setObs[s]); ++i)
+            {
+                for (unsigned t = 0; t < setObs[s][i].length(); ++t)  
+                {
+                    // only optimize for sites with fimo score > 0.0 and corresponding to current id m
+                    if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && 
+                        setObs[s][i].motifIds[t] == 0 && setObs[s][i].nEstimates[t] <= options.maxBinN) // && setObs[s][i].fimoScores[t] > 0.0
+                    {
+                        unsigned k = setObs[s][i].truncCounts[t];
+                        unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]); 
+                        long double x = setObs[s][i].fimoScores[t];
+
+                        if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
+                        {
+                            long double p = 1.0/(1.0+exp(-b0 - b1*x));
+                        
+                            // l = log(1.0) -log(1.0 - pow((1.0-p), n)) + log (n over k) + k*log(p) + (n-k)*log(1.0-p);
+                            // ignore parts not meaning for optimization! 
+                            long double l = -log(1.0 - pow((1.0-p), n)) + k*log(p) + (n-k)*log(1.0-p);
+                            lls[i] += l * statePosteriors[s][i][t];
+                        }
+                    }
+                }
+            }
+            // combine results from threads
+            for (unsigned i = 0; i < length(setObs[s]); ++i)
+                ll += lls[i];
+        }
+        return (-ll);
+    }
+
+private:
+    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<Observations> > & setObs;
+    AppOptions options;
+};
+
+// Wrapper
+template<typename TDOUBLE>
+double fct_GSL_X_ZTB_REG (const gsl_vector * x, void * p) {
+
+    Fct_GSL_X_ZTB_REG<TDOUBLE> * function = reinterpret_cast< Fct_GSL_X_ZTB_REG<TDOUBLE> *> (p);
+    return (*function)( x );        
+} 
+
+
+template<typename TDOUBLE>
+struct ParamsZTB_REG
+{
+    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<Observations> > setObs;
+    AppOptions options;
+};
+
+
+template<typename TDOUBLE>
+bool callGSL_simplex2_ZTB_REG(double &fval, 
+                  long double &b0, long double &b1,
+                  String<String<String<TDOUBLE> > > &statePosteriors, 
+                  String<String<Observations> > &setObs, 
+                  AppOptions const& options)
+{
+    int status;
+    int iter = 0;
+    int max_iter = options.maxIter_simplex;
+    const size_t n = 2; 
+    double size;
+
+    const gsl_multimin_fminimizer_type *T;
+    gsl_multimin_fminimizer *s = NULL;
+    
+    struct ParamsZTB_REG<TDOUBLE> params = {statePosteriors, setObs, options};
+    gsl_multimin_function f;
+
+    // instantiation of functor with all fixed params
+    Fct_GSL_X_ZTB_REG<TDOUBLE> fct(statePosteriors, setObs, options);
+
+    /* Set initial step sizes to */
+    gsl_vector *ss = gsl_vector_alloc (n);
+    gsl_vector_set_all (ss, 0.00001);  
+
+    f.n = n;
+    f.f = &fct_GSL_X_ZTB_REG<TDOUBLE>;        // pointer to wrapper member function
+    f.params =  &fct;       // pointer to functor (instead of to params)
+
+    gsl_vector *x = gsl_vector_alloc (n);
+    gsl_vector_set (x, 0, b0);
+    gsl_vector_set (x, 1, b1);
+
+    T = gsl_multimin_fminimizer_nmsimplex2;
+    s = gsl_multimin_fminimizer_alloc (T, n);
+    gsl_multimin_fminimizer_set (s, &f, x, ss);  
+
+    do
+    {
+        iter++;
+        status = gsl_multimin_fminimizer_iterate (s);  
+
+        if (status)
+            break;
+
+        size = gsl_multimin_fminimizer_size (s);
+        status = gsl_multimin_test_size (size, 1e-6);
+
+        if (options.verbosity >= 2)
+        {
+            if (status == GSL_SUCCESS)
+            printf ("Minimum found at:\n");
+
+            printf ("%5d %10.7f %10.7f f() = %7.7f size = %.7f\n", 
+                  iter,
+                  gsl_vector_get (s->x, 0), 
+                  gsl_vector_get (s->x, 1), 
+                  s->fval, size);
+        }
+    }
+    while (status == GSL_CONTINUE && iter < max_iter);
+    fval = s->fval;
+
+    b0 = gsl_vector_get (s->x, 0);
+    b1 = gsl_vector_get (s->x, 1);
+
+    if (b1 < 0.0) 
+    {
+        std::cout << "WARNING: b1 became < 0! Should be >= 0." << std::endl;
+        //return false;
+    }
+
+    gsl_multimin_fminimizer_free (s);
+    gsl_vector_free (x);
+    gsl_vector_free(ss);
+    return true;
+}
+
+
+template<typename TDOUBLE>
+void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
+                  String<String<Observations> > &setObs, AppOptions const& options)
+{
+    // use multidimensional minimzation
+    double fval = 100000.0;  // note: f was negated before, we minimze
+    if(!callGSL_simplex2_ZTB_REG(fval, this->b0, this->regCoeffs[0], statePosteriors, setObs, options))
+        std::cout << "ERROR: in callGSL_simplex2_ZTB_REG()" << std::endl;
+}
+
+
+//
+
+
 // Functor for Brent's algorithm: find regression coefficients
 // for given motif m; optimize b_m
 template<typename TDOUBLE>
@@ -128,11 +304,11 @@ void ZTBIN_REG<TDOUBLE>::updateRegCoeffs(String<String<String<TDOUBLE> > > &stat
                          String<String<Observations> > &setObs, 
                          AppOptions const&options)
 { 
-    int bits = 60;
+    int bits = std::numeric_limits<long double>::digits;
     boost::uintmax_t maxIter = options.maxIter_brent;
     
-    long double bMin = 0.0;
-    long double bMax = 1.0;
+    long double bMin = -1.0;
+    long double bMax = 100.0;
 
     // for each input motif learn independent regCoeff (each position only one motif match with score assigned)
     for (unsigned char m = 0; m < options.nInputMotifs; ++m)
@@ -146,38 +322,38 @@ void ZTBIN_REG<TDOUBLE>::updateRegCoeffs(String<String<String<TDOUBLE> > > &stat
 
 
 // use truncCounts
-template<typename TDOUBLE>
-void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
-                  String<String<Observations> > &setObs, AppOptions const& options)
-{
-    long double sum1 = 0.0;
-    long double sum2 = 0.0;
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        for (unsigned i = 0; i < length(setObs[s]); ++i)
-        {
-            for (unsigned t = 0; t < setObs[s][i].length(); ++t)
-            {
-                if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && setObs[s][i].fimoScores[t] == 0.0 && setObs[s][i].nEstimates[t] <= options.maxBinN)      // avoid deviding by 0 (NOTE !), zero-truncated
-                {
-                    // p^ = (k-1)/(n-1); 'Truncated Binomial and Negative Binomial Distributions' Rider, 1955
-                    unsigned k = setObs[s][i].truncCounts[t];
-                    unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]);      
-                    if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
-                    {
-                        sum1 += statePosteriors[s][i][t] * ((TDOUBLE)(k - 1) / (TDOUBLE)(n - 1));        
-                        sum2 += statePosteriors[s][i][t];
-                    }
-                 }
-            }
-        }
-    }
-    //std::cout << "updateP: sum1" << sum1 << " sum2: " << sum2 << " p: " << (sum1/sum2) << std::endl;
-    long double p = sum1/sum2;
-    this->b0 = log(p/(1.0-p));
-
-    updateRegCoeffs(statePosteriors, setObs, options);
-}
+// template<typename TDOUBLE>
+// void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
+//                   String<String<Observations> > &setObs, AppOptions const& options)
+// {
+//     long double sum1 = 0.0;
+//     long double sum2 = 0.0;
+//     for (unsigned s = 0; s < 2; ++s)
+//     {
+//         for (unsigned i = 0; i < length(setObs[s]); ++i)
+//         {
+//             for (unsigned t = 0; t < setObs[s][i].length(); ++t)
+//             {
+//                 if (setObs[s][i].nEstimates[t] >= options.nThresholdForP && setObs[s][i].truncCounts[t] > 0 && setObs[s][i].fimoScores[t] == 0.0 && setObs[s][i].nEstimates[t] <= options.maxBinN)      // avoid deviding by 0 (NOTE !), zero-truncated
+//                 {
+//                     // p^ = (k-1)/(n-1); 'Truncated Binomial and Negative Binomial Distributions' Rider, 1955
+//                     unsigned k = setObs[s][i].truncCounts[t];
+//                     unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]);      
+//                     if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
+//                     {
+//                         sum1 += statePosteriors[s][i][t] * ((TDOUBLE)(k - 1) / (TDOUBLE)(n - 1));        
+//                         sum2 += statePosteriors[s][i][t];
+//                     }
+//                  }
+//             }
+//         }
+//     }
+//     //std::cout << "updateP: sum1" << sum1 << " sum2: " << sum2 << " p: " << (sum1/sum2) << std::endl;
+//     long double p = sum1/sum2;
+//     this->b0 = log(p/(1.0-p));
+// 
+//     updateRegCoeffs(statePosteriors, setObs, options);
+// }
 
 
 // k: diagnostic events (de); n: read counts (c)

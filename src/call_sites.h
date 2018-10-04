@@ -383,6 +383,7 @@ bool loadMotifCovariates(String<String<float> > &contigCovs, String<String<char>
 
     if (!empty(options.fimoFileName)) 
     {
+        double minScore = 0.0;  //0.01
         if (options.verbosity >= 2) std::cout << "Parse covariates ... fimo scores for input motifs" << std::endl;
         BedFileIn bedIn(toCString(options.fimoFileName));
         BedRecord<Bed6> bedRecord;      
@@ -410,24 +411,28 @@ bool loadMotifCovariates(String<String<float> > &contigCovs, String<String<char>
                 // assume only one motif with one score for each position!
                 // assume id 1-based
                 unsigned id = atoi(toCString(bedRecord.name)) - 1;     
-                if (id < options.nInputMotifs)
+                if (id < options.nInputMotifs && score >= minScore)
                 {
+                    int pos = bedRecord.beginPos;
+                    
                     if (bedRecord.strand == '+')
                     {
-                        if (bedRecord.beginPos < (int)length(contigCovs[0]))
+                        if (!options.crosslinkAtTruncSite) ++pos;                       // shift to position storing trunc count
+                        if (pos < (int)length(contigCovs[0]))
                         {
-                            contigCovs[0][bedRecord.beginPos] = std::max(score, 0.0);         // ignore negative scores for the moment
-                            motifIds[0][bedRecord.beginPos] = id;
+                            contigCovs[0][pos] = log(score);                        // log !!??
+                            motifIds[0][pos] = id;
                         }
                         else
                             std::cout << "Warning: beginPos of fimo score is not within contig! Ignored. (contigName: " << bedRecord.ref << ", beginPos: " << bedRecord.beginPos << ")" << std::endl;
                     }
                     else
                     {
-                        if (bedRecord.beginPos < (int)length(contigCovs[1]))
+                        if (!options.crosslinkAtTruncSite) --pos;
+                        if (pos < (int)length(contigCovs[1]) && pos >= 0)
                         {
-                            contigCovs[1][bedRecord.beginPos] = std::max(score, 0.0);
-                            motifIds[1][bedRecord.beginPos] = id;
+                            contigCovs[1][pos] = log(score);
+                            motifIds[1][pos] = id;
                         }
                         else
                             std::cout << "Warning: beginPos of fimo score is not within contig! Ignored. (contigName: " << bedRecord.ref << ", beginPos: " << bedRecord.beginPos << ")" << std::endl;

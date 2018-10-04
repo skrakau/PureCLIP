@@ -128,7 +128,7 @@ namespace seqan {
             crosslinkAtTruncSite(false),
             posteriorDecoding(true),
             prior_enrichmentThreshold(7),   // KDE threshold is used corresponding to 7 read starts at one position
-            maxIter_brent(100),              // brent
+            maxIter_brent(200),              // brent
             maxIter_bw(50),                  // baum-welch
             maxIter_simplex(2000),           // simplex            
             g1_kMin(1.0),                   // shape parameter for gamma distribution; set min. to avoid eProbs getting zero!
