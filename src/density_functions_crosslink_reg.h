@@ -157,7 +157,7 @@ bool callGSL_simplex2_ZTB_REG(double &fval,
 {
     int status;
     int iter = 0;
-    int max_iter = options.maxIter_simplex;
+    int max_iter = 100;// options.maxIter_simplex;
     const size_t n = 2; 
     double size;
 
@@ -172,7 +172,7 @@ bool callGSL_simplex2_ZTB_REG(double &fval,
 
     /* Set initial step sizes to */
     gsl_vector *ss = gsl_vector_alloc (n);
-    gsl_vector_set_all (ss, 0.00001);  
+    gsl_vector_set_all (ss, 0.001);  
 
     f.n = n;
     f.f = &fct_GSL_X_ZTB_REG<TDOUBLE>;        // pointer to wrapper member function
@@ -217,7 +217,8 @@ bool callGSL_simplex2_ZTB_REG(double &fval,
 
     if (b1 < 0.0) 
     {
-        std::cout << "WARNING: b1 became < 0! Should be >= 0." << std::endl;
+        std::cout << "WARNING: b1 became < 0! Should be >= 0. Set to 0.0." << std::endl;
+        b1 = 0.0;
         //return false;
     }
 

@@ -420,7 +420,10 @@ bool loadMotifCovariates(String<String<float> > &contigCovs, String<String<char>
                         if (!options.crosslinkAtTruncSite) ++pos;                       // shift to position storing trunc count
                         if (pos < (int)length(contigCovs[0]))
                         {
-                            contigCovs[0][pos] = log(score);                        // log !!??
+                            if (options.useLog_CLmotifScore) 
+                                contigCovs[0][pos] = log(score);                    
+                            else
+                                contigCovs[0][pos] = score;
                             motifIds[0][pos] = id;
                         }
                         else
@@ -431,7 +434,11 @@ bool loadMotifCovariates(String<String<float> > &contigCovs, String<String<char>
                         if (!options.crosslinkAtTruncSite) --pos;
                         if (pos < (int)length(contigCovs[1]) && pos >= 0)
                         {
-                            contigCovs[1][pos] = log(score);
+                            if (options.useLog_CLmotifScore)
+                                contigCovs[1][pos] = log(score);
+                            else
+                                contigCovs[1][pos] = score;
+
                             motifIds[1][pos] = id;
                         }
                         else

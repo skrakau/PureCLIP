@@ -113,6 +113,8 @@ namespace seqan {
 
         bool useFimoScore;
         unsigned nInputMotifs;
+        bool useLog_CLmotifScore;
+        bool useOnlyPositiveCLBias;
 
         unsigned distMerge;
         bool useHighPrecision;      // long double to compute emission probabilities, state posteriors, Forward-Backward (alpha, beta) values
@@ -130,7 +132,7 @@ namespace seqan {
             prior_enrichmentThreshold(7),   // KDE threshold is used corresponding to 7 read starts at one position
             maxIter_brent(200),              // brent
             maxIter_bw(50),                  // baum-welch
-            maxIter_simplex(2000),           // simplex            
+            maxIter_simplex(1000),           // simplex            
             g1_kMin(1.0),                   // shape parameter for gamma distribution; set min. to avoid eProbs getting zero!
             g2_kMin(1.0),
             g1_kMax(10.0),
@@ -177,6 +179,8 @@ namespace seqan {
             maxTruncCount2(65000),              // to store, larger values are truncated to this value, avoid overflow of n 
             useFimoScore(false),
             nInputMotifs(1),
+            useLog_CLmotifScore(true),
+            useOnlyPositiveCLBias(false),
             distMerge(8),
             useHighPrecision(false),
             selectRead(0),

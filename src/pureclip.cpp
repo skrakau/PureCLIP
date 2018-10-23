@@ -124,8 +124,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("fis", "fis", "Fimo input motif score covariates file.", ArgParseArgument::INPUT_FILE));
     setValidValues(parser, "fis", ".bed");
     addOption(parser, ArgParseOption("nim", "nim", "Max. motif ID to use. Default: Only covariates with motif ID 1 are used.", ArgParseArgument::INTEGER));
-
-
+    addOption(parser, ArgParseOption("nuls", "nuls", "Do not use log of CL-motif scores."));
+    addOption(parser, ArgParseOption("opb", "opb", "Allow only position regression coefficients for CL-bias."));
 
     addSection(parser, "Advanced user options");
 
@@ -295,6 +295,10 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     getOptionValue(options.maxTruncCount, parser, "mtc");
  
     getOptionValue(options.nInputMotifs, parser, "nim");
+    if (isSet(parser, "nuls"))
+        options.useLog_CLmotifScore = false;
+    if (isSet(parser, "opb"))
+        options.useOnlyPositiveCLBias = true;
 
     getOptionValue(options.prior_enrichmentThreshold, parser, "pet");
 
@@ -367,10 +371,10 @@ bool doIt(TDOUBLE /**/, TOptions &options)
             ZTBIN_REG<TDOUBLE> bin1;
             ZTBIN_REG<TDOUBLE> bin2;
 
-            bin1.b0 = log(options.p1/(1.0 - options.p1));            
-            bin2.b0 = log(options.p2/(1.0 - options.p2)); 
-            resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
+            bin1.b0 = -6.0; //log(options.p1/(1.0 - options.p1));            
+            bin2.b0 = -2.0; //log(options.p2/(1.0 - options.p2)); 
+            resize(bin1.regCoeffs, options.nInputMotifs, 2.0, Exact()); // TEST
+            resize(bin2.regCoeffs, options.nInputMotifs, 1.0, Exact());
             return doIt(gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, options);  
         }
         else
