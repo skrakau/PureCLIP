@@ -125,8 +125,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setValidValues(parser, "fis", ".bed");
     addOption(parser, ArgParseOption("nim", "nim", "Max. motif ID to use. Default: Only covariates with motif ID 1 are used.", ArgParseArgument::INTEGER));
 
-
-
     addSection(parser, "Advanced user options");
 
     addOption(parser, ArgParseOption("vtb", "vtb", "Use Viterbi instead of posterior decoding."));
@@ -165,7 +163,10 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("mrtf", "mrtf", "Fit gamma shape k only for positions with min. covariate value.", ArgParseArgument::DOUBLE));
     addOption(parser, ArgParseOption("mtc", "mtc", "Maximum number of read starts at one position used for learning. For sites with counts above threshold the whole covered regions will be ignored for learning! Default: 500.", ArgParseArgument::INTEGER));
     setMinValue(parser, "mtc", "50");
-    setMaxValue(parser, "mtc", "50000"); 
+    setMaxValue(parser, "mtc", "50000");
+    addOption(parser, ArgParseOption("mtc2", "mtc2", "Maximum number of read starts at one position stored. For sites with counts above threshold the count will be truncated. Influences k and n. Default: 65000.", ArgParseArgument::INTEGER));
+    setMinValue(parser, "mtc2", "5000");
+    setMaxValue(parser, "mtc2", "65000"); 
 
     addOption(parser, ArgParseOption("pet", "pet", "Prior enrichment threshold: a KDE threshold corresponding to 7 read start counts at one position will be used for initial classification of 'non-enriched' and 'enriched' site. Default: 7", ArgParseArgument::INTEGER));
     setMinValue(parser, "pet", "2");
@@ -293,7 +294,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
         options.mrtf_kdeSglt = false;
 
     getOptionValue(options.maxTruncCount, parser, "mtc");
- 
+    getOptionValue(options.maxTruncCount2, parser, "mtc2");
+
     getOptionValue(options.nInputMotifs, parser, "nim");
 
     getOptionValue(options.prior_enrichmentThreshold, parser, "pet");
