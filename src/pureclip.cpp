@@ -83,6 +83,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addSection(parser, "Options");
 
     addOption(parser, ArgParseOption("ctr", "ctr", "Assign crosslink sites to read start positions. Note: depends on RT enzyme, buffer conditions and likely on protein. Default: assign crosslink sites to positions upstream of read starts."));
+    addOption(parser, ArgParseOption("st", "st", "Score type.", ArgParseArgument::INTEGER));
+    setMinValue(parser, "st", "0");
+    setMaxValue(parser, "st", "6");
 
     addOption(parser, ArgParseOption("iv", "inter", "Genomic chromosomes to learn HMM parameters, e.g. 'chr1;chr2;chr3'. Contigs have to be in the same order as in BAM file. Useful to reduce runtime and memory consumption. Default: all contigs from reference file are used (useful when applying to transcript-wise alignments or poor data).", ArgParseArgument::STRING));
     addOption(parser, ArgParseOption("chr", "chr", "Contigs to apply HMM, e.g. 'chr1;chr2;chr3;'. Contigs have to be in the same order as in BAM file.", ArgParseArgument::STRING));
@@ -235,6 +238,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     if (isSet(parser, "ctr"))
         options.crosslinkAtTruncSite = true;
+    getOptionValue(options.score_type, parser, "st");
     getOptionValue(options.intervals_str, parser, "inter");
     if (isSet(parser, "vtb"))
         options.posteriorDecoding = false;

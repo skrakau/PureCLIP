@@ -1422,14 +1422,47 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                     ss.str("");  
                     ss.clear();  
 
-                    // log posterior prob. ratio score
-                    long double secondBest = 0.0;
-                    for (unsigned k = 0; k < 4; ++k)
+                    if (options.score_type == 0)
                     {
-                        if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
-                            secondBest = data.statePosteriors[s][k][i][t];
+                        // log posterior prob. ratio score
+                        long double secondBest = 0.0;
+                        for (unsigned k = 0; k < 4; ++k)
+                        {
+                            if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
+                                secondBest = data.statePosteriors[s][k][i][t];
+                        }      
+                        ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
+                    }
+                    else if (options.score_type == 1)
+                    {
+                        // log(3/2)  
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][2][i][t]);
+                    }
+                    else if (options.score_type == 2)
+                    {
+                        // log(3/1)  
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][1][i][t]);
+                    }
+                    else if (options.score_type == 3)
+                    {
+                        // log(3/0)  
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][0][i][t]);
                     }                    
-                    ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
+                    else if (options.score_type == 4)
+                    {
+                        // log(3/(1+2))  
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/(data.statePosteriors[s][1][i][t] + data.statePosteriors[s][2][i][t]));
+                    }
+                    else if (options.score_type == 5)
+                    {
+                        // 3 
+                        ss << (double)data.statePosteriors[s][3][i][t];
+                    }
+                    else if (options.score_type == 6)
+                    {
+                        // log(enriched/non-enriched) + log(crosslinked/non-crosslinked)  
+                        ss << (double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][1][i][t])) + (double)log((data.statePosteriors[s][1][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][2][i][t])) ;
+                    }
 
                     record.score = ss.str();
                     ss.str("");  
@@ -1560,14 +1593,47 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                     ss.str("");  
                     ss.clear();  
 
-                    // log posterior prob. ratio score
-                    long double secondBest = 0.0;
-                    for (unsigned k = 0; k < 4; ++k)
+                    if (options.score_type == 0)
                     {
-                        if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
-                            secondBest = data.statePosteriors[s][k][i][t];
-                    }      
-                    ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
+                        // log posterior prob. ratio score
+                        long double secondBest = 0.0;
+                        for (unsigned k = 0; k < 4; ++k)
+                        {
+                            if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
+                                secondBest = data.statePosteriors[s][k][i][t];
+                        }      
+                        ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
+                    }
+                    else if (options.score_type == 1)
+                    {
+                        // log(3/2)  
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][2][i][t]);
+                    }
+                    else if (options.score_type == 2)
+                    {
+                        // log(3/1)  
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][1][i][t]);
+                    }
+                    else if (options.score_type == 3)
+                    {
+                        // log(3/0)  
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][0][i][t]);
+                    }                    
+                    else if (options.score_type == 4)
+                    {
+                        // log(3/(1+2))  
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/(data.statePosteriors[s][1][i][t] + data.statePosteriors[s][2][i][t]));
+                    }
+                    else if (options.score_type == 5)
+                    {
+                        // 3 
+                        ss << (double)data.statePosteriors[s][3][i][t];
+                    }
+                    else if (options.score_type == 6)
+                    {
+                        // log(enriched/non-enriched) + log(crosslinked/non-crosslinked)  
+                        ss << (double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][1][i][t])) + (double)log((data.statePosteriors[s][1][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][2][i][t])) ;
+                    }
 
                     record.score = ss.str();
                     ss.str("");  
