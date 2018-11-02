@@ -141,21 +141,24 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
         bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
 
-        // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
-        // Force states is at boarders of binomial distributions using pseudo-eProbs! 
-        double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
-        if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-            (bin1_d == 0.0) && 
-            (nk_ratio > bin2.p))
+        if (options.keep_unlikelyNkratios)
         {
-            // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
-            bin2_d = 1.0;
-        }
-        else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                 (bin2_d == 0.0) && 
-                 (nk_ratio < bin1.p))
-        {
-            bin1_d = 1.0;  
+            // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
+            // Force states is at boarders of binomial distributions using pseudo-eProbs! 
+            double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
+            if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
+                    (bin1_d == 0.0) && 
+                    (nk_ratio > bin2.p))
+            {
+                // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
+                bin2_d = 1.0;
+            }
+            else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
+                    (bin2_d == 0.0) && 
+                    (nk_ratio < bin1.p))
+            {
+                bin1_d = 1.0;  
+            }
         }
         // else if 0s, will be discarded downstream ...
     }
@@ -222,21 +225,24 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
         bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
 
-        // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
-        // Force states is at boarders of binomial distributions using pseudo-eProbs! 
-        double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
-        if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-            (bin1_d == 0.0) && 
-            (nk_ratio > bin2.p))
+        if (options.keep_unlikelyNkratios)
         {
-            // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
-            bin2_d = 1.0;
-        }
-        else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                 (bin2_d == 0.0) && 
-                 (nk_ratio < bin1.p))
-        {
-            bin1_d = 1.0;  
+            // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
+            // Force states is at boarders of binomial distributions using pseudo-eProbs! 
+            double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
+            if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
+                    (bin1_d == 0.0) && 
+                    (nk_ratio > bin2.p))
+            {
+                // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
+                bin2_d = 1.0;
+            }
+            else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
+                    (bin2_d == 0.0) && 
+                    (nk_ratio < bin1.p))
+            {
+                bin1_d = 1.0;  
+            }
         }
         // else if 0s, will be discarded downstream ...
     }
@@ -304,21 +310,24 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
         bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred, options);
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
 
-        // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
-        // Force states is at boarders of binomial distributions using pseudo-eProbs! 
-        double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
-        if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-            (bin1_d == 0.0) && 
-            (nk_ratio > bin2_pred))
-        {
-            // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
-            bin2_d = 1.0;
-        }
-        else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                 (bin2_d == 0.0) && 
-                 (nk_ratio < bin1_pred))
-        {
-            bin1_d = 1.0;  
+        if (options.keep_unlikelyNkratios)
+        {        
+            // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
+            // Force states is at boarders of binomial distributions using pseudo-eProbs! 
+            double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
+            if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
+                    (bin1_d == 0.0) && 
+                    (nk_ratio > bin2_pred))
+            {
+                // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
+                bin2_d = 1.0;
+            }
+            else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
+                    (bin2_d == 0.0) && 
+                    (nk_ratio < bin1_pred))
+            {
+                bin1_d = 1.0;  
+            }
         }
         // else if 0s, will be discarded downstream ...
     }
@@ -390,21 +399,24 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
         bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred, options);
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
 
-        // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
-        // Force states is at boarders of binomial distributions using pseudo-eProbs! 
-        double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
-        if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-            (bin1_d == 0.0) && 
-            (nk_ratio > bin2_pred))
+        if (options.keep_unlikelyNkratios)
         {
-            // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
-            bin2_d = 1.0;
-        }
-        else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                 (bin2_d == 0.0) && 
-                 (nk_ratio < bin1_pred))
-        {
-            bin1_d = 1.0;  
+            // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
+            // Force states is at boarders of binomial distributions using pseudo-eProbs! 
+            double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
+            if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
+                    (bin1_d == 0.0) && 
+                    (nk_ratio > bin2_pred))
+            {
+                // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
+                bin2_d = 1.0;
+            }
+            else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
+                    (bin2_d == 0.0) && 
+                    (nk_ratio < bin1_pred))
+            {
+                bin1_d = 1.0;  
+            }
         }
         // else if 0s, will be discarded downstream ...
     }

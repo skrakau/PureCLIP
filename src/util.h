@@ -89,6 +89,7 @@ namespace seqan {
         double get_nThreshold;
         double minTransProbCS;
         double maxkNratio;
+        bool keep_unlikelyNkratios;
         unsigned maxBinN;
         long double min_eProbSum;
 
@@ -157,6 +158,7 @@ namespace seqan {
             get_nThreshold(false),          // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
+            keep_unlikelyNkratios(true),
             maxBinN(50000),                 // sites above not used for learning
             min_eProbSum(1e-200),           // make sure eProbs not getting too low, will cause crash during FB-algorithm -> set depending on precision mode
             polyAThreshold(10),
