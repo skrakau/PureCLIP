@@ -55,6 +55,7 @@ namespace seqan {
         CharString                  applyChr_str;
         String<unsigned>            applyChr_contigIds;
 
+        unsigned score_type;
         bool posteriorDecoding;
         double prior_kdeThreshold;
         unsigned prior_enrichmentThreshold;
@@ -127,6 +128,7 @@ namespace seqan {
 
         AppOptions() :
             crosslinkAtTruncSite(false),
+            score_type(0),
             posteriorDecoding(true),
             prior_enrichmentThreshold(7),   // KDE threshold is used corresponding to 7 read starts at one position
             maxIter_brent(100),              // brent
