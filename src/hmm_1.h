@@ -88,7 +88,9 @@ public:
                 }
             }
         }
-     }
+    }
+    // Copy constructor 
+//     HMM<TGAMMA, TBIN, TDOUBLE>(const HMM<TGAMMA, TBIN, TDOUBLE> &hmm2) {x = p2.x; y = p2.y; } 
 
     HMM<TGAMMA, TBIN, TDOUBLE>();
     ~HMM<TGAMMA, TBIN, TDOUBLE>();
@@ -98,6 +100,7 @@ public:
     bool iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i);
     bool computeStatePosteriorsFB(AppOptions &options);
     bool computeStatePosteriorsFBupdateTrans(AppOptions &options);
+    bool updateTransProbsAndPostDecode(AppOptions &options);
     bool updateDensityParams(TGAMMA &d1, TGAMMA &d2, AppOptions &options);
     bool updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d2*/, TBIN &bin1, TBIN &bin2, AppOptions &options);
     bool baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options);
@@ -1339,6 +1342,16 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::posteriorDecoding(String<String<String<__uint8>
                         }
                     }
                     states[s][i][t] = max_k;
+                    if (s==0 && (t + this->setPos[s][i] - 1 == 22418895) )
+                    {
+                        std::cout << "State posterior probs" << std::endl;
+                        std::cout << "k: 0  " << this->statePosteriors[s][0][i][t] << std::endl;
+                        std::cout << "k: 1  " << this->statePosteriors[s][1][i][t] << std::endl;
+                        std::cout << "k: 2  " << this->statePosteriors[s][2][i][t] << std::endl;
+                        std::cout << "k: 3  " << this->statePosteriors[s][3][i][t] << std::endl;
+                        std::cout << "max k  " << (int)states[s][i][t] << std::endl;
+                        
+                    }
                 }
             }
         }
@@ -1435,13 +1448,16 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                     ss.clear();  
 
                     // log posterior prob. ratio score
-                    long double secondBest = 0.0;
-                    for (unsigned k = 0; k < 4; ++k)
-                    {
-                        if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
-                            secondBest = data.statePosteriors[s][k][i][t];
-                    }                    
-                    ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
+//                     long double secondBest = 0.0;
+//                     for (unsigned k = 0; k < 4; ++k)
+//                     {
+//                         if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
+//                             secondBest = data.statePosteriors[s][k][i][t];
+//                     }                    
+//                     ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
+
+                    // score6: log(enriched/non-enriched) + log(crosslinked/non-crosslinked)
+                    ss << (double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][1][i][t])) + (double)log((data.statePosteriors[s][1][i][t] + data.statePosteriors[s][3][i][t])/ (data.statePosteriors[s][0][i][t] + data.statePosteriors[s][2][i][t])); 
 
                     record.score = ss.str();
                     ss.str("");  

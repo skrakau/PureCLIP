@@ -37,8 +37,8 @@ namespace seqan {
 
     struct AppOptions
     {
-        CharString bamFileName;
-        CharString baiFileName;
+        String<CharString> bamFileNames;
+        String<CharString> baiFileNames;
         CharString refFileName;
         CharString outFileName;
         CharString outRegionsFileName;

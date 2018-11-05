@@ -40,6 +40,7 @@
 
 #include "util.h"
 #include "call_sites.h"
+#include "call_sites_replicates.h"
 
 
 using namespace seqan;
@@ -58,14 +59,23 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addUsageLine(parser, "[\\fIOPTIONS\\fP] <-i \\fIBAM FILE\\fP> <-bai \\fIBAI FILE\\fP> <-g \\fIGENOME FILE\\fP> <-o \\fIOUTPUT BED FILE\\fP> ");
     addDescription(parser, "Protein-RNA interaction site detection using a non-homogeneous HMM.");
 
-    // We require one argument.
-    addOption(parser, ArgParseOption("i", "in", "Target bam file.", ArgParseArgument::INPUT_FILE));
+    // rep1
+    addOption(parser, ArgParseOption("i", "in", "Target bam file (rep1).", ArgParseArgument::INPUT_FILE));
     setValidValues(parser, "in", ".bam");
     setRequired(parser, "in", true);
 
-    addOption(parser, ArgParseOption("bai", "bai", "Target bam index file.", ArgParseArgument::INPUT_FILE));
+    addOption(parser, ArgParseOption("bai", "bai", "Target bam index file (rep1).", ArgParseArgument::INPUT_FILE));
     setValidValues(parser, "bai", ".bai");
     setRequired(parser, "bai", true);
+    // rep2
+    addOption(parser, ArgParseOption("i2", "in2", "Target bam file (rep2).", ArgParseArgument::INPUT_FILE));
+    setValidValues(parser, "in2", ".bam");
+    setRequired(parser, "in2", true);
+
+    addOption(parser, ArgParseOption("bai2", "bai2", "Target bam index file (rep2).", ArgParseArgument::INPUT_FILE));
+    setValidValues(parser, "bai2", ".bai");
+    setRequired(parser, "bai2", true);
+
 
     addOption(parser, ArgParseOption("g", "genome", "Genome reference file.", ArgParseArgument::INPUT_FILE));
     setValidValues(parser, "genome", ".fa .fasta");
@@ -210,8 +220,13 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res;
 
-    getOptionValue(options.bamFileName, parser, "in");
-    getOptionValue(options.baiFileName, parser, "bai");
+    resize(options.bamFileNames, 2);
+    resize(options.baiFileNames, 2);
+    getOptionValue(options.bamFileNames[0], parser, "in");
+    getOptionValue(options.baiFileNames[0], parser, "bai");
+    getOptionValue(options.bamFileNames[1], parser, "in2");
+    getOptionValue(options.baiFileNames[1], parser, "bai2");
+
     getOptionValue(options.refFileName, parser, "genome");
     getOptionValue(options.outFileName, parser, "out");
     getOptionValue(options.outRegionsFileName, parser, "or");
@@ -332,10 +347,17 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 template <typename TDOUBLE, typename TOptions>
 bool doIt(TDOUBLE /**/, TOptions &options)
 {
+    unsigned repNo = length(options.baiFileNames);
     if (options.useCov_RPKM)
     {
         GAMMA2_REG<TDOUBLE> gamma1; 
         GAMMA2_REG<TDOUBLE> gamma2;
+
+        // for each replicate
+        String<GAMMA2_REG<TDOUBLE> > gamma1_replicates;
+        String<GAMMA2_REG<TDOUBLE> > gamma2_replicates;
+        resize(gamma1_replicates, repNo, gamma1);
+        resize(gamma2_replicates, repNo, gamma2);
 
         if (options.useFimoScore)
         {
@@ -345,7 +367,12 @@ bool doIt(TDOUBLE /**/, TOptions &options)
             bin2.b0 = log(options.p2/(1.0 - options.p2)); 
             resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
             resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            return doIt(gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, options);  
+
+            String<ZTBIN_REG<TDOUBLE> > bin1_replicates;
+            String<ZTBIN_REG<TDOUBLE> > bin2_replicates;
+            resize(bin1_replicates, repNo, bin1);
+            resize(bin2_replicates, repNo, bin2);            
+            return doIt(gamma1_replicates, gamma2_replicates, bin1_replicates, bin2_replicates, (TDOUBLE)0.0, options);  
         }
         else
         {
@@ -353,13 +380,23 @@ bool doIt(TDOUBLE /**/, TOptions &options)
             ZTBIN<TDOUBLE> bin2;
             bin1.p = options.p1;            
             bin2.p = options.p2; 
-            return doIt(gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, options);  
+
+            String<ZTBIN<TDOUBLE> > bin1_replicates;
+            String<ZTBIN<TDOUBLE> > bin2_replicates;
+            resize(bin1_replicates, repNo, bin1);
+            resize(bin2_replicates, repNo, bin2); 
+            return doIt(gamma1_replicates, gamma2_replicates, bin1_replicates, bin2_replicates, (TDOUBLE)0.0, options);  
         }
     }
     else
     {
         GAMMA2<TDOUBLE> gamma1;           
         GAMMA2<TDOUBLE> gamma2;
+
+        String<GAMMA2<TDOUBLE> > gamma1_replicates;
+        String<GAMMA2<TDOUBLE> > gamma2_replicates;
+        resize(gamma1_replicates, repNo, gamma1);
+        resize(gamma2_replicates, repNo, gamma2);
 
         options.g1_kMax = 1.0;
         if (options.verbosity > 1) std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.0." << std::endl;
@@ -373,7 +410,12 @@ bool doIt(TDOUBLE /**/, TOptions &options)
             bin2.b0 = log(options.p2/(1.0 - options.p2)); 
             resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
             resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            return doIt(gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, options);  
+
+            String<ZTBIN_REG<TDOUBLE> > bin1_replicates;
+            String<ZTBIN_REG<TDOUBLE> > bin2_replicates;
+            resize(bin1_replicates, repNo, bin1);
+            resize(bin2_replicates, repNo, bin2); 
+            return doIt(gamma1_replicates, gamma2_replicates, bin1_replicates, bin2_replicates, (TDOUBLE)0.0, options);  
         }
         else
         {
@@ -381,7 +423,12 @@ bool doIt(TDOUBLE /**/, TOptions &options)
             ZTBIN<TDOUBLE> bin2;
             bin1.p = options.p1;            
             bin2.p = options.p2; 
-            return doIt(gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, options);  
+
+            String<ZTBIN<TDOUBLE> > bin1_replicates;
+            String<ZTBIN<TDOUBLE> > bin2_replicates;
+            resize(bin1_replicates, repNo, bin1);
+            resize(bin2_replicates, repNo, bin2); 
+            return doIt(gamma1_replicates, gamma2_replicates, bin1_replicates, bin2_replicates, (TDOUBLE)0.0, options);  
         }
     }
 }

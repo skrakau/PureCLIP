@@ -64,6 +64,9 @@ add_executable (pureclip
                     hmm_1.h
                     density_functions.h)
 
+add_executable (sandbox
+                    sandbox.cpp)
+
 add_executable (winextract winextract.cpp)
 
 target_link_libraries (pureclip ${Boost_LIBRARIES} ${SEQAN_LIBRARIES} ${GSL_LIBRARIES})
