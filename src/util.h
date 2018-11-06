@@ -117,6 +117,7 @@ namespace seqan {
         unsigned nInputMotifs;
 
         unsigned distMerge;
+        bool use_pseudoEProb;
         bool useHighPrecision;      // long double to compute emission probabilities, state posteriors, Forward-Backward (alpha, beta) values
         unsigned selectRead;
 
@@ -182,6 +183,7 @@ namespace seqan {
             useFimoScore(false),
             nInputMotifs(1),
             distMerge(8),
+            use_pseudoEProb(false),          // when including replicates, add pseudo eProb to avoid crosslink eprobs of 0.0 !
             useHighPrecision(false),
             selectRead(0),
             numThreads(1),

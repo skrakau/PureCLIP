@@ -188,8 +188,26 @@ bool intersect_replicateIntervals(String<Data> &data_replicates)
 }
 
 
+
+template<typename TDOUBLE>
+long double getPseudo_eProb(Observations &obs, unsigned t, ZTBIN<TDOUBLE> &bin2, AppOptions &options)
+{
+    return bin2.getDensity(1, 2*obs.nEstimates[t], options); 
+}
+
+template<typename TDOUBLE>
+long double getPseudo_eProb(Observations &obs, unsigned t, ZTBIN_REG<TDOUBLE> &bin2, AppOptions &options)
+{
+    unsigned mId = obs.motifIds[t];
+    long double bin2_pred = 1.0/(1.0+exp(-bin2.b0 - bin2.regCoeffs[mId]*obs.fimoScores[t]));
+
+    return bin2.getDensity(1, 2*obs.nEstimates[t], bin2_pred, options);
+}
+
+
+
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-HMM<TGAMMA, TBIN, TDOUBLE> merge_HMMs(String<HMM<TGAMMA, TBIN, TDOUBLE> > &hmms_replicates)
+HMM<TGAMMA, TBIN, TDOUBLE> merge_HMMs(String<HMM<TGAMMA, TBIN, TDOUBLE> > &hmms_replicates, String<TBIN> &bin2, AppOptions &options)
 {
     HMM<TGAMMA, TBIN, TDOUBLE> mergedHmm = hmms_replicates[0];
 //    HMM<TGAMMA, TBIN, TDOUBLE>mergedHmm(4, data_replicates[rep].setObs, data_replicates[rep].setPos, contigLen); //hmms_replicates[0];
@@ -227,17 +245,31 @@ HMM<TGAMMA, TBIN, TDOUBLE> merge_HMMs(String<HMM<TGAMMA, TBIN, TDOUBLE> > &hmms_
     /////////////////////
     // compute new eProbs
     /////////////////////
+    // pseudo-counbt -> pseudo-eprob ?
+    // avoid becoming zero, if no read start in one replicate
+    // n -> k=1, 2*n
+    // we do not have 'crosslinkin' eprobs here, only joint eprobs!
+    // if k = 0, 
     for (unsigned s = 0; s < 2; ++s)
     {
         for (unsigned i = 0; i < length(mergedHmm.setObs[s]); ++i)
         {
             for (unsigned t = 0; t < mergedHmm.setObs[s][i].length(); ++t)        // length(data.states[s][i])
             {
-                for (unsigned k = 0; k < 4; ++k)
+                for (unsigned k = 0; k < 3; ++k)
                 {
-                    mergedHmm.eProbs[s][i][t][k] = hmms_replicates[0].eProbs[s][i][t][k];
-                    for (unsigned rep = 1; rep < length(hmms_replicates); ++rep)
+                    mergedHmm.eProbs[s][i][t][k] = 1.0; 
+                    for (unsigned rep = 0; rep < length(hmms_replicates); ++rep)
                         mergedHmm.eProbs[s][i][t][k] *= hmms_replicates[rep].eProbs[s][i][t][k];
+                }
+                // for crosslink state
+                mergedHmm.eProbs[s][i][t][3] = 1.0; //hmms_replicates[0].eProbs[s][i][t][k];
+                for (unsigned rep = 0; rep < length(hmms_replicates); ++rep)
+                {
+                    if (options.use_pseudoEProb && hmms_replicates[rep].setObs[s][i].truncCounts[t] == 0)  // add pseudo-count
+                        mergedHmm.eProbs[s][i][t][3] *= hmms_replicates[rep].eProbs[s][i][t][2] * getPseudo_eProb(hmms_replicates[rep].setObs[s][i], t, bin2[rep], options);
+                    else
+                        mergedHmm.eProbs[s][i][t][3] *= hmms_replicates[rep].eProbs[s][i][t][3];
                 }
             }
         }
@@ -341,7 +373,7 @@ bool applyHMM(Data &newData,
 
     // merge HMMs and multiply eProbs!
     if (options.verbosity >= 1) std::cout << "Merge HMMs from replicates ... " << std::endl;
-    HMM<TGAMMA, TBIN, TDOUBLE> mergedHmm = merge_HMMs(hmms_replicates);
+    HMM<TGAMMA, TBIN, TDOUBLE> mergedHmm = merge_HMMs(hmms_replicates, bin2, options);
 
     // update
     if (options.verbosity >= 1) std::cout << "Update transition probabilities and get final posterior probabilities ... " << std::endl;    

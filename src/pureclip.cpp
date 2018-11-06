@@ -140,6 +140,8 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     addSection(parser, "Advanced user options");
 
+    addOption(parser, ArgParseOption("upe", "upe", "Use (n dependent) pseudo emission probabilities for crosslink state."));
+
     addOption(parser, ArgParseOption("vtb", "vtb", "Use Viterbi instead of posterior decoding."));
     addOption(parser, ArgParseOption("m", "mibr", "Maximum number of iterations within BRENT algorithm.", ArgParseArgument::INTEGER));
     setMinValue(parser, "mibr", "1");
@@ -255,6 +257,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
         options.crosslinkAtTruncSite = true;
     getOptionValue(options.score_type, parser, "st");
     getOptionValue(options.intervals_str, parser, "inter");
+
+    if (isSet(parser, "upe"))
+        options.use_pseudoEProb = true;
     if (isSet(parser, "vtb"))
         options.posteriorDecoding = false;
     getOptionValue(options.maxIter_brent, parser, "mibr");
