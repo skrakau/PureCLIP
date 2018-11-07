@@ -1456,27 +1456,27 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                             if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
                                 secondBest = data.statePosteriors[s][k][i][t];
                         }      
-                        ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
+                        ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max((long double)secondBest, min_val));
                     }
                     else if (options.score_type == 1)
                     {
                         // log(3/2)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][2][i][t]);
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][2][i][t], min_val));
                     }
                     else if (options.score_type == 2)
                     {
                         // log(3/1)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][1][i][t]);
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][1][i][t], min_val));
                     }
                     else if (options.score_type == 3)
                     {
                         // log(3/0)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][0][i][t]);
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][0][i][t], min_val));
                     }                    
                     else if (options.score_type == 4)
                     {
                         // log(3/(1+2))  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/(data.statePosteriors[s][1][i][t] + data.statePosteriors[s][2][i][t]));
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][1][i][t] + (long double)data.statePosteriors[s][2][i][t], min_val));
                     }
                     else if (options.score_type == 5)
                     {
@@ -1486,7 +1486,7 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                     else if (options.score_type == 6)
                     {
                         // log(enriched/non-enriched) + log(crosslinked/non-crosslinked)  
-                        ss << (double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][1][i][t])) + (double)log((data.statePosteriors[s][1][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][2][i][t])) ;
+                        ss << ((double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/std::max((long double)data.statePosteriors[s][0][i][t] + (long double)data.statePosteriors[s][1][i][t], min_val)) + (double)log((data.statePosteriors[s][1][i][t] + data.statePosteriors[s][3][i][t])/std::max((long double)data.statePosteriors[s][0][i][t] + (long double)data.statePosteriors[s][2][i][t], min_val))) ;
                     }
 
                     record.score = ss.str();
@@ -1632,22 +1632,22 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                     else if (options.score_type == 1)
                     {
                         // log(3/2)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][2][i][t]);
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][2][i][t], min_val));
                     }
                     else if (options.score_type == 2)
                     {
                         // log(3/1)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][1][i][t]);
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][1][i][t], min_val));
                     }
                     else if (options.score_type == 3)
                     {
                         // log(3/0)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/data.statePosteriors[s][0][i][t]);
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][0][i][t], min_val));
                     }                    
                     else if (options.score_type == 4)
                     {
                         // log(3/(1+2))  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/(data.statePosteriors[s][1][i][t] + data.statePosteriors[s][2][i][t]));
+                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][1][i][t] + (long double)data.statePosteriors[s][2][i][t], min_val));
                     }
                     else if (options.score_type == 5)
                     {
@@ -1657,7 +1657,7 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                     else if (options.score_type == 6)
                     {
                         // log(enriched/non-enriched) + log(crosslinked/non-crosslinked)  
-                        ss << (double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][1][i][t])) + (double)log((data.statePosteriors[s][1][i][t] + data.statePosteriors[s][3][i][t])/(data.statePosteriors[s][0][i][t] + data.statePosteriors[s][2][i][t])) ;
+                        ss << ((double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/std::max((long double)data.statePosteriors[s][0][i][t] + (long double)data.statePosteriors[s][1][i][t], min_val)) + (double)log((data.statePosteriors[s][1][i][t] + data.statePosteriors[s][3][i][t])/std::max((long double)data.statePosteriors[s][0][i][t] + (long double)data.statePosteriors[s][2][i][t], min_val))) ;
                     }
 
                     record.score = ss.str();
@@ -1719,6 +1719,7 @@ void writeRegions(String<BedRecord<Bed6> > &bedRecords_regions,
 
                     std::stringstream ss;
 
+                    // TODO use different scores
                     // log posterior prob. ratio score
                     long double secondBest = 0.0;
                     for (unsigned k = 0; k < 4; ++k)

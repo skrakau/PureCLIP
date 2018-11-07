@@ -249,7 +249,8 @@ HMM<TGAMMA, TBIN, TDOUBLE> merge_HMMs(String<HMM<TGAMMA, TBIN, TDOUBLE> > &hmms_
     // avoid becoming zero, if no read start in one replicate
     // n -> k=1, 2*n
     // we do not have 'crosslinkin' eprobs here, only joint eprobs!
-    // if k = 0, 
+    // if k = 0,
+    // TODO pseudo-eprobs also for non-crosslink state!
     for (unsigned s = 0; s < 2; ++s)
     {
         for (unsigned i = 0; i < length(mergedHmm.setObs[s]); ++i)
@@ -305,6 +306,8 @@ HMM<TGAMMA, TBIN, TDOUBLE> merge_HMMs(String<HMM<TGAMMA, TBIN, TDOUBLE> > &hmms_
 template<typename TGAMMA, typename TBIN, typename TDOUBLE> 
 bool HMM<TGAMMA, TBIN, TDOUBLE>::updateTransProbsAndPostDecode(AppOptions &options)
 {
+    double old_transProb02 = this->transMatrix[0][2];
+    double old_transProb23 = this->transMatrix[2][3];
     for (unsigned iter = 0; iter < options.maxIter_bw; ++iter)
     {
         std::cout << ".. " << iter << "th iteration " << std::endl;
@@ -313,8 +316,6 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::updateTransProbsAndPostDecode(AppOptions &optio
         if (!computeStatePosteriorsFBupdateTrans(options))      // also updates initial probabilities
             return false;
        
-        double old_transProb02 = this->transMatrix[0][2];
-        double old_transProb23 = this->transMatrix[2][3];
         std::cout << "*** Transition probabilitites ***" << std::endl;
         for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
         {
@@ -325,12 +326,13 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::updateTransProbsAndPostDecode(AppOptions &optio
         }
         std::cout << std::endl;
 
-        if (std::fabs(this->transMatrix[2][3] - old_transProb23) > 0.0001 && std::fabs(this->transMatrix[0][2] - old_transProb02) > 0.0001)
+        if (std::fabs(this->transMatrix[2][3] - old_transProb23) > 0.00001 && std::fabs(this->transMatrix[0][2] - old_transProb02) > 0.00001)
         {
             std::cout << " **** Convergence ! **** " << std::endl;
             break;
         }
-
+        old_transProb02 = this->transMatrix[0][2];
+        old_transProb23 = this->transMatrix[2][3];
     }
     return true;
 }
