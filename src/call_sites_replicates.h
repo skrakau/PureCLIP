@@ -136,12 +136,29 @@ bool intersect_replicateIntervals(String<Data> &data_replicates)
         {
             // discard not intersecting or discarded!!!
             if ((data_replicates[0].setPos[s][it1] + data_replicates[0].setObs[s][it1].length() <= data_replicates[1].setPos[s][it2]) ||
-                 data_replicates[0].setObs[s][it1].discard) ++it1;
+                 data_replicates[0].setObs[s][it1].discard) 
+            {
+//                 if (s == 0 && data_replicates[0].setPos[s][it1]  <= 46912654 && data_replicates[0].setPos[s][it1] >= 46800000)
+//                     std::cout << "Found no intersection for rep1 interval .." <<  data_replicates[0].setPos[s][it1] << " - " << (data_replicates[0].setPos[s][it1] + data_replicates[0].setObs[s][it1].length()) << std::endl;
+                
+                ++it1;
+            }
             else if ((data_replicates[1].setPos[s][it2] + data_replicates[1].setObs[s][it2].length() <= data_replicates[0].setPos[s][it1]) ||
-                      data_replicates[1].setObs[s][it2].discard) ++it2;
+                      data_replicates[1].setObs[s][it2].discard)
+            {
+//                 if (s == 0 && data_replicates[1].setPos[s][it2]  <= 46912654 && data_replicates[1].setPos[s][it2] >= 46800000)
+//                     std::cout << "Found no intersection for rep2 interval .." <<  data_replicates[1].setPos[s][it2] << " - " << (data_replicates[1].setPos[s][it2] + data_replicates[1].setObs[s][it2].length()) << std::endl;
+
+                ++it2;
+            }
             else
             {
-                //std::cout << "Found intersection .." << it1 << " " << it2 << std::endl;
+//                 if (s == 0 && data_replicates[0].setPos[s][it1]  <= 46912654 && data_replicates[0].setPos[s][it1] >= 46800000)
+//                 {
+//                     std::cout << "Found intersection .." << it1 << " " << it2 << std::endl;
+//                     std::cout << "  rep1: " << data_replicates[0].setPos[s][it1] << " - " << (data_replicates[0].setPos[s][it1] + data_replicates[0].setObs[s][it1].length()) << std::endl;
+//                     std::cout << "  rep2: " << data_replicates[1].setPos[s][it2] << " - " << (data_replicates[1].setPos[s][it2] + data_replicates[1].setObs[s][it2].length()) << std::endl;
+//                 }
                 
                 unsigned rep1_frontClipPos = 0;
                 unsigned rep2_frontClipPos = 0;
@@ -168,14 +185,21 @@ bool intersect_replicateIntervals(String<Data> &data_replicates)
                 {
                     rep1_backClipPos = data_replicates[1].setPos[s][it2] + data_replicates[1].setObs[s][it2].length() - data_replicates[0].setPos[s][it1];
                 }
-
-                //std::cout << "Copy and clip .." << std::endl;
+                
+//                 if (s == 0 && data_replicates[0].setPos[s][it1]  <= 46912654 && data_replicates[0].setPos[s][it1] >= 46800000)
+//                 {
+//                     std::cout << "Copy and clip .." << std::endl;
+//                     std::cout << "  rep1: new start: " << new_setPos << " clip at: " << rep1_frontClipPos << " - " << rep1_backClipPos << std::endl;
+//                     std::cout << "  rep2: new start: " << new_setPos << " clip at: " << rep2_frontClipPos << " - " << rep2_backClipPos << std::endl;
+//                 }
                 
                 copyAndClipData(newData_rep1, data_replicates[0], s, it1, rep1_frontClipPos, rep1_backClipPos, new_setPos);
                 copyAndClipData(newData_rep2, data_replicates[1], s, it2, rep2_frontClipPos, rep2_backClipPos, new_setPos);
 
-                ++it1;
-                ++it2;
+                if (data_replicates[0].setPos[s][it1] + data_replicates[0].setObs[s][it1].length() < data_replicates[1].setPos[s][it2] + data_replicates[1].setObs[s][it2].length()) 
+                    ++it1;
+                else
+                    ++it2;
             }
         }
     }
