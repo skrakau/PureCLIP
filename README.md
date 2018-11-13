@@ -18,7 +18,7 @@ Alternatively, you can get the source code and binaries for macOS and Linux [her
 
 # Galaxy: use PureCLIP online
 
-PureCLIP has also been integrated into the European Galaxy server https://usegalaxy.eu/, an open, web-based platform for accessible, reproducible, and transparent computational biological research and is available [here](https://usegalaxy.eu/root?tool_id=toolshed.g2.bx.psu.edu/repos/iuc/pureclip/pureclip/1.0.4).
+PureCLIP has also been integrated into the European Galaxy server https://usegalaxy.eu/, an open, web-based platform for accessible, reproducible, and transparent computational biological research and is available [here](https://usegalaxy.eu/root?tool_id=toolshed.g2.bx.psu.edu/repos/iuc/pureclip/pureclip/1.0.4) (currently not using latest PureCLIP version).
 
 Thanks to the Freiburg Galaxy Team!
 
