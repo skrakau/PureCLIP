@@ -45,7 +45,7 @@ namespace seqan {
 
             LogSumExp_lookupTable() : size(0), minValue(0.0) {}
 
-            LogSumExp_lookupTable(unsigned size_, double minValue_) : size(size_), minValue(minValue_) 
+            LogSumExp_lookupTable(unsigned size_, double minValue_) : size(size_), minValue(minValue_)
         {
             resize(lookupTable, size+1, Exact());
             for(int i = 0; i <= size; ++i)
@@ -74,7 +74,7 @@ namespace seqan {
                     return f2 + lookupTable[(int)(((f1-f2) - minValue) * (size/-minValue))];
                 }
             }
-    };    
+    }; 
 
     struct AppOptions
     {

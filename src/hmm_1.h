@@ -190,7 +190,6 @@ long double get_logSumExp(String<String<long double> > &fs, LogSumExp_lookupTabl
 /////////////////////////////////////////////////////////////////
 
 
-// TODO clean code!
 template<typename TEProbs, typename TSetObs, typename TDOUBLE>
 bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
 {
@@ -209,7 +208,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
     }
     // log-space
-    eProbs[0] = myLog(g1_d) + myLog(bin1_d);    
+    eProbs[0] = myLog(g1_d) + myLog(bin1_d); 
     eProbs[1] = myLog(g1_d) + myLog(bin2_d);
     eProbs[2] = myLog(g2_d) + myLog(bin1_d);
     eProbs[3] = myLog(g2_d) + myLog(bin2_d);
@@ -269,7 +268,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
     }
     // log-space
-    eProbs[0] = myLog(g1_d) + myLog(bin1_d);    
+    eProbs[0] = myLog(g1_d) + myLog(bin1_d); 
     eProbs[1] = myLog(g1_d) + myLog(bin2_d);
     eProbs[2] = myLog(g2_d) + myLog(bin1_d);
     eProbs[3] = myLog(g2_d) + myLog(bin2_d);
@@ -330,7 +329,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
     }
 
-    eProbs[0] = myLog(g1_d) + myLog(bin1_d);    
+    eProbs[0] = myLog(g1_d) + myLog(bin1_d);
     eProbs[1] = myLog(g1_d) + myLog(bin2_d);
     eProbs[2] = myLog(g2_d) + myLog(bin1_d);
     eProbs[3] = myLog(g2_d) + myLog(bin2_d);
@@ -395,7 +394,7 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
     }
 
-    eProbs[0] = myLog(g1_d) + myLog(bin1_d);    
+    eProbs[0] = myLog(g1_d) + myLog(bin1_d);
     eProbs[1] = myLog(g1_d) + myLog(bin2_d);
     eProbs[2] = myLog(g2_d) + myLog(bin1_d);
     eProbs[3] = myLog(g2_d) + myLog(bin2_d);
@@ -511,11 +510,11 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
 
 
 /////////////////////////////////////////////////////////////////
-// forward-backward algorithm parts 
+// forward-backward algorithm parts
 /////////////////////////////////////////////////////////////////
 
 // for one interval only
-// Forward-algorithm: log-space 
+// Forward-algorithm: log-space
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options)
 {
@@ -533,7 +532,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, un
     for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
     {
         for (unsigned k = 0; k < this->K; ++k)
-        {          
+        { 
             long double f1 = alphas_1[t-1][0] + logA[0][k] + this->eProbs[s][i][t][k];
             long double f2 = alphas_1[t-1][1] + logA[1][k] + this->eProbs[s][i][t][k];
             long double f3 = alphas_1[t-1][2] + logA[2][k] + this->eProbs[s][i][t][k];
@@ -549,7 +548,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, un
                 std::cout << "       alphas_1[t-1][1] " << alphas_1[t-1][1] << " logA[1][k] " << logA[1][k] << " this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
                 std::cout << "       alphas_1[t-1][2] " << alphas_1[t-1][2] << " logA[2][k] " << logA[2][k] << " this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
                 std::cout << "       alphas_1[t-1][3] " << alphas_1[t-1][3] << " logA[3][k] " << logA[3][k] << " this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
-                return false;                
+                return false;
             }
         }
     }
@@ -571,7 +570,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_1, un
     {
         for (unsigned k = 0; k < this->K; ++k)
         {
-            // sum over following states           
+            // sum over following states
             long double f1 = betas_1[t+1][0] + logA[k][0] + this->eProbs[s][i][t+1][0];
             long double f2 = betas_1[t+1][1] + logA[k][1] + this->eProbs[s][i][t+1][1];
             long double f3 = betas_1[t+1][2] + logA[k][2] + this->eProbs[s][i][t+1][2];
@@ -597,13 +596,13 @@ template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
 {
     String<String<long double> > logA = this->transMatrix;
-    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
+    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
         for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
             logA[k_1][k_2] = log(this->transMatrix[k_1][k_2]);
-                      
+ 
     String<String<long double> > p;
     resize(p, this->K, Exact());
-    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
+    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
     {
         SEQAN_OMP_PRAGMA(critical)
         resize(p[k_1], this->K, Exact());
@@ -617,7 +616,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
     {
         bool stop = false;
 #if HMM_PARALLEL
-        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) // num_threads(options.numThreads)) 
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1))
 #endif  
         for (unsigned i = 0; i < length(this->setObs[s]); ++i)
         {
@@ -660,7 +659,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                 for (unsigned k = 0; k < this->K; ++k)
                 {
                     this->statePosteriors[s][k][i][t] = myExp(alphas_1[t][k] + betas_1[t][k] - norm);     // store not in log-space!
-                    
+ 
                     if (std::isnan(this->statePosteriors[s][k][i][t]) || std::isinf(this->statePosteriors[s][k][i][t]) || 
                         this->statePosteriors[s][k][i][t] < 0.0 || this->statePosteriors[s][k][i][t] > 1.0) 
                     {
@@ -675,11 +674,11 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
 
             // update initial probabilities
             for (unsigned k = 0; k < this->K; ++k)
-                this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
+                this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0]; 
 
             // compute xi values for interval in preparation for new trans. probs
             String<String<long double> > xis;
-            resize(xis, this->K, Exact()); 
+            resize(xis, this->K, Exact());
             String<String<long double> > p_i;
             resize(p_i, this->K, Exact());
             for (unsigned k_1 = 0; k_1 < this->K; ++k_1)   
@@ -693,7 +692,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
             {
                 long double norm = std::numeric_limits<long double>::quiet_NaN();
-                for (unsigned k_1 = 0; k_1 < this->K; ++k_1) 
+                for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
                 {
                     for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
                     {
@@ -701,7 +700,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
                         norm = get_logSumExp(norm, xis[k_1][k_2], options.lookUp);
                     }
                 }
-                for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
+                for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
                     for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
                         p_i[k_1][k_2] += myExp(xis[k_1][k_2] - norm);
 
@@ -727,7 +726,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
     }
 
     // update transition matrix
-    String<String<long double> > A = this->transMatrix;    
+    String<String<long double> > A = this->transMatrix;
     for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
     {
         long double denumerator = 0.0;
@@ -760,12 +759,12 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
 }
 
 
-// without updating transition probabilities: log space 
+// without updating transition probabilities: log space
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 {
     String<String<long double> > logA = this->transMatrix;
-    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
+    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
         for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
             logA[k_1][k_2] = log(this->transMatrix[k_1][k_2]);
 
@@ -784,14 +783,14 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
             for (unsigned t = 0; t < T; ++t)
             {
                 resize(alphas_1[t], this->K, Exact());
-            } 
+            }
             if (!iForward(alphas_1, s, i, logA, options))
             {
                 stop = true;
                 continue;
             }
 
-            // backward probabilities  
+            // backward probabilities
             String<String<TDOUBLE> > betas_1;
             resize(betas_1, T, Exact());
             for (unsigned t = 0; t < T; ++t)
@@ -801,7 +800,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
                 stop = true;
                 continue;
             }
-           
+ 
             // compute state posterior probabilities (in log-space)
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
             {
@@ -821,7 +820,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 
             // update init probs
             for (unsigned k = 0; k < this->K; ++k)
-                this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
+                this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];
 
         }
         if (stop) return false;

@@ -278,7 +278,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     getOptionValue(options.distMerge, parser, "dm");
     if (isSet(parser, "ld"))
-        options.useHighPrecision = true; 
+        options.useHighPrecision = true;
     getOptionValue(options.lookupTable_size, parser, "ts");
     getOptionValue(options.lookupTable_minValue, parser, "tmv");
     getOptionValue(options.selectRead, parser, "ur");
@@ -338,7 +338,7 @@ bool doIt(TDOUBLE /**/, TOptions &options)
 {
     LogSumExp_lookupTable lookUp(options.lookupTable_size, options.lookupTable_minValue);
     options.lookUp = lookUp;
-    
+
     if (options.useCov_RPKM)
     {
         GAMMA2_REG<TDOUBLE> gamma1; 
