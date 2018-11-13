@@ -92,18 +92,17 @@ public:
 
     HMM<TGAMMA, TBIN, TDOUBLE>();
     ~HMM<TGAMMA, TBIN, TDOUBLE>();
-    void setInitProbs(String<double> &probs);
+    
     bool computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, bool learning, AppOptions &options);
-    bool iForward(String<String<TDOUBLE> > &alphas_1, String<String<TDOUBLE> > &alphas_2, unsigned s, unsigned i, AppOptions &options);
-    bool iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i);
+    bool iForward(String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options);    
+    bool iBackward(String<String<TDOUBLE> > &betas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options);    
     bool computeStatePosteriorsFB(AppOptions &options);
-    bool computeStatePosteriorsFBupdateTrans(AppOptions &options);
+    bool computeStatePosteriorsFBupdateTrans(AppOptions &options);    
     bool updateDensityParams(TGAMMA &d1, TGAMMA &d2, AppOptions &options);
     bool updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d2*/, TBIN &bin1, TBIN &bin2, AppOptions &options);
     bool baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options);
     bool applyParameters(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, AppOptions &/*options*/);
     long double viterbi(String<String<String<__uint8> > > &states);
-    long double viterbi_log(String<String<String<__uint8> > > &states);
     void posteriorDecoding(String<String<String<__uint8> > > &states);
     void rmBoarderArtifacts(String<String<String<__uint8> > > &states, TGAMMA &g1);
 
@@ -123,7 +122,75 @@ HMM<TGAMMA, TBIN, TDOUBLE>::~HMM<TGAMMA, TBIN, TDOUBLE>()
    // do not touch observations
 }
 
- 
+
+/////////////////////////////////////////////////////////////////
+// functionalities for computations in log space
+/////////////////////////////////////////////////////////////////
+
+long double myLog(long double x)
+{
+    if (x == 0) return std::numeric_limits<long double>::quiet_NaN();  
+    return log(x);
+}
+
+long double myExp(long double x)
+{
+    if (std::isnan(x)) return 0.0;  
+    return exp(x);
+}
+
+// log-sum-exp trick
+long double get_logSumExp(long double &f1, long double &f2, LogSumExp_lookupTable &lookUp)
+{
+    if (std::isnan(f1)) return f2;
+    if (std::isnan(f2)) return f1;
+
+    if (std::isinf(f1)) return f1;
+    if (std::isinf(f2)) return f2;
+
+    return lookUp.logSumExp_add(f1, f2);
+}
+
+// log-sum-exp trick
+long double get_logSumExp_states(long double f1, long double f2, long double f3, long double f4, LogSumExp_lookupTable &lookUp)
+{
+    long double sum; 
+    sum = get_logSumExp(f1, f2, lookUp);
+    sum = get_logSumExp(sum, f3, lookUp);
+    sum = get_logSumExp(sum, f4, lookUp);
+    return sum;
+}
+
+// log-sum-exp trick for string
+long double get_logSumExp(String<long double> &fs, LogSumExp_lookupTable &lookUp)
+{   
+    long double sum = std::numeric_limits<long double>::quiet_NaN();
+
+    for (unsigned i = 0; i < length(fs); ++i)
+        sum = get_logSumExp(sum, fs[i], lookUp);
+
+    return sum;
+}
+
+// log-sum-exp trick for String of String
+long double get_logSumExp(String<String<long double> > &fs, LogSumExp_lookupTable &lookUp)
+{
+    long double sum = std::numeric_limits<long double>::quiet_NaN();
+
+    for (unsigned i = 0; i < length(fs); ++i)
+        for (unsigned j = 0; j < length(fs[i]); ++j)
+            sum = get_logSumExp(sum, fs[i][j], lookUp);
+
+    return sum;
+}
+
+
+/////////////////////////////////////////////////////////////////
+// emission probabilities
+/////////////////////////////////////////////////////////////////
+
+
+// TODO clean code!
 template<typename TEProbs, typename TSetObs, typename TDOUBLE>
 bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
 {
@@ -140,44 +207,21 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
     {
         bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
-
-        if (options.keep_unlikelyNkratios)
-        {
-            // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
-            // Force states is at boarders of binomial distributions using pseudo-eProbs! 
-            double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
-            if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                    (bin1_d == 0.0) && 
-                    (nk_ratio > bin2.p))
-            {
-                // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
-                bin2_d = 1.0;
-            }
-            else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                    (bin2_d == 0.0) && 
-                    (nk_ratio < bin1.p))
-            {
-                bin1_d = 1.0;  
-            }
-        }
-        // else if 0s, will be discarded downstream ...
     }
-    eProbs[0] = g1_d * bin1_d;    
-    eProbs[1] = g1_d * bin2_d;
-    eProbs[2] = g2_d * bin1_d;
-    eProbs[3] = g2_d * bin2_d;
+    // log-space
+    eProbs[0] = myLog(g1_d) + myLog(bin1_d);    
+    eProbs[1] = myLog(g1_d) + myLog(bin2_d);
+    eProbs[2] = myLog(g2_d) + myLog(bin1_d);
+    eProbs[3] = myLog(g2_d) + myLog(bin2_d);
 
-    // 
-    if ((eProbs[0] == 0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) ||
-            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) ||
-            (eProbs[0] + eProbs[1] + eProbs[2] + eProbs[3] < options.min_eProbSum) ||
-            (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
-            (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
+    // check if valid
+    if ((g1_d + g2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
+       (std::isnan(eProbs[0]) && std::isnan(eProbs[1]) && std::isnan(eProbs[2]) && std::isnan(eProbs[3])) )
     {
         if (options.verbosity >= 2)
         {
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "WARNING: emission probabilities going against 0.0!" << std::endl;
+                std::cout << "WARNING: emission probabilities 0.0!" << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       fragment coverage (kde): " << setObs.kdes[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -193,13 +237,12 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'crosslink' binomial: " << bin2_d << std::endl;
         }
-        eProbs[0] = 1.0;
-        eProbs[1] = 0.0;
-        eProbs[2] = 0.0;
-        eProbs[3] = 0.0;
-        
+        eProbs[0] = 0.0;
+        eProbs[1] = std::numeric_limits<double>::quiet_NaN();
+        eProbs[2] = std::numeric_limits<double>::quiet_NaN();
+        eProbs[3] = std::numeric_limits<double>::quiet_NaN();
         return false;
-    }
+    } 
     return true;
 }
 
@@ -224,39 +267,16 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     {
         bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
-
-        if (options.keep_unlikelyNkratios)
-        {
-            // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
-            // Force states is at boarders of binomial distributions using pseudo-eProbs! 
-            double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
-            if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                    (bin1_d == 0.0) && 
-                    (nk_ratio > bin2.p))
-            {
-                // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
-                bin2_d = 1.0;
-            }
-            else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                    (bin2_d == 0.0) && 
-                    (nk_ratio < bin1.p))
-            {
-                bin1_d = 1.0;  
-            }
-        }
-        // else if 0s, will be discarded downstream ...
     }
-    eProbs[0] = g1_d * bin1_d;    
-    eProbs[1] = g1_d * bin2_d;
-    eProbs[2] = g2_d * bin1_d;
-    eProbs[3] = g2_d * bin2_d;
+    // log-space
+    eProbs[0] = myLog(g1_d) + myLog(bin1_d);    
+    eProbs[1] = myLog(g1_d) + myLog(bin2_d);
+    eProbs[2] = myLog(g2_d) + myLog(bin1_d);
+    eProbs[3] = myLog(g2_d) + myLog(bin2_d);
 
     // 
-    if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) || 
-            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) ||
-            (eProbs[0] + eProbs[1] + eProbs[2] + eProbs[3] < options.min_eProbSum) ||
-            (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
-            (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
+    if ((g1_d + g2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
+            (std::isnan(eProbs[0]) && std::isnan(eProbs[1]) && std::isnan(eProbs[2]) && std::isnan(eProbs[3])) )
     {
         if (options.verbosity >= 2)
         {
@@ -279,11 +299,10 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'crosslink' binomial: " << bin2_d << std::endl;
         }    
-        eProbs[0] = 1.0;
-        eProbs[1] = 0.0;
-        eProbs[2] = 0.0;
-        eProbs[3] = 0.0;
-
+        eProbs[0] = 0.0;
+        eProbs[1] = std::numeric_limits<double>::quiet_NaN();
+        eProbs[2] = std::numeric_limits<double>::quiet_NaN();
+        eProbs[3] = std::numeric_limits<double>::quiet_NaN();
         return false;
     }
     return true;
@@ -309,39 +328,16 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
     {
         bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred, options);
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
-
-        if (options.keep_unlikelyNkratios)
-        {        
-            // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
-            // Force states is at boarders of binomial distributions using pseudo-eProbs! 
-            double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
-            if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                    (bin1_d == 0.0) && 
-                    (nk_ratio > bin2_pred))
-            {
-                // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
-                bin2_d = 1.0;
-            }
-            else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                    (bin2_d == 0.0) && 
-                    (nk_ratio < bin1_pred))
-            {
-                bin1_d = 1.0;  
-            }
-        }
-        // else if 0s, will be discarded downstream ...
     }
-    eProbs[0] = g1_d * bin1_d;    
-    eProbs[1] = g1_d * bin2_d;
-    eProbs[2] = g2_d * bin1_d;
-    eProbs[3] = g2_d * bin2_d;
+
+    eProbs[0] = myLog(g1_d) + myLog(bin1_d);    
+    eProbs[1] = myLog(g1_d) + myLog(bin2_d);
+    eProbs[2] = myLog(g2_d) + myLog(bin1_d);
+    eProbs[3] = myLog(g2_d) + myLog(bin2_d);
 
     //
-    if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) ||
-            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) || 
-            (eProbs[0] + eProbs[1] + eProbs[2] + eProbs[3] < options.min_eProbSum) ||
-            (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
-            (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])) )
+    if ((g1_d + g2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
+            (std::isnan(eProbs[0]) && std::isnan(eProbs[1]) && std::isnan(eProbs[2]) && std::isnan(eProbs[3])) )
     {
         if (options.verbosity >= 2)
         {
@@ -364,11 +360,10 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'crosslink' binomial: " << bin2_d << std::endl;
         }
-        eProbs[0] = 1.0;
-        eProbs[1] = 0.0;
-        eProbs[2] = 0.0;
-        eProbs[3] = 0.0;
-
+        eProbs[0] = 0.0;
+        eProbs[1] = std::numeric_limits<double>::quiet_NaN();
+        eProbs[2] = std::numeric_limits<double>::quiet_NaN();
+        eProbs[3] = std::numeric_limits<double>::quiet_NaN();
         return false;
     }
     return true;
@@ -398,39 +393,16 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     {
         bin1_d = bin1.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin1_pred, options);
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
-
-        if (options.keep_unlikelyNkratios)
-        {
-            // for high k/N ratios, if eProbs -> 0.0, do not discard interval! 
-            // Force states is at boarders of binomial distributions using pseudo-eProbs! 
-            double nk_ratio = (setObs.nEstimates[t] > setObs.truncCounts[t]) ? ((double)setObs.truncCounts[t]/(double)setObs.nEstimates[t]) : ((double)setObs.truncCounts[t]/setObs.truncCounts[t]);
-            if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                    (bin1_d == 0.0) && 
-                    (nk_ratio > bin2_pred))
-            {
-                // ok, if crosslink score -> inf; default score -> log(P('3'|Y)/P('1'|Y)) or  log(1.0/DBL_MIN) 
-                bin2_d = 1.0;
-            }
-            else if ((g1_d*bin1_d + g1_d*bin2_d + g2_d*bin1_d + g2_d*bin2_d < options.min_eProbSum) && 
-                    (bin2_d == 0.0) && 
-                    (nk_ratio < bin1_pred))
-            {
-                bin1_d = 1.0;  
-            }
-        }
-        // else if 0s, will be discarded downstream ...
     }
-    eProbs[0] = g1_d * bin1_d;    
-    eProbs[1] = g1_d * bin2_d;
-    eProbs[2] = g2_d * bin1_d;
-    eProbs[3] = g2_d * bin2_d;
+
+    eProbs[0] = myLog(g1_d) + myLog(bin1_d);    
+    eProbs[1] = myLog(g1_d) + myLog(bin2_d);
+    eProbs[2] = myLog(g2_d) + myLog(bin1_d);
+    eProbs[3] = myLog(g2_d) + myLog(bin2_d);
 
     // 
-    if ((eProbs[0] == 0.0 && eProbs[1] == 0.0 && eProbs[2] == 0.0 && eProbs[3] == 0.0) || 
-            (g1_d + g2_d < options.min_eProbSum) || (bin1_d + bin2_d < options.min_eProbSum) ||
-            (eProbs[0] + eProbs[1] + eProbs[2] + eProbs[3] < options.min_eProbSum) ||
-            (std::isnan(eProbs[0]) || std::isnan(eProbs[1]) || std::isnan(eProbs[2]) || std::isnan(eProbs[3])) ||
-            (std::isinf(eProbs[0]) || std::isinf(eProbs[1]) || std::isinf(eProbs[2]) || std::isinf(eProbs[3])))
+    if ((g1_d + g2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
+            (std::isnan(eProbs[0]) && std::isnan(eProbs[1]) && std::isnan(eProbs[2]) && std::isnan(eProbs[3])) )
     {
         if (options.verbosity >= 2)
         {
@@ -455,11 +427,10 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'crosslink' binomial: " << bin2_d << std::endl;
         }
-        eProbs[0] = 1.0;
-        eProbs[1] = 0.0;
-        eProbs[2] = 0.0;
-        eProbs[3] = 0.0;
-
+        eProbs[0] = 0.0;
+        eProbs[1] = std::numeric_limits<double>::quiet_NaN();
+        eProbs[2] = std::numeric_limits<double>::quiet_NaN();
+        eProbs[3] = std::numeric_limits<double>::quiet_NaN();
         return false;
     }
     return true;
@@ -506,7 +477,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
                         std::cout << " Interval: [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand." << std::endl;
                 }
                 stop = true;
-                if (!options.useHighPrecision)
+                if (!options.useHighPrecision)  // TODO ?
                 {
                     SEQAN_OMP_PRAGMA(critical) 
                     std::cout << "NOTE: Try running PureCLIP in high floating-point precision mode (long double, parameter '-ld')." << std::endl;
@@ -525,7 +496,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
                     else 
                         std::cout << " Interval [" << (this->contigLength - this->setPos[s][i] - 1) << ", " << (this->contigLength - this->setPos[s][i] - 1 + this->setObs[s][i].length()) << ") on reverse strand." << std::endl;
                 }
-                if (!options.useHighPrecision)
+                if (!options.useHighPrecision)  // TODO ?
                 {
                     SEQAN_OMP_PRAGMA(critical) 
                     std::cout << "NOTE: If this happens frequently, rerun PureCLIP in high floating-point precision mode (long double, parameter '-ld')." << std::endl;
@@ -539,212 +510,97 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
 
 
 
-// for one interval only
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, String<String<TDOUBLE> > &alphas_2, unsigned s, unsigned i, AppOptions &options)
-{
-    // for t = 1
-    long double norm = 0.0;
-    for (unsigned k = 0; k < this->K; ++k)
-    {
-        alphas_1[0][k] = this->initProbs[s][i][k] * this->eProbs[s][i][0][k];
-        norm += alphas_1[0][k];
-    }
-    if (norm == 0.0) 
-    {
-        std::cout << "ERROR: while computing forward values. All alpha values are 0 at t: "<< 0 << "  i: " << i << "." << std::endl;
-        if (options.verbosity >= 2)
-        {
-            for (unsigned k = 0; k < this->K; ++k)
-            {
-                std::cout << "k: " << k << std::endl;
-                std::cout << "this->eProbs[s][i][0][k] " << this->eProbs[s][i][0][k] << std::endl;
-            }
-        }
-        return false;
-    }
+/////////////////////////////////////////////////////////////////
+// forward-backward algorithm parts 
+/////////////////////////////////////////////////////////////////
 
+// for one interval only
+// Forward-algorithm: log-space 
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+bool HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options)
+{
+    // NOTE
+    // in log-space: alphas_1, eProbs
+    // trans. probs, init porbs, state post. probs. not in log-space
+
+    // for t = 1
     for (unsigned k = 0; k < this->K; ++k)
-       alphas_2[0][k] = alphas_1[0][k] / norm;
+    {
+        alphas_1[0][k] = myLog(this->initProbs[s][i][k]) + this->eProbs[s][i][0][k];    // log ? initProbs should not become 0.0!
+    }
 
     // for t = 2:T
     for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
     {
-        norm = 0.0;
         for (unsigned k = 0; k < this->K; ++k)
-        {
-            // sum over previous states
-            long double sum = 0.0;
-            for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-                sum += alphas_2[t-1][k_2] * this->transMatrix[k_2][k];
-            
-            if (sum == 0.0 || std::isnan(sum)) 
-            {
-                std::cout << "ERROR: while computing forward values. Sum over previous states is " << sum << " at t: "<< t << "  i: " << i << "." << std::endl;
-                if (options.verbosity >= 2)
-                {
-                    for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-                        std::cout << " k_2: " << k_2 <<  " alphas_2[t-1][k_2]: " << alphas_2[t-1][k_2] << " transMatrix[k_2][k]: " << this->transMatrix[k_2][k] << std::endl; 
-                }
-                return false;
-            }
+        {          
+            long double f1 = alphas_1[t-1][0] + logA[0][k] + this->eProbs[s][i][t][k];
+            long double f2 = alphas_1[t-1][1] + logA[1][k] + this->eProbs[s][i][t][k];
+            long double f3 = alphas_1[t-1][2] + logA[2][k] + this->eProbs[s][i][t][k];
+            long double f4 = alphas_1[t-1][3] + logA[3][k] + this->eProbs[s][i][t][k];
 
-            // alpha_1
-            alphas_1[t][k] = sum * this->eProbs[s][i][t][k];        // - nan?
-            norm += alphas_1[t][k];
-        }
-        
-        if (norm == 0.0 || std::isnan(norm)) 
-        {
-            std::cout << "ERROR: while computing forward values. Sum of alpha values is " << norm << " at t: "<< t << "  i: " << i << "." << std::endl;            
-            if (options.verbosity >= 2)
+            alphas_1[t][k] = get_logSumExp_states(f1, f2, f3, f4, options.lookUp);
+
+            if (std::isinf(alphas_1[t][k]))
             {
-                for (unsigned k = 0; k < this->K; ++k)
-                {
-                    std::cout << "k: " << k << std::endl;
-                    std::cout << "this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
-                }
+                std::cout << "ERROR: alphas_1[" << t << "][" << k << "] is " << alphas_1[t][k] << std::endl;
+                std::cout << "       f1 " << f1 << " f2 " << f2 << " f3 " << f3 << " f4 " << f4 << std::endl;
+                std::cout << "       alphas_1[t-1][0] " << alphas_1[t-1][0] << " logA[0][k] " << logA[0][k] << " this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
+                std::cout << "       alphas_1[t-1][1] " << alphas_1[t-1][1] << " logA[1][k] " << logA[1][k] << " this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
+                std::cout << "       alphas_1[t-1][2] " << alphas_1[t-1][2] << " logA[2][k] " << logA[2][k] << " this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
+                std::cout << "       alphas_1[t-1][3] " << alphas_1[t-1][3] << " logA[3][k] " << logA[3][k] << " this->eProbs[s][i][t][k] " << this->eProbs[s][i][t][k] << std::endl;
+                return false;                
             }
-            return false;
         }
-        // normalize
-        for (unsigned k = 0; k < this->K; ++k)
-            alphas_2[t][k] = alphas_1[t][k] / norm;   // TODO store scaling coefficients too !?
     }
     return true;
 }
 
 
-// Backward-algorithm
-// need alphas_1 for scaling here,
-// only betas_2 is needed to compute posterior probs.
+// Backward-algorithm: log-space
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_2, String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i)
+bool HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options)
 {
     unsigned T = this->setObs[s][i].length();
-    String<String<TDOUBLE> > betas_1;
-    resize(betas_1, T, Exact());
-    for (unsigned t = 0; t < T; ++t)
-        resize(betas_1[t], this->K, Exact());
-
     // for t = T
     for (unsigned k = 0; k < this->K; ++k)
-       betas_1[this->setObs[s][i].length() - 1][k] = 1.0;
+       betas_1[this->setObs[s][i].length() - 1][k] = log(1.0);
     
-    long double norm = 0.0;      // use scaling coefficients from alphas here !
-    for (unsigned k = 0; k < this->K; ++k)
-       norm += alphas_1[this->setObs[s][i].length() - 1][k];
-
-    if (norm == 0.0 || std::isnan(norm)) 
-    {
-        std::cout << "ERROR: while computing backward values. Sum over alpha values is " << norm << " at t: "<< (this->setObs[s][i].length() - 1) << "  i: " << i << "." << std::endl;
-        for (unsigned k = 0; k < this->K; ++k)
-            std::cout << "alphas_1[this->setObs[s][i].length() - 1][" << k << "]: " <<  alphas_1[this->setObs[s][i].length() - 1][k] << std::endl;
-        return false;
-    }
-
-    for (unsigned k = 0; k < this->K; ++k)
-    {
-       betas_2[this->setObs[s][i].length() - 1][k] = betas_1[this->setObs[s][i].length() - 1][k] / norm;
-
-       if (std::isnan(betas_2[this->setObs[s][i].length() - 1][k]) || std::isinf(betas_2[this->setObs[s][i].length() - 1][k])) 
-       {
-           std::cout << "ERROR: while computing backward values! betas_2[this->setObs[s][i].length() - 1][k] is " << betas_2[this->setObs[s][i].length() - 1][k] << " at t: "<< (this->setObs[s][i].length() - 1) << "  i: " << i << "." << std::endl;
-           std::cout << "betas_1[this->setObs[s][i].length() - 1][k]: " << betas_1[this->setObs[s][i].length() - 1][k] << " norm: " <<  norm << std::endl;
-           return false;
-       }
-    }
-
     // for t = 2:T
     for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
     {
-        norm = 0.0;
-        for (unsigned k = 0; k < this->K; ++k)      // precompute ???
-            norm += alphas_1[t][k];
-
-        if (norm == 0.0 || std::isnan(norm)) 
-        {
-            std::cout << "ERROR: while computing backward values. Sum over alpha values is " << norm << " at t: "<< t << "  i: " << i << "." << std::endl;
-            for (unsigned k = 0; k < this->K; ++k)
-                std::cout << "alphas_1[t][" << k << "]: " <<  alphas_1[t][k] << std::endl;
-            return false;
-        }
-
         for (unsigned k = 0; k < this->K; ++k)
         {
-            // sum over previous states
-            long double sum = 0.0;
-            for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-                sum += betas_2[t+1][k_2] * this->transMatrix[k][k_2] * this->eProbs[s][i][t+1][k_2];
-           
-            if (std::isnan(sum))
+            // sum over following states           
+            long double f1 = betas_1[t+1][0] + logA[k][0] + this->eProbs[s][i][t+1][0];
+            long double f2 = betas_1[t+1][1] + logA[k][1] + this->eProbs[s][i][t+1][1];
+            long double f3 = betas_1[t+1][2] + logA[k][2] + this->eProbs[s][i][t+1][2];
+            long double f4 = betas_1[t+1][3] + logA[k][3] + this->eProbs[s][i][t+1][3];
+
+            betas_1[t][k] = get_logSumExp_states(f1, f2, f3, f4, options.lookUp);
+
+            if (std::isinf(betas_1[t][k]))
             {
-                std::cout << "ERROR: while computing backward values! sum is nan at t: "<< t << "  i: " << i << " and k: " << k << "." << std::endl;
-                for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-                    std::cout << "k_2: " << k_2 << " betas_2[t+1][k_2]: " << betas_2[t+1][k_2] << " this->transMatrix[k][k_2]: " <<  this->transMatrix[k][k_2] << " this->eProbs[s][i][t+1][k_2]: " << this->eProbs[s][i][t+1][k_2] << std::endl;
+                std::cout << "ERROR: betas_1[" << t << "][" << k << "] is " << betas_1[t][k] << std::endl;
                 return false;
             }
-
-            // beta_1
-            betas_1[t][k] = sum;
-            // beta_2
-            betas_2[t][k] = betas_1[t][k] / norm;
-
-            if (std::isnan(betas_2[t][k]) || std::isinf(betas_2[t][k])) 
-            {
-                std::cout << "ERROR: while computing backward values! betas_2[t][k] is " << betas_2[t][k] << " at t: "<< t << "  i: " << i << "." << std::endl;
-                std::cout << "betas_1[t][k]: " << betas_1[t][k] << " norm: " <<  norm << std::endl;
-                return false;
-            }
-
         }
     }
     return true;
 }
 
 
-// both for scaling and no-scaling method
-/*template<typename TD1, typename TD2, typename TB1, typename TB2>
-void HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriors()
-{
-    for (unsigned s = 0; s < 2; ++s)
-    {
-#if HMM_PARALLEL
-        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
-#endif  
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-            {
-                double sum = 0.0;
-                for (unsigned k = 0; k < this->K; ++k)
-                    sum += this->alphas_2[s][i][t][k] * this->betas_2[s][i][t][k];
-
-                if (sum == 0.0) 
-                {
-                    std::cerr << "ERROR: sum == 0 at i: " << i << " t: "<< t << std::endl;
-                    for (unsigned k = 0; k < this->K; ++k)
-                    {
-                        std::cout << "k: " << k << std::endl;
-                        std::cout << "this->alphas_2[s][i][t][k]: " << this->alphas_2[s][i][t][k] << " this->betas_2[s][i][t][k]: " << this->betas_2[s][i][t][k] << std::endl;
-                    }
-                }
-                for (unsigned k = 0; k < this->K; ++k)
-                    this->statePosteriors[s][k][i][t] = this->alphas_2[s][i][t][k] * this->betas_2[s][i][t][k] / sum;
-            }
-        }
-    }
-}*/
-
-
-
-
-// for scaling method
-// interval-wise to avoid storing alpha_1, alpha_2 and beta_1, beta_2 values for whole genome
+// for log-space
+// interval-wise to avoid storing alpha_1 and beta_1 values for whole genome
+// TODO learn 2-> 2/3 only above threshold !?
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
 {
-    String<String<long double> > A = this->transMatrix;
+    String<String<long double> > logA = this->transMatrix;
+    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
+        for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
+            logA[k_1][k_2] = log(this->transMatrix[k_1][k_2]);
+                      
     String<String<long double> > p;
     resize(p, this->K, Exact());
     for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
@@ -755,7 +611,163 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             p[k_1][k_2] = 0.0;
     }
     long double p_2_2 = 0.0;     // for separate learning of trans. prob from '2' -> '2'
-    long double p_2_3 = 0.0;     // for separate learning of trans. prob from '2' -> '3' 
+    long double p_2_3 = 0.0;     // for separate learning of trans. prob from '2' -> '3'               
+
+    for (unsigned s = 0; s < 2; ++s)
+    {
+        bool stop = false;
+#if HMM_PARALLEL
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) // num_threads(options.numThreads)) 
+#endif  
+        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
+        {
+            unsigned T = setObs[s][i].length();
+            // forward probabilities
+            String<String<TDOUBLE> > alphas_1;
+            resize(alphas_1, T, Exact());
+            for (unsigned t = 0; t < T; ++t)
+            {
+                resize(alphas_1[t], this->K, Exact());
+            }
+            if (!iForward(alphas_1, s, i, logA, options))
+            {
+                stop = true;
+                continue;
+            }
+
+            // backward probabilities  
+            String<String<TDOUBLE> > betas_1;
+            resize(betas_1, T, Exact());
+            for (unsigned t = 0; t < T; ++t)
+                resize(betas_1[t], this->K, Exact());
+
+            if (!iBackward(betas_1, s, i, logA, options))
+            {
+                stop = true;
+                continue;
+            }
+           
+            // compute state posterior probabilities
+            for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
+            {
+                long double f1 = alphas_1[t][0] + betas_1[t][0];
+                long double f2 = alphas_1[t][1] + betas_1[t][1];
+                long double f3 = alphas_1[t][2] + betas_1[t][2];
+                long double f4 = alphas_1[t][3] + betas_1[t][3];
+
+                long double norm = get_logSumExp_states(f1, f2, f3, f4, options.lookUp);
+
+                for (unsigned k = 0; k < this->K; ++k)
+                {
+                    this->statePosteriors[s][k][i][t] = myExp(alphas_1[t][k] + betas_1[t][k] - norm);     // store not in log-space!
+                    
+                    if (std::isnan(this->statePosteriors[s][k][i][t]) || std::isinf(this->statePosteriors[s][k][i][t]) || 
+                        this->statePosteriors[s][k][i][t] < 0.0 || this->statePosteriors[s][k][i][t] > 1.0) 
+                    {
+                        std::cout << "ERROR: state posterior probability is " << this->statePosteriors[s][k][i][t] << "." << std::endl;
+                        std::cout << "       s: " << s << " i: " << i << " t: " << t << " k:" << k << std::endl;
+                        std::cout << "       alphas_1[t][k]: " << alphas_1[t][k] << " betas_1[t][k]: " << betas_1[t][k] << " norm: " << norm << std::endl;
+                        stop = true;
+                        continue;
+                    }
+                }
+            }
+
+            // update initial probabilities
+            for (unsigned k = 0; k < this->K; ++k)
+                this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
+
+            // compute xi values for interval in preparation for new trans. probs
+            String<String<long double> > xis;
+            resize(xis, this->K, Exact()); 
+            String<String<long double> > p_i;
+            resize(p_i, this->K, Exact());
+            for (unsigned k_1 = 0; k_1 < this->K; ++k_1)   
+            {
+                resize(xis[k_1], this->K, 0.0, Exact());
+                resize(p_i[k_1], this->K, 0.0, Exact());
+            }
+            long double p_2_2_i = 0.0;
+            long double p_2_3_i = 0.0;
+            // 
+            for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
+            {
+                long double norm = std::numeric_limits<long double>::quiet_NaN();
+                for (unsigned k_1 = 0; k_1 < this->K; ++k_1) 
+                {
+                    for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
+                    {
+                        xis[k_1][k_2] = alphas_1[t-1][k_1] + logA[k_1][k_2] + this->eProbs[s][i][t][k_2] + betas_1[t][k_2];
+                        norm = get_logSumExp(norm, xis[k_1][k_2], options.lookUp);
+                    }
+                }
+                for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
+                    for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
+                        p_i[k_1][k_2] += myExp(xis[k_1][k_2] - norm);
+
+                // learn p[2->2/3] for region over nThresholdForP
+                if (options.nThresholdForTransP > 0 && setObs[s][i].nEstimates[t] >= options.nThresholdForTransP)
+                {
+                    p_2_2_i += myExp(xis[2][2] - norm);
+                    p_2_3_i += myExp(xis[2][3] - norm);
+                }
+            }
+            // add to global sum
+            for (unsigned k_1 = 0; k_1 < this->K; ++k_1) 
+                for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
+                    SEQAN_OMP_PRAGMA(critical)
+                        p[k_1][k_2] += p_i[k_1][k_2];
+            
+            SEQAN_OMP_PRAGMA(critical)
+                p_2_2 += p_2_2_i;
+            SEQAN_OMP_PRAGMA(critical)
+                p_2_3 += p_2_3_i;
+        }
+        if (stop) return false;
+    }
+
+    // update transition matrix
+    String<String<long double> > A = this->transMatrix;    
+    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
+    {
+        long double denumerator = 0.0;
+        for (unsigned k_3 = 0; k_3 < this->K; ++k_3)
+            denumerator += p[k_1][k_3]; 
+
+        for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
+        {
+            A[k_1][k_2] = p[k_1][k_2] / denumerator;
+            if (A[k_1][k_2] <= 0.0) A[k_1][k_2] = DBL_MIN;          // make sure not getting zero
+        }
+    }
+    // Fix p[2->2/3] using only trans. probs. for region over nThresholdForP, while keeping sum of p[2->2] and p[2->3] constant 
+    if (options.nThresholdForTransP > 0)
+    {
+        long double sum_2_23 = A[2][2] + A[2][3];
+        A[2][2] = sum_2_23 * p_2_2/(p_2_2 + p_2_3);
+        A[2][3] = sum_2_23 * p_2_3/(p_2_2 + p_2_3);
+    }
+    // keep transProb of '2' -> '3' on min. value
+    if (A[2][3] < options.minTransProbCS)
+    {
+        A[2][3] = options.minTransProbCS;
+
+        if (A[3][3] < options.minTransProbCS) A[3][3] = options.minTransProbCS;
+        std::cout << "NOTE: Prevented transition probability '2' -> '3' from dropping below min. value of " << options.minTransProbCS << ". Set for transitions '2' -> '3' (and if necessary also for '3'->'3') to " << options.minTransProbCS << "." << std::endl;
+    }
+    this->transMatrix = A;
+    return true;
+}
+
+
+// without updating transition probabilities: log space 
+template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
+{
+    String<String<long double> > logA = this->transMatrix;
+    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
+        for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
+            logA[k_1][k_2] = log(this->transMatrix[k_1][k_2]);
 
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -768,56 +780,42 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             unsigned T = setObs[s][i].length();
             // forward probabilities
             String<String<TDOUBLE> > alphas_1;
-            String<String<TDOUBLE> > alphas_2;
             resize(alphas_1, T, Exact());
-            resize(alphas_2, T, Exact());
             for (unsigned t = 0; t < T; ++t)
             {
                 resize(alphas_1[t], this->K, Exact());
-                resize(alphas_2[t], this->K, Exact());
             } 
-            if (!iForward(alphas_1, alphas_2, s, i, options))
+            if (!iForward(alphas_1, s, i, logA, options))
             {
                 stop = true;
                 continue;
             }
 
             // backward probabilities  
-            String<String<TDOUBLE> > betas_2;
-            resize(betas_2, T, Exact());
+            String<String<TDOUBLE> > betas_1;
+            resize(betas_1, T, Exact());
             for (unsigned t = 0; t < T; ++t)
-                resize(betas_2[t], this->K, Exact());
-            if (!iBackward(betas_2, alphas_1, s, i))
+                resize(betas_1[t], this->K, Exact());
+            if (!iBackward(betas_1, s, i, logA, options))
             {
                 stop = true;
                 continue;
             }
            
-            // compute state posterior probabilities
+            // compute state posterior probabilities (in log-space)
             for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
             {
-                long double sum = 0.0;
-                for (unsigned k = 0; k < this->K; ++k)
-                    sum += alphas_2[t][k] * betas_2[t][k];
+                long double f1 = alphas_1[t][0] + betas_1[t][0];
+                long double f2 = alphas_1[t][1] + betas_1[t][1];
+                long double f3 = alphas_1[t][2] + betas_1[t][2];
+                long double f4 = alphas_1[t][3] + betas_1[t][3];
 
-                if (sum == 0.0) 
-                {
-                    std::cout << "ERROR: while computing state posterior probabilities! Sum of alpha and beta values is 0 at i: " << i << " t: "<< t << "." << std::endl;
-                    if (options.verbosity >= 2)
-                    {
-                        for (unsigned k = 0; k < this->K; ++k)
-                        {
-                            std::cout << "k: " << k << std::endl;
-                            std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
-                        }
-                    }
-                    stop = true;
-                    continue;
-                }
+                long double norm = get_logSumExp_states(f1, f2, f3, f4, options.lookUp);
+
                 for (unsigned k = 0; k < this->K; ++k)
                 {
-                    this->statePosteriors[s][k][i][t] = alphas_2[t][k] * betas_2[t][k] / sum;
-                    if (std::isnan(this->statePosteriors[s][k][i][t])) std::cout << "ERROR: statePosterior is nan! (alpha_2: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << " sum: " << sum << ")" << std::endl;
+                    this->statePosteriors[s][k][i][t] = myExp(alphas_1[t][k] + betas_1[t][k] - norm);     // store not in log-space!
+                    if (std::isnan(this->statePosteriors[s][k][i][t])) std::cout << "ERROR: statePosterior is nan! " << std::endl;
                 }
             }
 
@@ -825,156 +823,6 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             for (unsigned k = 0; k < this->K; ++k)
                 this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
 
-            // compute new transitioon probs
-            String<String<long double> > p_i;
-            resize(p_i, this->K, Exact());
-            long double p_2_2_i = 0.0;
-            long double p_2_3_i = 0.0;
-            for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
-            {
-                resize(p_i[k_1], this->K, Exact());
-                for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-                {
-                    p_i[k_1][k_2] = 0.0;
-                    for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
-                    {
-                        p_i[k_1][k_2] += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
-                        // learn p[2->2/3] for region over nThresholdForP
-                        if (k_1 == 2 && k_2 == 2 && setObs[s][i].nEstimates[t] >= options.nThresholdForTransP)
-                            p_2_2_i += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
-
-                        if (k_1 == 2 && k_2 == 3 && setObs[s][i].nEstimates[t] >= options.nThresholdForTransP)
-                            p_2_3_i += alphas_2[t-1][k_1] * this->transMatrix[k_1][k_2] * this->eProbs[s][i][t][k_2] * betas_2[t][k_2];
-                    }
-                    SEQAN_OMP_PRAGMA(critical)
-                    p[k_1][k_2] += p_i[k_1][k_2];
-                }
-            }
-            SEQAN_OMP_PRAGMA(critical)
-            p_2_2 += p_2_2_i;
-            SEQAN_OMP_PRAGMA(critical)
-            p_2_3 += p_2_3_i;
-        }
-        if (stop) return false;
-    }
-    // update transition matrix
-    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
-    {
-        long double denumerator = 0.0;
-        for (unsigned k_3 = 0; k_3 < this->K; ++k_3)
-        {
-            denumerator += p[k_1][k_3]; 
-        }
-
-        for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-        {
-            A[k_1][k_2] = p[k_1][k_2] / denumerator;
-
-            if (A[k_1][k_2] <= 0.0) 
-                A[k_1][k_2] = DBL_MIN;          // make sure not getting zero
-        }
-    }
-    // Fix p[2->2/3] using only transition prob for region over nThresholdForP, while keeping sum of p[2->2] and p[2->3] constant! (if user options says so) 
-    if (options.nThresholdForTransP > 0)
-    {
-        long double sum_2_23 = A[2][2] + A[2][3];
-        A[2][2] = sum_2_23 * p_2_2/(p_2_2 + p_2_3);
-        A[2][3] = sum_2_23 * p_2_3/(p_2_2 + p_2_3);
-    }
-    // keep transProb of '2' -> '3' on min. value
-    if (A[2][3] < options.minTransProbCS)
-    {
-        A[2][3] = options.minTransProbCS;
-
-        if (A[3][3] < options.minTransProbCS)
-            A[3][3] = options.minTransProbCS;
-        std::cout << "NOTE: Prevented transition probability '2' -> '3' from dropping below min. value of " << options.minTransProbCS << ". Set for transitions '2' -> '3' (and if necessary also for '3'->'3') to " << options.minTransProbCS << "." << std::endl;
-    }
-    this->transMatrix = A;
-    return true;
-}
-
-// without updating transition probabilities 
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
-{
-    String<String<long double> > A = this->transMatrix;
-    String<String<long double> > p;
-    resize(p, this->K, Exact());
-    for (unsigned k_1 = 0; k_1 < this->K; ++k_1)    
-    {
-        SEQAN_OMP_PRAGMA(critical)
-        resize(p[k_1], this->K, Exact());
-        for (unsigned k_2 = 0; k_2 < this->K; ++k_2)
-            p[k_1][k_2] = 0.0;
-    }
-
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        bool stop = false;
-#if HMM_PARALLEL
-        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1)) 
-#endif  
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            if (!this->setObs[s][i].discard)
-            {
-                unsigned T = setObs[s][i].length();
-                // forward probabilities
-                String<String<TDOUBLE> > alphas_1;
-                String<String<TDOUBLE> > alphas_2;
-                resize(alphas_1, T, Exact());
-                resize(alphas_2, T, Exact());
-                for (unsigned t = 0; t < T; ++t)
-                {
-                    resize(alphas_1[t], this->K, Exact());
-                    resize(alphas_2[t], this->K, Exact());
-                } 
-                if (!iForward(alphas_1, alphas_2, s, i, options))
-                {
-                    stop = true;
-                    continue;
-                }
-                // backward probabilities  
-                String<String<TDOUBLE> > betas_2;
-                resize(betas_2, T, Exact());
-                for (unsigned t = 0; t < T; ++t)
-                    resize(betas_2[t], this->K, Exact());
-                if (!iBackward(betas_2, alphas_1, s, i))
-                {
-                    stop = true;
-                    continue;
-                }
-
-                // compute state posterior probabilities
-                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-                {
-                    long double sum = 0.0;
-                    for (unsigned k = 0; k < this->K; ++k)
-                        sum += alphas_2[t][k] * betas_2[t][k];
-
-                    if (sum == 0.0) 
-                    {
-                        std::cout << "ERROR: while computing state posterior probabilities! Sum of alpha and beta values is 0 at i: " << i << " t: "<< t << "." << std::endl;
-                        if (options.verbosity >= 2)
-                        {
-                            for (unsigned k = 0; k < this->K; ++k)
-                            {
-                                std::cout << "k: " << k << std::endl;
-                                std::cout << "alphas_2[k]: " << alphas_2[t][k] << " betas_2[t][k]: " << betas_2[t][k] << std::endl;
-                            }
-                        }
-                        stop = true;
-                        continue;
-                    }
-                    for (unsigned k = 0; k < this->K; ++k)
-                        this->statePosteriors[s][k][i][t] = alphas_2[t][k] * betas_2[t][k] / sum;
-                }
-
-                // update init probs
-                for (unsigned k = 0; k < this->K; ++k)
-                    this->initProbs[s][i][k] = this->statePosteriors[s][k][i][0];   
-            }
         }
         if (stop) return false;
     }
@@ -1081,7 +929,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d
 
 
 // Baum-Welch
-// with scaling
+// in log-space (using log-sum-exp trick)
 template<typename TGAMMA, typename TBIN, typename TDOUBLE> 
 bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options)
 {
@@ -1100,7 +948,10 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, T
         }
         std::cout << "                        computeStatePosteriorsFB() " << std::endl;
         if (!computeStatePosteriorsFBupdateTrans(options))
+        {
+            std::cerr << "ERROR: Could not compute forward-backward algorithm! " << std::endl;
             return false;
+        }
         
         std::cout << "                        updateDensityParams() " << std::endl;
 
@@ -1167,84 +1018,17 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::applyParameters(TGAMMA &d1, TGAMMA &d2, TBIN &b
         return false;
     }
     if (!computeStatePosteriorsFB(options))
+    {
+        std::cerr << "ERROR: Could not compute forward-backward algorithm! " << std::endl;
         return false;
-
+    }
     return true;
 }
 
 
-// returns log P
+// log-space
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
 long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi(String<String<String<__uint8> > > &states)
-{
-    long double p = 1.0;
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        resize(states[s], length(this->setObs[s]), Exact());
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            if (!this->setObs[s][i].discard)
-            {
-                resize(states[s][i], this->setObs[s][i].length(), Exact());
-                // store for each t and state maximizing precursor joint probability of state sequence and observation
-                String<String<long double> > vits;
-                resize(vits, this->setObs[s][i].length(), Exact());
-                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-                    resize(vits[t], this->K, Exact());
-                // store for each t and state maximizing precursor state
-                String<String<unsigned> > track;
-                resize(track, this->setObs[s][i].length(), Exact());
-                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-                    resize(track[t], this->K, Exact());
-
-                // initialize
-                for (unsigned k = 0; k < this->K; ++k)
-                    vits[0][k] = this->initProbs[s][i][k] * this->eProbs[s][i][0][k];
-                // recursion
-                for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
-                {
-                    for (unsigned k = 0; k < this->K; ++k)
-                    {
-                        long double max_v = vits[t-1][0] * this->transMatrix[0][k];
-                        unsigned max_k = 0;
-                        for (unsigned k_p = 1; k_p < this->K; ++k_p)
-                        {
-                            long double v = vits[t-1][k_p] * this->transMatrix[k_p][k];
-                            if (v > max_v)
-                            {
-                                max_v = v;
-                                max_k = k_p;
-                            }
-                        }
-                        vits[t][k] = max_v * this->eProbs[s][i][t][k];
-                        track[t][k] = max_k;
-                    }
-                }
-                // backtracking
-                long double max_v = vits[this->setObs[s][i].length() - 1][0];
-                unsigned max_k = 0;
-                for (unsigned k = 1; k < this->K; ++k)
-                {
-                    if (vits[this->setObs[s][i].length() - 1][k] >= max_v)
-                    {
-                        max_v = vits[this->setObs[s][i].length() - 1][k];
-                        max_k = k;
-                    }
-                }
-                states[s][i][this->setObs[s][i].length() - 1] = max_k;
-                for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
-                    states[s][i][t] = track[t+1][states[s][t+1]];
-
-                p *= max_v;
-            }
-        }
-    }
-    return p;   
-}
-
-
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi_log(String<String<String<__uint8> > > &states)
 {
     long double p = 0.0;
     for (unsigned s = 0; s < 2; ++s)

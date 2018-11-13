@@ -106,7 +106,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     addOption(parser, ArgParseOption("dm", "dm", "Distance used to merge individual crosslink sites to binding regions. Default: 8", ArgParseArgument::INTEGER));
 
-    addOption(parser, ArgParseOption("ld", "ld", "Use higher precision to compute emission probabilities etc. (i.e. long double). Useful in cases of extreme outliers, e.g. extreme high read start counts whose emission probabilities are close to zero and which would be discarded in default setting (along with warning messages). Note: increases memory consumption. Use in combination with '-iv'. Default: double."));
+    addOption(parser, ArgParseOption("ld", "ld", "Use higher precision to store emission probabilities, state poster posterior probabilities etc. (i.e. long double). Should not be necessary anymore, due to computations in log-space. Note: increases memory consumption. Default: double."));
+    addOption(parser, ArgParseOption("ts", "ts", "Size of look-up table for log-sum-exp values. Default: 600000", ArgParseArgument::INTEGER));
+    addOption(parser, ArgParseOption("tmv", "tmv", "Minimum value in look-up table for log-sum-exp values. Default: -2000", ArgParseArgument::DOUBLE));
 
     addOption(parser, ArgParseOption("ur", "ur", "Flag to define which read should be selected for the analysis: 1->R1, 2->R2. Note: PureCLIP uses read starts corresponding to 3' cDNA ends. Thus if providing paired-end data, only the corresponding read should be selected (e.g. eCLIP->R2, iCLIP->R1). If applicable, used for input BAM file as well. Default: uses read starts of all provided reads assuming single-end or pre-filtered data.", ArgParseArgument::INTEGER));
     setMinValue(parser, "ur", "1");
@@ -276,7 +278,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     getOptionValue(options.distMerge, parser, "dm");
     if (isSet(parser, "ld"))
-        options.useHighPrecision = true;
+        options.useHighPrecision = true; 
+    getOptionValue(options.lookupTable_size, parser, "ts");
+    getOptionValue(options.lookupTable_minValue, parser, "tmv");
     getOptionValue(options.selectRead, parser, "ur");
 
     getOptionValue(options.polyAThreshold, parser, "pat");
@@ -332,6 +336,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 template <typename TDOUBLE, typename TOptions>
 bool doIt(TDOUBLE /**/, TOptions &options)
 {
+    LogSumExp_lookupTable lookUp(options.lookupTable_size, options.lookupTable_minValue);
+    options.lookUp = lookUp;
+    
     if (options.useCov_RPKM)
     {
         GAMMA2_REG<TDOUBLE> gamma1; 
