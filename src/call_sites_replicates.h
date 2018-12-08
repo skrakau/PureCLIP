@@ -246,7 +246,7 @@ HMM<TGAMMA, TBIN, TDOUBLE> merge_HMMs(String<HMM<TGAMMA, TBIN, TDOUBLE> > &hmms_
             {
                 double sum = 0.0;
                 for (unsigned rep = 0; rep < length(hmms_replicates); ++rep)
-                    sum += hmms_replicates[rep].initProbs[s][i][k];
+                    sum += hmms_replicates[rep].initProbs[s][i][k];                     // TODO use position-specific post. probs. instead?
 
                 mergedHmm.initProbs[s][i][k] = sum/(double)length(hmms_replicates);
             }
