@@ -472,16 +472,7 @@ bool doIt(String<TGamma> &gamma1, String<TGamma> &gamma2, String<TBIN> &bin1, St
     int db_min_exp = DBL_MIN_10_EXP;
     int ldb_min_exp = LDBL_MIN_10_EXP;
     std::cout << "DBL_MIN_10_EXP: " << db_min_exp << " LDBL_MIN_10_EXP: " << ldb_min_exp << std::endl;
-    if (!options.useHighPrecision) 
-    {
-        options.min_eProbSum = pow((double)10.0, DBL_MIN_10_EXP + 50);
-        std::cout << " Set options.min_eProbSum : " << options.min_eProbSum << std::endl;  
-    }
-    else 
-    {
-        options.min_eProbSum = pow((long double)10.0, LDBL_MIN_10_EXP + 100);
-        std::cout << " Set options.min_eProbSum : " << options.min_eProbSum << std::endl;
-    }    
+ 
     // some other thresholds and setings:
     if (options.binSize == 0.0) options.binSize = options.bandwidth * 2; 
     options.intervalOffset = options.bandwidth * 2;  
