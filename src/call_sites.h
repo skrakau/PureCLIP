@@ -866,8 +866,9 @@ bool learnHMM(Data &data,
         std::cout << std::endl;
         std::cout << "Baum-Welch  ..." << std::endl;
     }
+    CharString learnTag;
     if (options.verbosity >= 1)  std::cout << "            learn binomial parameter" << std::endl;
-    CharString learnTag = "LEARN_BINOMIAL"; 
+    learnTag = "LEARN_BINOMIAL"; 
     if (!hmm.baumWelch(d1, d2, bin1, bin2, learnTag, options))
         return false;
 

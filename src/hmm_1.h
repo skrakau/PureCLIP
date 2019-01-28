@@ -98,7 +98,7 @@ public:
     bool iBackward(String<String<TDOUBLE> > &betas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options);    
     bool computeStatePosteriorsFB(AppOptions &options);
     bool computeStatePosteriorsFBupdateTrans(AppOptions &options);    
-    bool updateDensityParams(TGAMMA &d1, TGAMMA &d2, AppOptions &options);
+    bool updateDensityParams(TGAMMA &d1, TGAMMA &d2, unsigned &iter, unsigned &trial, AppOptions &options);
     bool updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d2*/, TBIN &bin1, TBIN &bin2, AppOptions &options);
     bool baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options);
     bool applyParameters(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, AppOptions &/*options*/);
@@ -831,7 +831,10 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 
 
 template<typename TDOUBLE>
-bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, AppOptions &options)
+bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, 
+                          GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, 
+                          unsigned &iter, unsigned &trial,
+                          AppOptions &options)
 {
     if (!d1.updateThetaAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
         return false;
@@ -845,7 +848,10 @@ bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, S
 }
 
 template<typename TDOUBLE>
-bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, AppOptions &options)
+bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, 
+                          GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, 
+                          unsigned &iter, unsigned &trial,
+                          AppOptions &options)
 {
     if (!d1.updateRegCoeffsAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
         return false;
@@ -858,13 +864,13 @@ bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, S
         return false;
 
     // make sure gamma1.mu < gamma2.mu    
-    checkOrderG1G2(d1, d2, options);
+    checkOrderG1G2(d1, d2, iter, trial, options);
     return true;
 }
 
 
 template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA &d1, TGAMMA &d2, AppOptions &options)   
+bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA &d1, TGAMMA &d2, unsigned &iter, unsigned &trial, AppOptions &options)   
 {
     String<String<String<TDOUBLE> > > statePosteriors1;
     String<String<String<TDOUBLE> > > statePosteriors2;
@@ -886,7 +892,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA &d1, TGAMMA &d2, App
         }
     }
 
-    updateDensityParams2(statePosteriors1, statePosteriors2, this->setObs, d1, d2, options); 
+    updateDensityParams2(statePosteriors1, statePosteriors2, this->setObs, d1, d2, iter, trial, options); 
 
     return true;
 }
@@ -936,6 +942,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, T
     TGAMMA prev_d2 = d2;
     TBIN prev_bin1 = bin1;
     TBIN prev_bin2 = bin2;
+    unsigned trial = 0;
     for (unsigned iter = 0; iter < options.maxIter_bw; ++iter)
     {
         std::cout << ".. " << iter << "th iteration " << std::endl;
@@ -964,11 +971,17 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, T
         }
         else
         {
-            if (!updateDensityParams(d1, d2, options))
+            if (!updateDensityParams(d1, d2, iter, trial, options))
             {
                 std::cerr << "ERROR: Could not update parameters! " << std::endl;
                 return false;
             }
+            if (trial > 10)
+            {
+                std::cerr << "ERROR: Could not learn gamma parameters, exceeded max. number of reseedings! " << std::endl;
+                return false;
+            }
+
         }
         
         if (learnTag == "LEARN_GAMMA" && checkConvergence(d1, prev_d1, options) && checkConvergence(d2, prev_d2, options) )             
