@@ -35,6 +35,47 @@ using namespace seqan;
 
 namespace seqan {
 
+    // TODO investigate impact
+    class LogSumExp_lookupTable
+    {
+        public:
+            unsigned size;
+            double minValue;
+            String<long double> lookupTable;
+
+            LogSumExp_lookupTable() : size(0), minValue(0.0) {}
+
+            LogSumExp_lookupTable(unsigned size_, double minValue_) : size(size_), minValue(minValue_)
+        {
+            resize(lookupTable, size+1, Exact());
+            for(int i = 0; i <= size; ++i)
+                lookupTable[i] = log1p(exp(i*(-minValue/size) + minValue));
+            std::cout << "Created look-up table for values from " << ((0 * -minValue/size) + minValue) << " to " << ((size * -minValue/size) + minValue) << " with step size " << (-minValue/size) << " (size: " << size<< ")." << std::endl;
+        }
+
+            long double logSumExp_add(long double f1, long double f2) const
+            {
+                if (f1 > f2)
+                {
+                    if (f2 - f1 < minValue)
+                    {
+                        //std::cout << "Note: f1 - f2 below precision! " << (f2 - f1) << " (returning larger value)." <<  std::endl;
+                        return f1;
+                    }
+                    return f1 + lookupTable[(int)(((f2-f1) - minValue) * (size/-minValue))];
+                }
+                else
+                {
+                    if (f1 - f2 < minValue)
+                    {
+                        //std::cout << "Note: f2 - f1 below precision! " << (f1 - f2) << " (returning larger value)." <<  std::endl;
+                        return f2;
+                    }
+                    return f2 + lookupTable[(int)(((f1-f2) - minValue) * (size/-minValue))];
+                }
+            }
+    }; 
+
     struct AppOptions
     {
         String<CharString> bamFileNames;
@@ -90,9 +131,7 @@ namespace seqan {
         double get_nThreshold;
         double minTransProbCS;
         double maxkNratio;
-        bool keep_unlikelyNkratios;
         unsigned maxBinN;
-        long double min_eProbSum;
 
         unsigned polyAThreshold;
         bool excludePolyAFromLearning;
@@ -119,6 +158,9 @@ namespace seqan {
         unsigned distMerge;
         bool use_pseudoEProb;
         bool useHighPrecision;      // long double to compute emission probabilities, state posteriors, Forward-Backward (alpha, beta) values
+        LogSumExp_lookupTable lookUp;   // table containing log-sum-exp precomputed values to avoid expensive log and exp operations
+        unsigned lookupTable_size;
+        double lookupTable_minValue;
         unsigned selectRead;
 
         unsigned numThreads;
@@ -161,9 +203,7 @@ namespace seqan {
             get_nThreshold(false),          // estimate threshold based on expected read start counts
             minTransProbCS(0.0001),
             maxkNratio(1.0),                // ignore sites for binomial learning with ratio greater (maybe caused by mapping artifacts)
-            keep_unlikelyNkratios(true),
             maxBinN(50000),                 // sites above not used for learning
-            min_eProbSum(1e-200),           // make sure eProbs not getting too low, will cause crash during FB-algorithm -> set depending on precision mode
             polyAThreshold(10),
             excludePolyAFromLearning(false),
             excludePolyTFromLearning(false),
@@ -185,6 +225,8 @@ namespace seqan {
             distMerge(8),
             use_pseudoEProb(false),          // when including replicates, add pseudo eProb to avoid crosslink eprobs of 0.0 !
             useHighPrecision(false),
+            lookupTable_size(600000),
+            lookupTable_minValue(-2000.0),
             selectRead(0),
             numThreads(1),
             numThreadsA(0),
@@ -217,7 +259,6 @@ namespace seqan {
             time_applyHMM2(0)
         {}
     };
-
 
 
     struct ContigObservations {

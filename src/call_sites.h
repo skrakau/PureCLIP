@@ -866,8 +866,9 @@ bool learnHMM(Data &data,
         std::cout << std::endl;
         std::cout << "Baum-Welch  ..." << std::endl;
     }
+    CharString learnTag;
     if (options.verbosity >= 1)  std::cout << "            learn binomial parameter" << std::endl;
-    CharString learnTag = "LEARN_BINOMIAL"; 
+    learnTag = "LEARN_BINOMIAL"; 
     if (!hmm.baumWelch(d1, d2, bin1, bin2, learnTag, options))
         return false;
 
@@ -894,7 +895,7 @@ bool learnHMM(Data &data,
     if (options.posteriorDecoding)
         hmm.posteriorDecoding(data.states);
     else
-        hmm.viterbi_log(data.states);
+        hmm.viterbi(data.states);
     
     if (options.useCov_RPKM && !options.g1_k_le_g2_k)    // NOTE: otherwise not necessary, since gamma1.k <= 1 or gamma1.k <= gamma2.k
         hmm.rmBoarderArtifacts(data.states, d1);
@@ -929,7 +930,7 @@ bool applyHMM(Data &data,
     if (options.posteriorDecoding)
         hmm.posteriorDecoding(data.states);
     else
-        hmm.viterbi_log(data.states);
+        hmm.viterbi(data.states);
 // 
 //     if (options.verbosity >= 2)
 //     {
@@ -949,6 +950,7 @@ bool applyHMM(Data &data,
 
     return true;
 }
+
 
 
 // template <typename TGamma, typename TBIN, typename TDOUBLE, typename TOptions>
@@ -997,16 +999,7 @@ bool applyHMM(Data &data,
 //     int db_min_exp = DBL_MIN_10_EXP;
 //     int ldb_min_exp = LDBL_MIN_10_EXP;
 //     std::cout << "DBL_MIN_10_EXP: " << db_min_exp << " LDBL_MIN_10_EXP: " << ldb_min_exp << std::endl;
-//     if (!options.useHighPrecision) 
-//     {
-//         options.min_eProbSum = pow((double)10.0, DBL_MIN_10_EXP + 50);
-//         std::cout << " Set options.min_eProbSum : " << options.min_eProbSum << std::endl;  
-//     }
-//     else 
-//     {
-//         options.min_eProbSum = pow((long double)10.0, LDBL_MIN_10_EXP + 100);
-//         std::cout << " Set options.min_eProbSum : " << options.min_eProbSum << std::endl;
-//     }    
+//  
 //     // some other thresholds and setings:
 //     if (options.binSize == 0.0) options.binSize = options.bandwidth * 2; 
 //     options.intervalOffset = options.bandwidth * 2;  
@@ -1131,6 +1124,7 @@ bool applyHMM(Data &data,
 // 
 //     clear(contigObservationsF);
 //     clear(contigObservationsR);
+//     clear(data);
 // 
 //     if (options.verbosity >= 1) std::cout << "Apply learned parameters to whole genome  ..." << std::endl;
 // #if HMM_PARALLEL
@@ -1261,7 +1255,6 @@ bool applyHMM(Data &data,
 // 
 //     return 0;
 // }
-
  
 
 // transcript wise?

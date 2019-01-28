@@ -652,13 +652,36 @@ void printParams(TOut &out, GAMMA2_REG<TDOUBLE> &gamma, int i)
 
 
 template<typename TDOUBLE>
-void checkOrderG1G2(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, AppOptions &options)
+void checkOrderG1G2(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, 
+                    unsigned &iter, unsigned &trial, 
+                    AppOptions &options)
 {
-    if (exp(gamma1.b0) > exp(gamma2.b0))
+    // compute values at kde threshold (truncation point)
+    double y_tp_1 = gamma1.b0 + gamma1.b1*log(gamma1.tp);
+    double y_tp_2 = gamma2.b0 + gamma2.b1*log(gamma2.tp);
+
+    // ensure gamma2 mean >= gamma1 mean at least for x values (control kde values) between log(tp) and log(1)
+    // (note: should be extended to whole range)
+    if (gamma1.b0 > gamma2.b0 || y_tp_1 > y_tp_2)
     {
-        std::swap(gamma1.b0, gamma2.b0);
-        std::cout << "NOTE: swapped gamma1.b0 and gamma2.b0 ! " << std::endl;
+        // gamma1
+        gamma1.b0 = std::min(gamma1.b0, gamma2.b0);                         // use lower intercept
+        gamma1.b1 = (gamma1.b0 - std::min(y_tp_1, y_tp_2))/(-log(gamma1.tp));    // recompute slope through two lowest points
+
+        // gamma2
+        gamma2.b0 = std::max(gamma1.b0, gamma2.b0);
+        gamma2.b1 = (gamma2.b0 - std::max(y_tp_1, y_tp_2))/(-log(gamma2.tp));
+
+        ++trial;
+        std::cout << "NOTE: reseeded gamma1 and gamma2 regression parameters! Iteration count set to 0. Trial: " << trial << std::endl;
+        std::cout << "gamma1.b0" << '\t' << gamma1.b0 << std::endl;
+        std::cout << "gamma1.b1" << '\t' << gamma1.b1 << std::endl;
+        std::cout << "gamma2.b0" << '\t' << gamma2.b0 << std::endl;
+        std::cout << "gamma2.b1" << '\t' << gamma2.b1 << std::endl;
+
+        iter = 0;
     }
+
     if (options.g1_k_le_g2_k && gamma1.k > gamma2.k)
     {
         gamma2.k = gamma1.k;

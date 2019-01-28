@@ -775,8 +775,6 @@ bool doIt(String<TGamma> &gamma1, String<TGamma> &gamma2, String<TBIN> &bin1, St
         out << "slr_NfromKDE.b1" << '\t' << slr_NfromKDE_b1[rep] << std::endl;  
     }
 
-
-
     return 0;
 }
 

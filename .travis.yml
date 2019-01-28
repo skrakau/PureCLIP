@@ -28,7 +28,6 @@ matrix:
     compiler: gcc-7
     before_install:
     - brew ls --versions
-    - brew cask uninstall oclint
     - brew install gcc@7 gsl
     - brew install python || brew upgrade python
     - brew ls --versions
