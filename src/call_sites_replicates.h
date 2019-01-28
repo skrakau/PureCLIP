@@ -409,7 +409,7 @@ bool applyHMM(Data &newData,
     if (options.posteriorDecoding)
         mergedHmm.posteriorDecoding(newData.states);
     else
-        mergedHmm.viterbi_log(newData.states);
+        mergedHmm.viterbi(newData.states);
 
 //     if (options.useCov_RPKM)    // NOTE: otherwise not necessary, since gamma1.k <= 1
 //         mergedHmm.rmBoarderArtifacts(newData.states, d1[0]);    // TODO 
@@ -615,6 +615,7 @@ bool doIt(String<TGamma> &gamma1, String<TGamma> &gamma2, String<TBIN> &bin1, St
 
         clear(contigObservationsF);
         clear(contigObservationsR);
+        clear(data);
     }
 
 
