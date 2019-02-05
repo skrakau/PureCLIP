@@ -43,6 +43,7 @@
 #include "parse_alignments.h"
 #include "hmm_1.h"
 #include "prepro_mle.h"
+#include "call_sites_replicates.h"
 
 #include "density_functions_reg.h"
 #include "density_functions_crosslink.h"
@@ -739,8 +740,8 @@ void extractCoveredIntervals(Data &data,
     }
     if (options.verbosity >= 2) 
     {
-        std::cout << " Excluded " << countPolyAs << " covered intervals from analysis because of internal polyA sites! " << std::endl;
-        std::cout << " Excluded " << countPolyTs << " covered intervals from analysis because of internal polyU sites! " << std::endl;
+        if (excludePolyA) std::cout << " Excluded " << countPolyAs << " covered intervals from analysis because of internal polyA sites! " << std::endl;
+        if (excludePolyT) std::cout << " Excluded " << countPolyTs << " covered intervals from analysis because of internal polyU sites! " << std::endl;
         std::cout << " No. of remaining intervals: " << (length(data.setObs[0]) + length(data.setObs[1])) << "   F: " << length(data.setObs[0]) << "   R: " << length(data.setObs[1]) << std::endl;
     }
     cleanCoveredIntervals(data, length(store.contigStore[contigId].seq), learning, options);
@@ -845,11 +846,9 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TBai &inputBaiIn
 }
 
 
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
+template<typename TGAMMA, typename TBIN>
 bool learnHMM(Data &data, 
-              String<String<long double> > &transMatrix_1,
-              TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2,
-              TDOUBLE /**/,
+              ModelParams<TGAMMA, TBIN> &modelParams,
               unsigned &contigLen,
               AppOptions &options)
 {
@@ -858,8 +857,8 @@ bool learnHMM(Data &data,
 #endif
 
     if (options.verbosity >= 1) std::cout << "Build HMM ..." << std::endl;
-    HMM<TGAMMA, TBIN, TDOUBLE> hmm(4, data.setObs, data.setPos, contigLen);       
-    hmm.transMatrix = transMatrix_1;
+    HMM<TGAMMA, TBIN> hmm(4, data.setObs, data.setPos, contigLen);       
+    hmm.transMatrix = modelParams.transMatrix;
     if (options.verbosity >= 1) 
     {
         myPrint(hmm);
@@ -869,37 +868,30 @@ bool learnHMM(Data &data,
     CharString learnTag;
     if (options.verbosity >= 1)  std::cout << "            learn binomial parameter" << std::endl;
     learnTag = "LEARN_BINOMIAL"; 
-    if (!hmm.baumWelch(d1, d2, bin1, bin2, learnTag, options))
+    if (!hmm.baumWelch(modelParams, learnTag, options))
         return false;
 
     if (options.verbosity >= 1)  std::cout << "            learn gamma parameter" << std::endl;
     learnTag = "LEARN_GAMMA";
-    if (!hmm.baumWelch(d1, d2, bin1, bin2, learnTag, options))
+    if (!hmm.baumWelch(modelParams, learnTag, options))
         return false;
 
     if (options.verbosity >= 1)  std::cout << "            learn binomial parameter" << std::endl;
     learnTag = "LEARN_BINOMIAL"; 
-    if (!hmm.baumWelch(d1, d2, bin1, bin2, learnTag, options))
+    if (!hmm.baumWelch(modelParams, learnTag, options))
         return false;
 
     if (options.verbosity >= 1) std::cout << "            learn gamma parameter" << std::endl;
     learnTag = "LEARN_GAMMA";
-    if (!hmm.baumWelch(d1, d2, bin1, bin2, learnTag, options))
+    if (!hmm.baumWelch(modelParams, learnTag, options))
         return false;
 
 
-    transMatrix_1 = hmm.transMatrix;
-
-    if (options.verbosity >= 2) myPrint(d1);
-    if (options.verbosity >= 2) myPrint(d2);
-    if (options.posteriorDecoding)
-        hmm.posteriorDecoding(data.states);
-    else
-        hmm.viterbi(data.states);
-    
-    if (options.useCov_RPKM && !options.g1_k_le_g2_k)    // NOTE: otherwise not necessary, since gamma1.k <= 1 or gamma1.k <= gamma2.k
-        hmm.rmBoarderArtifacts(data.states, d1);
+    modelParams.transMatrix = hmm.transMatrix;
     data.statePosteriors = hmm.statePosteriors;
+
+    if (options.verbosity >= 2) myPrint(modelParams.gamma1);
+    if (options.verbosity >= 2) myPrint(modelParams.gamma2);    
    
 #ifdef HMM_PROFILE
     Times::instance().time_learnHMM += (sysTime() - timeStamp);
@@ -909,11 +901,113 @@ bool learnHMM(Data &data,
 }
 
 
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool applyHMM(Data &data, 
-              String<String<long double> > &transMatrix_1,
-              TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2,
-              TDOUBLE /**/,
+template <typename TGamma, typename TBIN, typename TStore, typename TOptions>
+bool learnModel(String<ModelParams<TGamma, TBIN> > &modelParams, 
+                String<BamIndex<Bai> > &baiIndices, 
+                BamIndex<Bai> &inputBaiIndex, 
+                TStore &store, 
+                TOptions &options)
+{
+    resize(baiIndices, length(options.baiFileNames));
+    ////////////////////////////////////////////////////
+    // for each replicate, learn HMM parameters
+    ////////////////////////////////////////////////////
+    for (unsigned rep = 0; rep < length(options.baiFileNames); ++rep)
+    {
+        if (options.verbosity >= 1) std::cout << "Learn HMM parameters for replicate: " << rep << std::endl;
+        
+        // Read BAI index.
+        BamIndex<Bai> baiIndex;
+        if (!open(baiIndex, toCString(options.baiFileNames[rep])))
+        {
+            std::cerr << "ERROR: Could not read BAI index file " << options.baiFileNames[rep] << "\n";
+            return false;
+        }
+        baiIndices[rep] = baiIndex;
+
+        // *****************
+        String<ContigObservations> contigObservationsF;
+        String<ContigObservations> contigObservationsR;
+        resize(contigObservationsF, length(options.intervals_contigIds), Exact());
+        resize(contigObservationsR, length(options.intervals_contigIds), Exact());
+
+        Data data;
+        resize(data.setObs, 2);
+        resize(data.setPos, 2);
+        resize(data.statePosteriors, 2);
+        resize(data.states, 2);
+        bool stop = false;
+#if HMM_PARALLEL
+        SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
+#endif  
+            for (unsigned i = 0; i < length(options.intervals_contigIds); ++i)
+            {
+                unsigned contigId = options.intervals_contigIds[i];
+
+                int r = loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, options.bamFileNames[rep], baiIndices[rep], store, options);
+                if (r == 1)
+                {
+                    stop = true; 
+                }
+                else if (r == 0)
+                {
+                    String<double> contigCovsF;
+                    String<double> contigCovsR;
+                    loadCovariates(contigCovsF, contigCovsR, contigId, store, options); 
+                    String<String<float> > contigCovsFimo;
+                    String<String<char> > motifIds;
+                    loadMotifCovariates(contigCovsFimo, motifIds, contigId, store, options); 
+
+                    // Extract covered intervals for learning
+                    unsigned i1 = options.intervals_positions[i][0];    // interval begin
+                    unsigned i2 = options.intervals_positions[i][1];    // interval end
+                    Data c_data;                
+                    resize(c_data.setObs, 2);
+                    resize(c_data.setPos, 2);
+                    resize(c_data.statePosteriors, 2);
+                    resize(c_data.states, 2);
+
+                    extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, true, store, options); 
+
+                    SEQAN_OMP_PRAGMA(critical)
+                        append(data, c_data);  
+                }
+            }
+        if (stop) return false;
+
+        // learn KDE - N relationship on all contigs used for other parameter learning as well
+        for (unsigned s = 0; s < 2; ++s)
+            for (unsigned i = 0; i < length(data.setObs[s]); ++i)
+                data.setObs[s][i].computeKDEs(options);
+
+        if (options.estimateNfromKdes) 
+            computeSLR(modelParams[rep].slr_NfromKDE_b0, modelParams[rep].slr_NfromKDE_b1, data, options);
+
+        // precompute KDE values, estimate Ns, etc.
+        preproCoveredIntervals(data, modelParams[rep].slr_NfromKDE_b0, modelParams[rep].slr_NfromKDE_b1, inputBaiIndex, store, true, options);   
+
+        if (options.verbosity >= 1) std::cout << "Prior ML estimation of density distribution parameters using predefined cutoff ..." << std::endl;
+        prior_mle(modelParams[rep].gamma1, modelParams[rep].gamma2, data, options);
+        estimateTransitions(modelParams[rep].transMatrix, modelParams[rep].gamma1, modelParams[rep].gamma2, modelParams[rep].bin1, modelParams[rep].bin2, data, options);
+
+        unsigned contigLen = 0; // should not be used within learning
+        if (!learnHMM(data, modelParams[rep], contigLen, options))
+            return false;
+
+        clear(contigObservationsF);
+        clear(contigObservationsR);
+        clear(data);
+    }
+    return true;
+}
+
+
+
+// in parallel for replicates
+template<typename TGAMMA, typename TBIN>
+bool applyHMM(Data &newData,
+              String<Data> &data_replicates, 
+              String<ModelParams<TGAMMA, TBIN> > &modelParams,
               unsigned &contigLen,
               AppOptions &options)
 {
@@ -921,28 +1015,40 @@ bool applyHMM(Data &data,
     double timeStamp = sysTime();
 #endif
 
-    if (options.verbosity >= 1) std::cout << "   build HMM" << std::endl;
-    HMM<TGAMMA, TBIN, TDOUBLE> hmm(4, data.setObs, data.setPos, contigLen);
-    hmm.transMatrix = transMatrix_1;
-    if (!hmm.applyParameters(d1, d2, bin1, bin2, options))
-        return false;
+    String<HMM<TGAMMA, TBIN> > hmms_replicates;
+    reserve(hmms_replicates, length(data_replicates));
+    for (unsigned rep = 0; rep < length(data_replicates); ++rep)
+    {
+        if (options.verbosity >= 1) std::cout << "Apply learned HMM for replicate: " << rep << std::endl;
+        appendValue(hmms_replicates, HMM<TGAMMA, TBIN>(4, data_replicates[rep].setObs, data_replicates[rep].setPos, contigLen));
+        auto & hmm = hmms_replicates[rep];
+        hmm.transMatrix = modelParams[rep].transMatrix;
+        std::cout << "   applyParameters" << std::endl;        
+        if (!hmm.applyParameters(modelParams[rep], options))
+             return false;
 
-    if (options.posteriorDecoding)
-        hmm.posteriorDecoding(data.states);
-    else
-        hmm.viterbi(data.states);
-// 
-//     if (options.verbosity >= 2)
-//     {
-//         std::cout << "Intermediate parameters after applyHMM():" << std::endl;
-//         myPrint(hmm);
-//         myPrint(d1);
-//         myPrint(d2);
-//     }
- 
-    if (options.useCov_RPKM)    // NOTE: otherwise not necessary, since gamma1.k <= 1
-        hmm.rmBoarderArtifacts(data.states, d1);
-    data.statePosteriors = hmm.statePosteriors;
+    }
+
+    // merge HMMs and multiply eProbs! (or if not multiple replicates: just using old HMM)
+    if (options.verbosity >= 1) std::cout << "Merge HMMs from replicates ... " << std::endl;
+    HMM<TGAMMA, TBIN> mergedHmm = merge_HMMs(hmms_replicates, modelParams, options);
+
+    if (length(options.baiFileNames) > 1)
+    {
+        // update
+        if (options.verbosity >= 1) std::cout << "Update transition probabilities and get final posterior probabilities ... " << std::endl;    
+        mergedHmm.updateTransAndPostProbs(options);
+    }
+
+    // get states
+    mergedHmm.posteriorDecoding(newData.states);
+
+    if (options.useCov_RPKM)    // && !options.g1_k_le_g2_k ?  NOTE: otherwise not necessary, since gamma1.k <= 1
+        mergedHmm.rmBoarderArtifacts(newData.states, data_replicates, modelParams);
+
+    newData.statePosteriors = mergedHmm.statePosteriors;
+    newData.setObs = mergedHmm.setObs;
+    newData.setPos = mergedHmm.setPos;
 
 #ifdef HMM_PROFILE
     Times::instance().time_applyHMM += (sysTime() - timeStamp);
@@ -952,311 +1058,211 @@ bool applyHMM(Data &data,
 }
 
 
+template <typename TGamma, typename TBIN, typename TStore, typename TOptions>
+bool applyModel(String<String<BedRecord<Bed6> > > &bedRecords_sites, 
+                String<String<BedRecord<Bed6> > > &bedRecords_regions, 
+                String<ModelParams<TGamma, TBIN> > &modelParams, 
+                String<BamIndex<Bai> > &baiIndices, 
+                BamIndex<Bai> &inputBaiIndex, 
+                TStore &store, 
+                TOptions &options)
+{
+    if (options.verbosity >= 1) std::cout << "Apply learned parameters to whole dataset ..." << std::endl;
+    bool stop = false;
+    
+#if HMM_PARALLEL
+    omp_set_num_threads(options.numThreadsA);
+    SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreadsA/length(options.baiFileNames)))    // TODO improve general parallelization concept 
+#endif 
+    for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
+    {
+        unsigned contigId = options.applyChr_contigIds[i];
+        unsigned contigLen = length(store.contigStore[contigId].seq);
 
-// template <typename TGamma, typename TBIN, typename TDOUBLE, typename TOptions>
-// bool doIt(TGamma &gamma1, TGamma &gamma2, TBIN &bin1, TBIN &bin2, TDOUBLE /**/, TOptions &options)
-// {
-// #if HMM_PARALLEL
-//     omp_set_num_threads(options.numThreads);
-// #endif  
-// 
-// #ifdef HMM_PROFILE
-//     double timeStamp = sysTime();
-// #endif
-// 
-//     typedef  FragmentStore<>    TStore;
-//     TStore store;
-//     if (options.verbosity >= 1) std::cout << "Loading reference ... " << std::endl;
-//     
-//     try {
-//         if (!loadContigs(store, toCString(options.refFileName)))
-//         {
-//             std::cerr << "ERROR: Can't load reference sequence from file '" << options.refFileName << "'" << std::endl;
-//             return 1;
-//         }
-//     } catch (std::exception &e){
-//         std::cerr << "ERROR: Can't load reference sequence from file '" << options.refFileName << "': " << e.what() << std::endl;
-//         return 1;
-//     }
-//     loadIntervals(options, store);
-//     loadApplyChrs(options, store);
-//     if (options.numThreadsA == 0)
-//     {
-//         options.numThreadsA = std::min((int)options.numThreads, (int)length(options.intervals_contigIds));
-//         if (options.verbosity >= 2)  std::cout << "Set no. of threads for applying HMM to: " << options.numThreadsA << std::endl;
-//     }
-//  
-// #if SEQAN_HAS_ZLIB
-//     if (options.verbosity > 1) std::cout << "SEQAN_HAS_ZLIB" << std::endl;
-// #else
-//     std::cout << "WARNING: zlib not available !" << std::endl;
-// #endif
-// 
-//     // ******************  set some parameters
-//     // some precision related:
-//     options.min_nligf = std::nextafter((long double)1.0, (long double)0.0);
-//     if (options.verbosity >= 2) std::cout << std::setprecision(std::numeric_limits<long double>::digits10 + 1) << "Max. nligf: " << options.min_nligf << std::setprecision(6) << std::endl;
-//     int db_min_exp = DBL_MIN_10_EXP;
-//     int ldb_min_exp = LDBL_MIN_10_EXP;
-//     std::cout << "DBL_MIN_10_EXP: " << db_min_exp << " LDBL_MIN_10_EXP: " << ldb_min_exp << std::endl;
-//  
-//     // some other thresholds and setings:
-//     if (options.binSize == 0.0) options.binSize = options.bandwidth * 2; 
-//     options.intervalOffset = options.bandwidth * 2;  
-//     options.prior_kdeThreshold = options.prior_enrichmentThreshold * getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth;
-//     if (options.verbosity >= 1) std::cout << " computed prior_kdeThreshold: " << (options.prior_enrichmentThreshold * getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth) << std::endl;
-// 
-//     if (options.useKdeThreshold == 0.0 && !options.useCov_RPKM) // TODO use boolean user option
-//         options.useKdeThreshold = getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth + 0.0001;  // corresponds to KDE value at singleton read start 
-//     else if (options.useKdeThreshold == 0.0 && options.useCov_RPKM)
-//     {
-//         options.useKdeThreshold = getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth; 
-//         if (options.mrtf_kdeSglt)
-//             options.minRPKMtoFit = log(options.useKdeThreshold) + 0.0001;
-// 
-//     }
-//     if (options.verbosity >= 1) std::cout << "Use bandwidth: " << options.bandwidth << std::endl;
-//     if (options.verbosity >= 1) std::cout << "Use KDE threshold: " << options.useKdeThreshold << std::endl;
-//     if (options.verbosity >= 1) std::cout << "Use bandwidth to estimate n: " << options.bandwidthN << std::endl;
-// 
-//     // if required, determine n threshold for learning of binomial parameters and trans. probs (2-> 2/3)
-//     if (options.get_nThreshold)
-//     {
-//         // require at least a mean of 2 read start counts for 'crosslink' state
-//         options.nThresholdForTransP = ceil(2.0/options.p2);
-//         options.nThresholdForP = options.nThresholdForTransP;
-//         std::cout << "Set n threshold used for learning of binomial p parameters and transition probabilities '2' -> '2'/'3' to: " << options.nThresholdForTransP << std::endl;
-//     } 
-// 
-//     // Read BAI index.
-//     BamIndex<Bai> baiIndex;
-//     if (!open(baiIndex, toCString(options.baiFileName)))
-//     {
-//         std::cerr << "ERROR: Could not read BAI index file " << options.baiFileName << "\n";
-//         return 1;
-//     }
-//     // Read control BAI index.
-//     BamIndex<Bai> inputBaiIndex;
-//     if (options.useCov_RPKM && !empty(options.inputBaiFileName))
-//     {
-//         if (!open(inputBaiIndex, toCString(options.inputBaiFileName)))
-//         {
-//             std::cerr << "ERROR: Could not read input control BAI index file " << options.inputBaiFileName << "\n";
-//             return 1;
-//         }
-//     }
-//     // *****************
-//     double slr_NfromKDE_b0 = 0.0;
-//     double slr_NfromKDE_b1 = 0.0;  
-// 
-// 
-//     String<ContigObservations> contigObservationsF;
-//     String<ContigObservations> contigObservationsR;
-//     resize(contigObservationsF, length(options.intervals_contigIds), Exact());
-//     resize(contigObservationsR, length(options.intervals_contigIds), Exact());
-// 
-//     Data data;
-//     resize(data.setObs, 2);
-//     resize(data.setPos, 2);
-//     resize(data.statePosteriors, 2);
-//     resize(data.states, 2);
-//     bool stop = false;
-// #if HMM_PARALLEL
-//     SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreads)) 
-// #endif  
-//     for (unsigned i = 0; i < length(options.intervals_contigIds); ++i)
-//     {
-//         unsigned contigId = options.intervals_contigIds[i];
-// 
-//         int r = loadObservations(contigObservationsF[i], contigObservationsR[i], contigId, baiIndex, store, options);
-//         if (r == 1)
-//         {
-//             stop = true; 
-//         }
-//         else if (r == 0)
-//         {
-//             String<double> contigCovsF;
-//             String<double> contigCovsR;
-//             loadCovariates(contigCovsF, contigCovsR, contigId, store, options); 
-//             String<String<float> > contigCovsFimo;
-//             String<String<char> > motifIds;
-//             loadMotifCovariates(contigCovsFimo, motifIds, contigId, store, options); 
-// 
-//             // Extract covered intervals for learning
-//             unsigned i1 = options.intervals_positions[i][0];    // interval begin
-//             unsigned i2 = options.intervals_positions[i][1];    // interval end
-//             Data c_data;                
-//             resize(c_data.setObs, 2);
-//             resize(c_data.setPos, 2);
-//             resize(c_data.statePosteriors, 2);
-//             resize(c_data.states, 2);
-// 
-//             extractCoveredIntervals(c_data, contigObservationsF[i], contigObservationsR[i], contigCovsF, contigCovsR, contigCovsFimo, motifIds, contigId, i1, i2, options.excludePolyAFromLearning, options.excludePolyTFromLearning, true, store, options); 
-// 
-//             SEQAN_OMP_PRAGMA(critical)
-//             append(data, c_data);  
-//         }
-//     }
-//     if (stop) return 1;
-// 
-//     // learn KDE - N relationship on all contigs used for other parameter learning as well
-//     for (unsigned s = 0; s < 2; ++s)
-//         for (unsigned i = 0; i < length(data.setObs[s]); ++i)
-//             data.setObs[s][i].computeKDEs(options);
-//        
-//     if (options.estimateNfromKdes) 
-//         computeSLR(slr_NfromKDE_b0, slr_NfromKDE_b1, data, options);
-//   
-//     // precompute KDE values, estimate Ns, etc.
-//     preproCoveredIntervals(data, slr_NfromKDE_b0, slr_NfromKDE_b1, inputBaiIndex, store, true, options);
-//  
-//     gamma1.tp = options.useKdeThreshold;
-//     gamma2.tp = options.useKdeThreshold;       // left tuncated    
-// 
-//     if (options.verbosity >= 1) std::cout << "Prior ML estimation of density distribution parameters using predefined cutoff ..." << std::endl;
-//     prior_mle(gamma1, gamma2, data, options);
-//     String<String<long double> > transMatrix;
-//     estimateTransitions(transMatrix, gamma1, gamma2, bin1, bin2, data, options);
-// 
-//     unsigned contigLen = 0; // should not be used within learning
-//     if (!learnHMM(data, transMatrix, gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, contigLen, options))
-//         return 1;
-// 
-//     clear(contigObservationsF);
-//     clear(contigObservationsR);
-//     clear(data);
-// 
-//     if (options.verbosity >= 1) std::cout << "Apply learned parameters to whole genome  ..." << std::endl;
-// #if HMM_PARALLEL
-//     omp_set_num_threads(options.numThreadsA);
-// #endif  
-// 
-//     // store contig-wise bedRecords
-//     String<String<BedRecord<Bed6> > > bedRecords_sites;
-//     String<String<BedRecord<Bed6> > > bedRecords_regions;
-//     resize(bedRecords_sites, length(options.applyChr_contigIds), Exact());
-//     resize(bedRecords_regions, length(options.applyChr_contigIds), Exact());
-// 
-// #ifdef HMM_PROFILE
-//     double timeStamp2 = sysTime();
-// #endif
-// 
-// #if HMM_PARALLEL
-//     SEQAN_OMP_PRAGMA(parallel for schedule(dynamic, 1) num_threads(options.numThreadsA)) 
-// #endif  
-//     for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
-//     {
-//         unsigned contigId = options.applyChr_contigIds[i];
-// 
-//         if (options.verbosity >= 1) std::cout << "  " << store.contigNameStore[contigId] << std::endl;
-// 
-//         ContigObservations contigObservationsF;
-//         ContigObservations contigObservationsR;
-// 
-//         int r = loadObservations(contigObservationsF, contigObservationsR, contigId, baiIndex, store, options);
-//         if (r == 1)
-//         {
-//             stop = true; 
-//         }
-//         else if (r == 0)
-//         {
-//             String<double> c_contigCovsF;
-//             String<double> c_contigCovsR;
-//             loadCovariates(c_contigCovsF, c_contigCovsR, contigId, store, options); 
-//             String<String<float> > c_contigCovsFimo;
-//             String<String<char> > c_motifIds;
-//             loadMotifCovariates(c_contigCovsFimo, c_motifIds, contigId, store, options); 
-// 
-//             // Extract covered intervals
-//             unsigned i1 = 0;    
-//             unsigned i2 = length(store.contigStore[contigId].seq);    
-//             Data c_data;                
-//             resize(c_data.setObs, 2);
-//             resize(c_data.setPos, 2);
-//             resize(c_data.statePosteriors, 2);
-//             resize(c_data.states, 2); 
-//             extractCoveredIntervals(c_data, contigObservationsF, contigObservationsR, c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, false, store, options); 
-// 
-//             if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   
-//             {
-//                 preproCoveredIntervals(c_data, slr_NfromKDE_b0, slr_NfromKDE_b1, inputBaiIndex, store, false, options);
-//                 // Apply learned parameters
-//                 unsigned contigLen = length(store.contigStore[contigId].seq);
-//                 if (!applyHMM(c_data, transMatrix, gamma1, gamma2, bin1, bin2, (TDOUBLE)0.0, contigLen, options))
-//                 {
-//                     SEQAN_OMP_PRAGMA(critical)
-//                     stop = true;
-//                 }
-// 
-//                 writeStates(bedRecords_sites[i], c_data, store, contigId, options);  
-//                 
-//                 if (!empty(options.outRegionsFileName))
-//                 {
-//                     writeRegions(bedRecords_regions[i], c_data, store, contigId, options);              
-//                 }
-//             }
-//         }
-//     }
-//     if (stop) return 1;
-// 
-//     if (options.verbosity >= 2) std::cout << "Write bedRecords to BED file ... " << options.outFileName << std::endl;
-//     // crosslink sites
-//     BedFileOut outBed(toCString(options.outFileName)); 
-//     for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
-//     {
-//         for (unsigned j = 0; j < length(bedRecords_sites[i]); ++j)
-//             writeRecord(outBed, bedRecords_sites[i][j]);
-//     }
-//     // binding regions
-//     if (!empty(options.outRegionsFileName))
-//     {
-//         BedFileOut outBed2(toCString(options.outRegionsFileName)); 
-//         for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
-//         {
-//             for (unsigned j = 0; j < length(bedRecords_regions[i]); ++j)
-//                 writeRecord(outBed2, bedRecords_regions[i][j]);
-//         }
-//     }
-// 
-// #ifdef HMM_PROFILE
-//     Times::instance().time_applyHMM2 = sysTime() - timeStamp2;
-// #endif
-// 
-// #ifdef HMM_PROFILE
-//     Times::instance().time_all = sysTime() - timeStamp;
-//     std::cout << "  Time needed for all: " << Times::instance().time_all/60.0 << "min" << std::endl;
-//     std::cout << "  Time needed for loadObservations: " << Times::instance().time_loadObservations/60.0 << "min" << std::endl;
-//     std::cout << "  Time needed for learnHMM: " << Times::instance().time_learnHMM/60.0 << "min" << std::endl;
-//     std::cout << "  Time needed for applyHMM: " << Times::instance().time_applyHMM/60.0 << "min" << std::endl;
-//     //std::cout << "  Time needed for applyHMM2: " << Times::instance().time_applyHMM2/60.0 << "min" << std::endl;
-// #endif
-// 
-// 
-//     CharString fileNameParams;
-//     if (!empty(options.parFileName))
-//         fileNameParams = options.parFileName;
-//     else
-//     {
-//         fileNameParams = prefix(options.outFileName, length(options.outFileName)-4);
-//         append(fileNameParams, ".params");
-//     }
-//     std::ofstream out(toCString(fileNameParams), std::ios::binary | std::ios::out);
-//     out << "options.useKdeThreshold" << '\t' << options.useKdeThreshold << std::endl;
-//     out << std::endl;
-//     printParams(out, gamma1, 1);
-//     printParams(out, gamma2, 2);
-//     printParams(out, bin1, 1);
-//     printParams(out, bin2, 2);
-//     printParams(out, transMatrix);
-//     out << std::endl;
-//     out << "slr_NfromKDE.b0" << '\t' << slr_NfromKDE_b0 << std::endl;
-//     out << "slr_NfromKDE.b1" << '\t' << slr_NfromKDE_b1 << std::endl;
-// 
-// 
-//     return 0;
-// }
- 
+        if (options.verbosity >= 1) std::cout << "  " << store.contigNameStore[contigId] << std::endl;
 
-// transcript wise?
+        String<ContigObservations> contigObservationsF;
+        String<ContigObservations> contigObservationsR;
+        resize(contigObservationsF, length(options.baiFileNames));
+        resize(contigObservationsR, length(options.baiFileNames));
+        String<Data> data_replicates;
+        resize(data_replicates, length(options.baiFileNames));    
+
+        for (unsigned rep = 0; rep < length(options.baiFileNames); ++rep)
+        {
+            if (options.verbosity >= 1) std::cout << "Get preprocessed intervals for replicate: " << rep << std::endl;
+            
+            // for each replicate get preprocessed covered intervals
+            int r = loadObservations(contigObservationsF[rep], contigObservationsR[rep], contigId, options.bamFileNames[rep], baiIndices[rep], store, options);
+            if (r == 1)
+            {
+                stop = true; 
+            }
+            else if (r == 0)
+            {
+                String<double> c_contigCovsF;
+                String<double> c_contigCovsR;
+                loadCovariates(c_contigCovsF, c_contigCovsR, contigId, store, options); 
+                String<String<float> > c_contigCovsFimo;
+                String<String<char> > c_motifIds;
+                loadMotifCovariates(c_contigCovsFimo, c_motifIds, contigId, store, options); 
+
+                // Extract covered intervals
+                unsigned i1 = 0;    
+                unsigned i2 = length(store.contigStore[contigId].seq);    
+                Data c_data;                
+                resize(c_data.setObs, 2);
+                resize(c_data.setPos, 2);
+                resize(c_data.statePosteriors, 2);
+                resize(c_data.states, 2); 
+                extractCoveredIntervals(c_data, contigObservationsF[rep], contigObservationsR[rep], c_contigCovsF, c_contigCovsR, c_contigCovsFimo, c_motifIds, contigId, i1, i2, options.excludePolyA, options.excludePolyT, false, store, options); 
+
+                if (!empty(c_data.setObs[0]) || !empty(c_data.setObs[1]))   
+                {
+                    preproCoveredIntervals(c_data, modelParams[rep].slr_NfromKDE_b0, modelParams[rep].slr_NfromKDE_b1, inputBaiIndex, store, false, options);
+                    data_replicates[rep] = c_data;
+                }
+            }
+        }
+        if (stop) continue;
+
+        // get intersection of covered intervals and clip individual observations
+        if (length(options.baiFileNames) > 1)
+        {
+            if (options.verbosity >= 1) std::cout << "Intersect covered intervals from replicates ... " << std::endl;
+            intersect_replicateIntervals(data_replicates);
+        }
+        
+        Data newData = data_replicates[0];
+        // build individual HMMs on clipped intervals, merge HMMs, update trans. probs, compute post. probs and get states
+        if (!applyHMM(newData, data_replicates, modelParams, contigLen, options))
+        {
+            stop = true;
+            continue;
+        }
+
+        writeStates(bedRecords_sites[i], newData, store, contigId, options);  
+        if (!empty(options.outRegionsFileName))
+        {
+            writeRegions(bedRecords_regions[i], newData, store, contigId, options);              
+        }
+    }
+    if (stop) return false;
+
+    return true;
+}
+
+
+template <typename TGamma, typename TBIN, typename TOptions>
+bool doIt(String<ModelParams<TGamma, TBIN> > &modelParams, TOptions &options)
+{
+#if HMM_PARALLEL
+    omp_set_num_threads(options.numThreads);
+#endif  
+
+#ifdef HMM_PROFILE
+    double timeStamp = sysTime();
+#endif
+
+    typedef  FragmentStore<>    TStore;
+    TStore store;
+    if (options.verbosity >= 1) std::cout << "Loading reference ... " << std::endl;
+    
+    try {
+        if (!loadContigs(store, toCString(options.refFileName)))
+        {
+            std::cerr << "ERROR: Can't load reference sequence from file '" << options.refFileName << "'" << std::endl;
+            return 1;
+        }
+    } catch (std::exception &e){
+        std::cerr << "ERROR: Can't load reference sequence from file '" << options.refFileName << "': " << e.what() << std::endl;
+        return 1;
+    }
+    loadIntervals(options, store);
+    loadApplyChrs(options, store);
+
+    setSomeParameters(modelParams, options);
+
+    //////////////////////////////////////////////////////////////////
+
+    // Read control BAI index.
+    BamIndex<Bai> inputBaiIndex;
+    if (options.useCov_RPKM && !empty(options.inputBaiFileName))
+    {
+        if (!open(inputBaiIndex, toCString(options.inputBaiFileName)))
+        {
+            std::cerr << "ERROR: Could not read input control BAI index file " << options.inputBaiFileName << "\n";
+            return 1;
+        }
+    }
+
+    // learn model
+    String<BamIndex<Bai> > baiIndices;    
+    if (!learnModel(modelParams, baiIndices, inputBaiIndex, store, options))
+        return 1;
+
+
+    // store contig-wise bedRecords
+    String<String<BedRecord<Bed6> > > bedRecords_sites;
+    String<String<BedRecord<Bed6> > > bedRecords_regions;
+    resize(bedRecords_sites, length(options.applyChr_contigIds), Exact());
+    resize(bedRecords_regions, length(options.applyChr_contigIds), Exact());
+    // apply model to whole dataset
+    if (!applyModel(bedRecords_sites, bedRecords_regions, modelParams, baiIndices, inputBaiIndex, store, options))
+        return 1;
+
+    if (options.verbosity >= 2) std::cout << "Write bedRecords to BED file ... " << options.outFileName << std::endl;
+    // write crosslink sites
+    BedFileOut outBed(toCString(options.outFileName)); 
+    for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
+    {
+        for (unsigned j = 0; j < length(bedRecords_sites[i]); ++j)
+            writeRecord(outBed, bedRecords_sites[i][j]);
+    }
+    // write binding regions
+    if (!empty(options.outRegionsFileName))
+    {
+        BedFileOut outBed2(toCString(options.outRegionsFileName)); 
+        for (unsigned i = 0; i < length(options.applyChr_contigIds); ++i)
+        {
+            for (unsigned j = 0; j < length(bedRecords_regions[i]); ++j)
+                writeRecord(outBed2, bedRecords_regions[i][j]);
+        }
+    }
+
+#ifdef HMM_PROFILE
+    Times::instance().time_all = sysTime() - timeStamp;
+    std::cout << "  Time needed for all: " << Times::instance().time_all/60.0 << "min" << std::endl;
+    std::cout << "  Time needed for loadObservations: " << Times::instance().time_loadObservations/60.0 << "min" << std::endl;
+    std::cout << "  Time needed for learnHMM: " << Times::instance().time_learnHMM/60.0 << "min" << std::endl;
+    std::cout << "  Time needed for applyHMM: " << Times::instance().time_applyHMM/60.0 << "min" << std::endl;
+#endif
+
+    CharString fileNameParams;
+    if (!empty(options.parFileName))
+        fileNameParams = options.parFileName;
+    else
+    {
+        fileNameParams = prefix(options.outFileName, length(options.outFileName)-4);
+        append(fileNameParams, ".params");
+    }
+    std::ofstream out(toCString(fileNameParams), std::ios::binary | std::ios::out);
+    out << "options.useKdeThreshold" << '\t' << options.useKdeThreshold << std::endl;
+    out << std::endl;
+    for (unsigned rep = 0; rep < length(options.baiFileNames); ++rep)
+    {
+        out << "Parameter learned for replicate: " << rep << std::endl;
+        printParams(out, modelParams[rep].gamma1, 1);
+        printParams(out, modelParams[rep].gamma2, 2);
+        printParams(out, modelParams[rep].bin1, 1);
+        printParams(out, modelParams[rep].bin2, 2);
+        printParams(out, modelParams[rep].transMatrix);
+        out << std::endl;
+        out << "slr_NfromKDE.b0" << '\t' << modelParams[rep].slr_NfromKDE_b0 << std::endl;
+        out << "slr_NfromKDE.b1" << '\t' << modelParams[rep].slr_NfromKDE_b1 << std::endl;  
+    }
+    return 0;
+}
+
     
 #endif

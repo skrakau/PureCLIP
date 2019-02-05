@@ -260,6 +260,29 @@ namespace seqan {
         {}
     };
 
+    template <typename TGAMMA, typename TBIN>
+    struct ModelParams {
+
+        TGAMMA  gamma1;
+        TGAMMA  gamma2;
+        TBIN    bin1;
+        TBIN    bin2;
+
+        String<String<long double> > transMatrix;
+
+        double slr_NfromKDE_b0;
+        double slr_NfromKDE_b1;
+
+        ModelParams() :  slr_NfromKDE_b0(0.0),
+                         slr_NfromKDE_b1(0.0)
+        {
+            resize(transMatrix, 4, Exact());
+            for (unsigned i = 0; i < 4; ++i)
+                resize(transMatrix[i], 4, 0.25, Exact());
+        }
+    };
+
+
 
     struct ContigObservations {
         String<__uint16> truncCounts; 
@@ -494,6 +517,57 @@ namespace seqan {
     }
 
 
+
+    template <typename TGamma, typename TBIN, typename TOptions>
+    void setSomeParameters(String<ModelParams<TGamma, TBIN> > &modelParams, TOptions &options)
+    {
+        if (options.numThreadsA == 0)
+        {
+            options.numThreadsA = std::min((int)options.numThreads, (int)length(options.intervals_contigIds));
+            if (options.verbosity >= 2)  std::cout << "Set no. of threads for applying HMM to: " << options.numThreadsA << std::endl;
+        }
+
+        // some precision related:
+        options.min_nligf = std::nextafter((long double)1.0, (long double)0.0);
+        if (options.verbosity >= 2) std::cout << std::setprecision(std::numeric_limits<long double>::digits10 + 1) << "Max. nligf: " << options.min_nligf << std::setprecision(6) << std::endl;
+        int db_min_exp = DBL_MIN_10_EXP;
+        int ldb_min_exp = LDBL_MIN_10_EXP;
+        std::cout << "DBL_MIN_10_EXP: " << db_min_exp << " LDBL_MIN_10_EXP: " << ldb_min_exp << std::endl;
+
+        // some other thresholds and settings:
+        options.binSize = options.bandwidth * 2; 
+        options.intervalOffset = options.bandwidth * 2;  
+        options.prior_kdeThreshold = options.prior_enrichmentThreshold * getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth;
+        if (options.verbosity >= 1) std::cout << " computed prior_kdeThreshold: " << (options.prior_enrichmentThreshold * getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth) << std::endl;
+
+        if (options.useKdeThreshold == 0.0 && !options.useCov_RPKM) // TODO use boolean user option
+            options.useKdeThreshold = getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth + 0.0001;  // corresponds to KDE value at singleton read start 
+        else if (options.useKdeThreshold == 0.0 && options.useCov_RPKM)
+        {
+            options.useKdeThreshold = getGaussianKernelDensity(0.0/(double)options.bandwidth)/(double)options.bandwidth; 
+            if (options.mrtf_kdeSglt)
+                options.minRPKMtoFit = log(options.useKdeThreshold) + 0.0001;
+        }
+
+        for (unsigned rep = 0; rep < length(modelParams); ++rep)
+        {
+            modelParams[rep].gamma1.tp = options.useKdeThreshold;
+            modelParams[rep].gamma2.tp = options.useKdeThreshold;
+        }
+
+        if (options.verbosity >= 1) std::cout << "Use bandwidth: " << options.bandwidth << std::endl;
+        if (options.verbosity >= 1) std::cout << "Use KDE threshold: " << options.useKdeThreshold << std::endl;
+        if (options.verbosity >= 1) std::cout << "Use bandwidth to estimate n: " << options.bandwidthN << std::endl;
+
+        // if required, determine n threshold for learning of binomial parameters and trans. probs (2-> 2/3)
+        if (options.get_nThreshold)
+        {
+            // require at least a mean of 2 read start counts for 'crosslink' state
+            options.nThresholdForTransP = ceil(2.0/options.p2);
+            options.nThresholdForP = options.nThresholdForTransP;
+            std::cout << "Set n threshold used for learning of binomial p parameters and transition probabilities '2' -> '2'/'3' to: " << options.nThresholdForTransP << std::endl;
+        } 
+    }    
 }
 
 

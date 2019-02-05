@@ -46,19 +46,18 @@ using namespace boost::math::policies;
 
 
 //////////////////////////////////////////////////////////////////////////
-// GAMMA2_REG: left threshold, forced to be zero
+// GAMMA_REG: left threshold, forced to be zero
 //////////////////////////////////////////////////////////////////////////
 
-template<typename TDOUBLE>
-class GAMMA2_REG  // ignore positions with KDE below theshold
+class GAMMA_REG  // ignore positions with KDE below theshold
 {
 public:
-    GAMMA2_REG(double tp_): tp(tp_) {}
-    GAMMA2_REG() {}
+    GAMMA_REG(double tp_): tp(tp_) {}
+    GAMMA_REG() {}
 
     long double getDensity(double const &kde, double const &pred, AppOptions const& options);
-    bool updateRegCoeffsAndK(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
-    bool updateRegCoeffsAndK(String<String<double> > &startSet, String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
+    bool updateRegCoeffsAndK(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
+    bool updateRegCoeffsAndK(String<String<double> > &startSet, String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, double &kMin, double &kMax, AppOptions const& options); 
  
 
     double b0;
@@ -74,10 +73,9 @@ public:
 // update betas and k together using simplex2
 //////////////////////////////////////////////
 
-template<typename TDOUBLE>
-long double my_GSL_X_GAMMA2_REG_forK(const gsl_vector * x, long double const & k, 
+long double my_GSL_X_GAMMA_REG_forK(const gsl_vector * x, long double const & k, 
         long double const & tp,
-        String<String<String<TDOUBLE> > > const& statePosteriors,
+        String<String<String<double> > > const& statePosteriors,
         String<String<Observations> > & setObs,  
         AppOptions const&options)
 {      
@@ -125,14 +123,13 @@ long double my_GSL_X_GAMMA2_REG_forK(const gsl_vector * x, long double const & k
 
 
 
-template<typename TDOUBLE>
-struct Fct_GSL_X_GAMMA2_REG
+struct Fct_GSL_X_GAMMA_REG
 {
-    Fct_GSL_X_GAMMA2_REG(double const & tp_,
+    Fct_GSL_X_GAMMA_REG(double const & tp_,
                                   double const & minK_,
                                   double const & maxK_,  
                                   double & penalty_, 
-                                  String<String<String<TDOUBLE> > > const& statePosteriors_,
+                                  String<String<String<double> > > const& statePosteriors_,
                                   String<String<Observations> > & setObs_,  
                                   AppOptions const&options_) : tp(tp_),
                                                                minK(minK_),
@@ -156,13 +153,13 @@ struct Fct_GSL_X_GAMMA2_REG
 
         if (k >= minK && k <= maxK)                                                                 // if valid k
         {
-            f = my_GSL_X_GAMMA2_REG_forK(x, k, tp, statePosteriors, setObs, options);
+            f = my_GSL_X_GAMMA_REG_forK(x, k, tp, statePosteriors, setObs, options);
         }
         else if (k < minK)
         {
             //std::cout << "k < kmin " << k << std::endl;
-            long double f_c = my_GSL_X_GAMMA2_REG_forK(x, minK, tp, statePosteriors, setObs, options);                // f value at constraint
-            long double f_cn = my_GSL_X_GAMMA2_REG_forK(x, (minK+0.001), tp, statePosteriors, setObs, options);       // f value inside the constraints with distance of 0.001
+            long double f_c = my_GSL_X_GAMMA_REG_forK(x, minK, tp, statePosteriors, setObs, options);                // f value at constraint
+            long double f_cn = my_GSL_X_GAMMA_REG_forK(x, (minK+0.001), tp, statePosteriors, setObs, options);       // f value inside the constraints with distance of 0.001
             long double d = minK - k;
 
             // descending towards constraint:
@@ -171,7 +168,7 @@ struct Fct_GSL_X_GAMMA2_REG
             if (f_cn - f_c > 0.0 && (minK + d <= maxK))
             {
                 //std::cout << "k < kmin " << k << " descending towards constraint" << std::endl;
-                f = my_GSL_X_GAMMA2_REG_forK(x, (minK+d), tp, statePosteriors, setObs, options);    // NOTE: f is already negative
+                f = my_GSL_X_GAMMA_REG_forK(x, (minK+d), tp, statePosteriors, setObs, options);    // NOTE: f is already negative
                 f += pow(d*(-f)*penalty, 2.0);                                                      // penalty depending on distance to constraint -> prevent simplex from moving outside of constraints   
             }
             // ascending towards constraint:
@@ -179,14 +176,14 @@ struct Fct_GSL_X_GAMMA2_REG
             else // if (f_cn - f_c >= 0)
             {
                 //std::cout << "k < kmin " << k << " ascending towards constraint" << std::endl;
-                f = my_GSL_X_GAMMA2_REG_forK(x, minK, tp, statePosteriors, setObs, options);
+                f = my_GSL_X_GAMMA_REG_forK(x, minK, tp, statePosteriors, setObs, options);
                 f += pow(d*(-f)*penalty, 2.0);
             }
         }
         else                                                                                                    //if (k > maxK)
         {
-            long double f_c = my_GSL_X_GAMMA2_REG_forK(x, maxK, tp, statePosteriors, setObs, options);                // f value at constraint
-            long double f_cn = my_GSL_X_GAMMA2_REG_forK(x, (maxK-0.001), tp, statePosteriors, setObs, options);       // f value inside the constraints with distance of 0.001
+            long double f_c = my_GSL_X_GAMMA_REG_forK(x, maxK, tp, statePosteriors, setObs, options);                // f value at constraint
+            long double f_cn = my_GSL_X_GAMMA_REG_forK(x, (maxK-0.001), tp, statePosteriors, setObs, options);       // f value inside the constraints with distance of 0.001
             long double d = k - maxK;
 
             // descending towards constraint:
@@ -194,14 +191,14 @@ struct Fct_GSL_X_GAMMA2_REG
             // only if mirror point > minK!
             if (f_cn - f_c > 0.0 && (maxK - d >= minK))
             {
-                f = my_GSL_X_GAMMA2_REG_forK(x, (maxK-d), tp, statePosteriors, setObs, options);
+                f = my_GSL_X_GAMMA_REG_forK(x, (maxK-d), tp, statePosteriors, setObs, options);
                 f += pow(d*(-f)*penalty, 2.0);
             }
             // ascending towards constraint:
             // -> use function values at constraint line - penalty
             else // if (f_cn - f_c >= 0)
             {
-                f = my_GSL_X_GAMMA2_REG_forK(x, maxK, tp, statePosteriors, setObs, options); 
+                f = my_GSL_X_GAMMA_REG_forK(x, maxK, tp, statePosteriors, setObs, options); 
                 f += pow(d*(-f)*penalty, 2.0);
             } 
         }
@@ -214,16 +211,15 @@ private:
     long double minK;
     long double maxK;
     long double penalty;
-    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<String<double> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
 
-template<typename TDOUBLE>
-struct Fct_GSL_X_GAMMA2_REG_fixK
+struct Fct_GSL_X_GAMMA_REG_fixK
 {
-    Fct_GSL_X_GAMMA2_REG_fixK(double const & tp_, double const & k_, 
-                                  String<String<String<TDOUBLE> > > const& statePosteriors_,
+    Fct_GSL_X_GAMMA_REG_fixK(double const & tp_, double const & k_, 
+                                  String<String<String<double> > > const& statePosteriors_,
                                   String<String<Observations> > & setObs_,
                                   AppOptions const&options_) : tp(tp_), k(k_),
                                                                statePosteriors(statePosteriors_),
@@ -279,55 +275,50 @@ struct Fct_GSL_X_GAMMA2_REG_fixK
 private:
     long double tp;
     long double k;
-    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<String<double> > > statePosteriors;
     String<String<Observations> > & setObs;
     AppOptions options;
 };
 
 
 // Wrapper functions for functors
-template<typename TDOUBLE>
-double fct_GSL_X_GAMMA2_REG_W (const gsl_vector * x, void * p) {
+double fct_GSL_X_GAMMA_REG_W (const gsl_vector * x, void * p) {
 
-    Fct_GSL_X_GAMMA2_REG<TDOUBLE> * function = reinterpret_cast< Fct_GSL_X_GAMMA2_REG<TDOUBLE> *> (p);
+    Fct_GSL_X_GAMMA_REG * function = reinterpret_cast< Fct_GSL_X_GAMMA_REG *> (p);
     return (*function)( x );        
 }
 
-template<typename TDOUBLE>
-double fct_GSL_X_GAMMA2_REG_fixK_W (const gsl_vector * x, void * p) {
+double fct_GSL_X_GAMMA_REG_fixK_W (const gsl_vector * x, void * p) {
 
-    Fct_GSL_X_GAMMA2_REG_fixK<TDOUBLE> * function = reinterpret_cast< Fct_GSL_X_GAMMA2_REG_fixK<TDOUBLE> *> (p);
+    Fct_GSL_X_GAMMA_REG_fixK * function = reinterpret_cast< Fct_GSL_X_GAMMA_REG_fixK *> (p);
     return (*function)( x );        
 } 
 
 
-template<typename TDOUBLE>
 struct Params2
 {
     double tp;
     double k;
-    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<String<double> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
 
-template<typename TDOUBLE>
 struct Params5
 {
     double tp;
     double minK;
     double maxK;
     double penalty;
-    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<String<double> > > statePosteriors;
     String<String<Observations> > setObs;
     AppOptions options;
 };
 
-template<typename TDOUBLE>
 bool callGSL_simplex2_fixK(int &status, 
                   double &fval,
                   double &tp, double &k, double &b0, double &b1,
-                  String<String<String<TDOUBLE> > > &statePosteriors, 
+                  String<String<String<double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   AppOptions const& options)
 {
@@ -341,18 +332,18 @@ bool callGSL_simplex2_fixK(int &status,
     const gsl_multimin_fminimizer_type *T;
     gsl_multimin_fminimizer *s = NULL;
     
-    struct Params2<TDOUBLE> params = {tp, k, statePosteriors, setObs, options};
+    struct Params2 params = {tp, k, statePosteriors, setObs, options};
     gsl_multimin_function f;
 
     // instantiation of functor with all fixed params
-    Fct_GSL_X_GAMMA2_REG_fixK<TDOUBLE> fct(tp, k, statePosteriors, setObs, options);
+    Fct_GSL_X_GAMMA_REG_fixK fct(tp, k, statePosteriors, setObs, options);
 
     /* Set initial step sizes to */
     gsl_vector *ss = gsl_vector_alloc (n);
     gsl_vector_set_all (ss, 0.001);  
 
     f.n = n;
-    f.f = &fct_GSL_X_GAMMA2_REG_fixK_W<TDOUBLE>;        // pointer to wrapper member function
+    f.f = &fct_GSL_X_GAMMA_REG_fixK_W;        // pointer to wrapper member function
     f.params =  &fct;       // pointer to functor (instead of to params)
 
     gsl_vector *x = gsl_vector_alloc (n);
@@ -398,9 +389,8 @@ bool callGSL_simplex2_fixK(int &status,
     return true;
 }
 
-template<typename TDOUBLE>
 bool callGSL_simplex2(double &fval, double &tp, double &k, double &b0, double &b1,
-                  String<String<String<TDOUBLE> > > &statePosteriors, 
+                  String<String<String<double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, 
                   double &kMin, double &kMax,
                   AppOptions const& options)
@@ -418,11 +408,11 @@ bool callGSL_simplex2(double &fval, double &tp, double &k, double &b0, double &b
     const gsl_multimin_fminimizer_type *T;
     gsl_multimin_fminimizer *s = NULL;
     
-    struct Params5<TDOUBLE> params = {tp, kMin, kMax, penalty, statePosteriors, setObs, options};
+    struct Params5 params = {tp, kMin, kMax, penalty, statePosteriors, setObs, options};
     gsl_multimin_function f;
 
     // instantiation of functor with all fixed params
-    Fct_GSL_X_GAMMA2_REG<TDOUBLE> fct(tp, kMin, kMax, penalty, statePosteriors, setObs, options);
+    Fct_GSL_X_GAMMA_REG fct(tp, kMin, kMax, penalty, statePosteriors, setObs, options);
 
     /* Set initial step sizes to 0.0001 */
     gsl_vector *ss = gsl_vector_alloc (n);
@@ -430,7 +420,7 @@ bool callGSL_simplex2(double &fval, double &tp, double &k, double &b0, double &b
     // TODO adjust to given value 
 
     f.n = n;
-    f.f = &fct_GSL_X_GAMMA2_REG_W<TDOUBLE>;        // pointer to wrapper member function
+    f.f = &fct_GSL_X_GAMMA_REG_W;        // pointer to wrapper member function
     f.params =  &fct;       // pointer to functor (instead of to params)
 
     gsl_vector *x = gsl_vector_alloc (n);
@@ -530,8 +520,7 @@ bool callGSL_simplex2(double &fval, double &tp, double &k, double &b0, double &b
 
 
 
-template<typename TDOUBLE>
-bool GAMMA2_REG<TDOUBLE>::updateRegCoeffsAndK(String<String<String<TDOUBLE> > > &statePosteriors, 
+bool GAMMA_REG::updateRegCoeffsAndK(String<String<String<double> > > &statePosteriors, 
                     String<String<Observations> > &setObs,  
                     double &kMin, double &kMax,
                     AppOptions const&options)
@@ -541,9 +530,8 @@ bool GAMMA2_REG<TDOUBLE>::updateRegCoeffsAndK(String<String<String<TDOUBLE> > > 
     return callGSL_simplex2(fval, this->tp, this->k, this->b0, this->b1, statePosteriors, setObs, kMin, kMax, options);
 }
 
-template<typename TDOUBLE>
-bool GAMMA2_REG<TDOUBLE>::updateRegCoeffsAndK(String<String<double> > &startSet,
-                    String<String<String<TDOUBLE> > > &statePosteriors, 
+bool GAMMA_REG::updateRegCoeffsAndK(String<String<double> > &startSet,
+                    String<String<String<double> > > &statePosteriors, 
                     String<String<Observations> > &setObs,  
                     double &kMin, double &kMax,
                     AppOptions const&options)
@@ -590,8 +578,7 @@ bool GAMMA2_REG<TDOUBLE>::updateRegCoeffsAndK(String<String<double> > &startSet,
 /////
 
 
-template<typename TDOUBLE>
-long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pred, AppOptions const&options)   
+long double GAMMA_REG::getDensity(double const &kde, double const &pred, AppOptions const&options)   
 {
     if (kde < this->tp) return 0.0;
 
@@ -619,10 +606,9 @@ long double GAMMA2_REG<TDOUBLE>::getDensity(double const &kde, double const &pre
 // utils
 
 
-template<typename TDOUBLE>
-void myPrint(GAMMA2_REG<TDOUBLE> &gamma)
+void myPrint(GAMMA_REG &gamma)
 {
-    std::cout << "*** GAMMA2_REG ***" << std::endl;
+    std::cout << "*** GAMMA_REG ***" << std::endl;
     std::cout << "    b0:"<< gamma.b0 << std::endl;
     std::cout << "    b1:"<< gamma.b1 << std::endl;
     std::cout << "    k:" << gamma.k << std::endl;
@@ -630,8 +616,7 @@ void myPrint(GAMMA2_REG<TDOUBLE> &gamma)
     std::cout << std::endl;
 }
 
-template<typename TDOUBLE>
-bool checkConvergence(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, AppOptions &options)
+bool checkConvergence(GAMMA_REG &gamma1, GAMMA_REG &gamma2, AppOptions &options)
 {
     if (std::fabs(gamma1.b0 - gamma2.b0) > options.gamma_b_conv) return false;
     if (std::fabs(gamma1.b1 - gamma2.b1) > options.gamma_b_conv) return false;
@@ -640,8 +625,8 @@ bool checkConvergence(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, 
     return true;
 }
 
-template<typename TOut, typename TDOUBLE>
-void printParams(TOut &out, GAMMA2_REG<TDOUBLE> &gamma, int i)
+template<typename TOut>
+void printParams(TOut &out, GAMMA_REG &gamma, int i)
 {
     out << "gamma" << i << ".b0" << '\t' << gamma.b0 << std::endl;
     out << "gamma" << i << ".b1" << '\t' << gamma.b1 << std::endl;
@@ -651,8 +636,7 @@ void printParams(TOut &out, GAMMA2_REG<TDOUBLE> &gamma, int i)
 }
 
 
-template<typename TDOUBLE>
-void checkOrderG1G2(GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, 
+void checkOrderG1G2(GAMMA_REG &gamma1, GAMMA_REG &gamma2, 
                     unsigned &iter, unsigned &trial, 
                     AppOptions &options)
 {

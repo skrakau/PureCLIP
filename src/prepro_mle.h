@@ -29,13 +29,12 @@
 
 using namespace seqan;
 
-template<typename TDOUBLE>
-void prior_mle(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2,  
+void prior_mle(GAMMA &gamma1, GAMMA &gamma2,  
                Data &data, 
                AppOptions &options)
 {
-    String<String<String<TDOUBLE> > > statePosteriors1;
-    String<String<String<TDOUBLE> > > statePosteriors2;
+    String<String<String<double> > > statePosteriors1;
+    String<String<String<double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     // split into non-enriched and enriched
@@ -125,13 +124,12 @@ void prior_mle(GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2,
 }
 
 
-template<typename TDOUBLE>
-void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,  
+void prior_mle(GAMMA_REG &gamma1_reg, GAMMA_REG &gamma2_reg,  
                Data &data, 
                AppOptions &options)
 {
     // compound gamma distribution: estimate parameters to use for initialization
-    GAMMA2_REG<TDOUBLE> gammaC_reg(options.useKdeThreshold);
+    GAMMA_REG gammaC_reg(options.useKdeThreshold);
     gammaC_reg.k = 4.0;
     gammaC_reg.b0 = -2.0;   
     gammaC_reg.b1 = 0.9;
@@ -171,7 +169,7 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
     appendValue(startSet, p6);
 
     // assign all sites with 1.0 to compound distribution
-    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<String<double> > > statePosteriors;
     resize(statePosteriors, 2, Exact());
     // split into non-enriched and enriched
     for (unsigned s = 0; s < 2; ++s)
@@ -197,8 +195,8 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
     ///////////////////
     // classify sites as "non-enriched" or "enriched" based on regression parameter b1
 
-    String<String<String<TDOUBLE> > > statePosteriors1;
-    String<String<String<TDOUBLE> > > statePosteriors2;
+    String<String<String<double> > > statePosteriors1;
+    String<String<String<double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     // split into non-enriched and enriched
@@ -302,9 +300,9 @@ void prior_mle(GAMMA2_REG<TDOUBLE> &gamma1_reg, GAMMA2_REG<TDOUBLE> &gamma2_reg,
 }
 
 
-template<typename TDOUBLE, typename TBIN>
+template<typename TBIN>
 void estimateTransitions(String<String<long double> > &initTrans, 
-                         GAMMA2<TDOUBLE> &gamma1, GAMMA2<TDOUBLE> &gamma2, TBIN &bin1, TBIN &bin2, 
+                         GAMMA &gamma1, GAMMA &gamma2, TBIN &bin1, TBIN &bin2, 
                          Data &data,
                          AppOptions &options)
 {
@@ -441,9 +439,9 @@ void estimateTransitions(String<String<long double> > &initTrans,
 }
 
 
-template<typename TDOUBLE, typename TBIN>
+template<typename TBIN>
 void estimateTransitions(String<String<long double> > &initTrans, 
-                         GAMMA2_REG<TDOUBLE> &gamma1, GAMMA2_REG<TDOUBLE> &gamma2, TBIN &bin1, TBIN &bin2, 
+                         GAMMA_REG &gamma1, GAMMA_REG &gamma2, TBIN &bin1, TBIN &bin2, 
                          Data &data,
                          AppOptions &options)
 {
@@ -464,8 +462,8 @@ void estimateTransitions(String<String<long double> > &initTrans,
             double kde = data.setObs[s][i].kdes[0];
             unsigned k = data.setObs[s][i].truncCounts[0];
             unsigned n = data.setObs[s][i].nEstimates[0];
-            long double d1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[0]);
-            long double d2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[0]);
+            long double gamma1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[0]);
+            long double gamma2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[0]);
             unsigned prev_state = 0;
             bool prev_valid = true;
 
@@ -473,8 +471,8 @@ void estimateTransitions(String<String<long double> > &initTrans,
             long double g2_d = 0.0;
             if (kde >= gamma1.tp)
             {
-                g1_d = gamma1.getDensity(kde, d1_pred, options);
-                g2_d = gamma2.getDensity(kde, d2_pred, options);
+                g1_d = gamma1.getDensity(kde, gamma1_pred, options);
+                g2_d = gamma2.getDensity(kde, gamma2_pred, options);
             }
             long double bin1_d = 1.0;
             long double bin2_d = 0.0;
@@ -506,16 +504,16 @@ void estimateTransitions(String<String<long double> > &initTrans,
                 kde = data.setObs[s][i].kdes[t];
                 k = data.setObs[s][i].truncCounts[t];
                 n = data.setObs[s][i].nEstimates[t];
-                d1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[t]);
-                d2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[t]);
+                gamma1_pred = exp(gamma1.b0 + gamma1.b1 * data.setObs[s][i].rpkms[t]);
+                gamma2_pred = exp(gamma2.b0 + gamma2.b1 * data.setObs[s][i].rpkms[t]);
                 unsigned curr_state = 0;
 
                 g1_d = 1.0;
                 g2_d = 0.0;
                 if (kde >= gamma1.tp)
                 {
-                    g1_d = gamma1.getDensity(kde, d1_pred, options);
-                    g2_d = gamma2.getDensity(kde, d2_pred, options);
+                    g1_d = gamma1.getDensity(kde, gamma1_pred, options);
+                    g2_d = gamma2.getDensity(kde, gamma2_pred, options);
                 }
                 bin1_d = 1.0;
                 bin2_d = 0.0;

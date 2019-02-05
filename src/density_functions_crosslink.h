@@ -45,7 +45,6 @@ using namespace seqan;
 ////////
 // P = (k-1)/(n-1) ?
 
-template<typename TDOUBLE>
 class ZTBIN
 {
 public:
@@ -54,15 +53,14 @@ public:
  
     long double getDensity(unsigned const &k, unsigned const &n, AppOptions const& options);
 
-    void updateP(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
+    void updateP(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options); 
 
     long double p;
 };
 
 
 // use truncCounts
-template<typename TDOUBLE>
-void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
+void ZTBIN::updateP(String<String<String<double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, AppOptions const& options)
 {
     long double sum1 = 0.0; 
@@ -94,8 +92,7 @@ void ZTBIN<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors,
 
 
 // k: diagnostic events (de); n: read counts (c)
-template<typename TDOUBLE> 
-long double ZTBIN<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, AppOptions const&options)
+long double ZTBIN::getDensity(unsigned const &k, unsigned const &n, AppOptions const&options)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
@@ -120,8 +117,7 @@ long double ZTBIN<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, App
 // 
 
 
-template<typename TDOUBLE>
-void myPrint(ZTBIN<TDOUBLE> &bin)
+void myPrint(ZTBIN &bin)
 {
     std::cout << "*** ZTBIN ***" << std::endl;
     std::cout << "    p:"<< bin.p << std::endl;
@@ -129,24 +125,22 @@ void myPrint(ZTBIN<TDOUBLE> &bin)
 }
 
 
-template<typename TOut, typename TDOUBLE>
-void printParams(TOut &out, ZTBIN<TDOUBLE> &bin, int i)
+template<typename TOut>
+void printParams(TOut &out, ZTBIN &bin, int i)
 {
     out << "bin" << i << ".p" << '\t' << bin.p << std::endl;
     out << std::endl;
 }
 
 
-template<typename TDOUBLE>
-bool checkConvergence(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, AppOptions &options)
+bool checkConvergence(ZTBIN &bin1, ZTBIN &bin2, AppOptions &options)
 {
     if (std::fabs(bin1.p - bin2.p) > options.bin_p_conv) return false;
     return true;
 }
 
 
-template<typename TDOUBLE>
-void checkOrderBin1Bin2(ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2)
+void checkOrderBin1Bin2(ZTBIN &bin1, ZTBIN &bin2)
 {
     if (bin1.p > bin2.p)
         std::swap(bin1.p, bin2.p); 

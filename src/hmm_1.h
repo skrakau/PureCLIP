@@ -21,8 +21,6 @@
 // Author: Sabrina Krakau <krakau@molgen.mpg.de>
 // =======================================================================
 
-
-
 #ifndef APPS_HMMS_HMM_1_H_
 #define APPS_HMMS_HMM_1_H_
   
@@ -39,13 +37,13 @@
 using namespace seqan;
 
 
-template <typename TGAMMA, typename TBIN, typename TDOUBLE>
+template <typename TGAMMA, typename TBIN>
 class HMM {     
 
 public:
 
     __uint8                                 K;                  // no. of sates
-    String<String<String<long double> > >   initProbs;          // intital probabilities
+    String<String<String<long double> > >   initProbs;          // initial probabilities
 
     String<String<Observations> >           & setObs;          // workaround for partial specialization
     String<String<unsigned> >               & setPos;
@@ -90,33 +88,32 @@ public:
         }
     }
     // Copy constructor 
-//     HMM<TGAMMA, TBIN, TDOUBLE>(const HMM<TGAMMA, TBIN, TDOUBLE> &hmm2) {x = p2.x; y = p2.y; } 
+//     HMM<TGAMMA, TBIN>(const HMM<TGAMMA, TBIN> &hmm2) {x = p2.x; y = p2.y; } 
 
-    HMM<TGAMMA, TBIN, TDOUBLE>();
-    ~HMM<TGAMMA, TBIN, TDOUBLE>();
+    HMM<TGAMMA, TBIN>();
+    ~HMM<TGAMMA, TBIN>();
     
-    bool computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, bool learning, AppOptions &options);
-    bool iForward(String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options);    
-    bool iBackward(String<String<TDOUBLE> > &betas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options);    
+    bool computeEmissionProbs(ModelParams<TGAMMA, TBIN> &modelParams, bool learning, AppOptions &options);
+    bool iForward(String<String<long double> > &alphas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options);    
+    bool iBackward(String<String<long double> > &betas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options);    
     bool computeStatePosteriorsFB(AppOptions &options);
     bool computeStatePosteriorsFBupdateTrans(AppOptions &options);
-    bool updateTransProbsAndPostDecode(AppOptions &options);
-    bool updateDensityParams(TGAMMA &d1, TGAMMA &d2, unsigned &iter, unsigned &trial, AppOptions &options);
-    bool updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d2*/, TBIN &bin1, TBIN &bin2, AppOptions &options);
-    bool baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options);
-    bool applyParameters(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, AppOptions &/*options*/);
-    long double viterbi(String<String<String<__uint8> > > &states);
+    bool updateTransAndPostProbs(AppOptions &options);
+    bool updateDensityParams(TGAMMA &gamma1, TGAMMA &gamma2, unsigned &iter, unsigned &trial, AppOptions &options);
+    bool updateDensityParams(ModelParams<TGAMMA, TBIN> &modelParams, AppOptions &options);
+    bool baumWelch(ModelParams<TGAMMA, TBIN> &modelParams, CharString learnTag, AppOptions &options);
+    bool applyParameters(ModelParams<TGAMMA, TBIN> &modelParams, AppOptions &/*options*/);
     void posteriorDecoding(String<String<String<__uint8> > > &states);
-    void rmBoarderArtifacts(String<String<String<__uint8> > > &states, TGAMMA &g1);
+    void rmBoarderArtifacts(String<String<String<__uint8> > > &states, String<Data> &data_replicates, String<ModelParams<TGAMMA, TBIN> > &modelParams);
 
     // for each F/R,interval,t, state ....
-    String<String<String<String<TDOUBLE> > > > eProbs;           // emission/observation probabilities  P(Y_t | S_t) -> precompute for each t given Y_t = (C_t, T_t) !!!
-    String<String<String<String<TDOUBLE> > > > statePosteriors;  // for each k: for each covered interval string of posteriors
+    String<String<String<String<double> > > > eProbs;           // emission/observation probabilities  P(Y_t | S_t) -> precompute for each t given Y_t = (C_t, T_t) !!!
+    String<String<String<String<double> > > > statePosteriors;  // for each k: for each covered interval string of posteriors
 };
 
 
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-HMM<TGAMMA, TBIN, TDOUBLE>::~HMM<TGAMMA, TBIN, TDOUBLE>()
+template<typename TGAMMA, typename TBIN>
+HMM<TGAMMA, TBIN>::~HMM<TGAMMA, TBIN>()
 {
     clear(this->eProbs);
     clear(this->statePosteriors);
@@ -193,15 +190,15 @@ long double get_logSumExp(String<String<long double> > &fs, LogSumExp_lookupTabl
 /////////////////////////////////////////////////////////////////
 
 
-template<typename TEProbs, typename TSetObs, typename TDOUBLE>
-bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
+template<typename TEProbs, typename TSetObs>
+bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA &gamma1, GAMMA &gamma2, ZTBIN &bin1, ZTBIN &bin2, unsigned t, AppOptions &options)
 {
-    long double g1_d = 1.0;
-    long double g2_d = 0.0;
-    if (setObs.kdes[t] >= d1.tp) 
+    long double gamma1_d = 1.0;
+    long double gamma2_d = 0.0;
+    if (setObs.kdes[t] >= gamma1.tp) 
     {
-        g1_d = d1.getDensity(setObs.kdes[t]);
-        g2_d = d2.getDensity(setObs.kdes[t]); 
+        gamma1_d = gamma1.getDensity(setObs.kdes[t]);
+        gamma2_d = gamma2.getDensity(setObs.kdes[t]); 
     }
     long double bin1_d = 1.0;
     long double bin2_d = 0.0;
@@ -211,13 +208,13 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
     }
     // log-space
-    eProbs[0] = myLog(g1_d) + myLog(bin1_d); 
-    eProbs[1] = myLog(g1_d) + myLog(bin2_d);
-    eProbs[2] = myLog(g2_d) + myLog(bin1_d);
-    eProbs[3] = myLog(g2_d) + myLog(bin2_d);
+    eProbs[0] = myLog(gamma1_d) + myLog(bin1_d); 
+    eProbs[1] = myLog(gamma1_d) + myLog(bin2_d);
+    eProbs[2] = myLog(gamma2_d) + myLog(bin1_d);
+    eProbs[3] = myLog(gamma2_d) + myLog(bin2_d);
 
     // check if valid
-    if ((g1_d + g2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
+    if ((gamma1_d + gamma2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
        (std::isnan(eProbs[0]) && std::isnan(eProbs[1]) && std::isnan(eProbs[2]) && std::isnan(eProbs[3])) )
     {
         if (options.verbosity >= 2)
@@ -231,9 +228,9 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-enriched' gamma: " << g1_d << std::endl;
+                std::cout << "       emission probability 'non-enriched' gamma: " << gamma1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'enriched' gamma: " << g2_d << std::endl;
+                std::cout << "       emission probability 'enriched' gamma: " << gamma2_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'non-crosslink' binomial: " << bin1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -248,19 +245,19 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
     return true;
 }
 
-template<typename TEProbs, typename TSetObs, typename TDOUBLE>
-bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, ZTBIN<TDOUBLE> &bin1, ZTBIN<TDOUBLE> &bin2, unsigned t, AppOptions &options)
+template<typename TEProbs, typename TSetObs>
+bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA_REG &gamma1, GAMMA_REG &gamma2, ZTBIN &bin1, ZTBIN &bin2, unsigned t, AppOptions &options)
 {
     long double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
-    long double d1_pred = exp(d1.b0 + d1.b1 * x);
-    long double d2_pred = exp(d2.b0 + d2.b1 * x);
+    long double gamma1_pred = exp(gamma1.b0 + gamma1.b1 * x);
+    long double gamma2_pred = exp(gamma2.b0 + gamma2.b1 * x);
 
-    long double g1_d = 1.0;
-    long double g2_d = 0.0;
-    if (setObs.kdes[t] >= d1.tp) 
+    long double gamma1_d = 1.0;
+    long double gamma2_d = 0.0;
+    if (setObs.kdes[t] >= gamma1.tp) 
     {
-        g1_d = d1.getDensity(setObs.kdes[t], d1_pred, options);
-        g2_d = d2.getDensity(setObs.kdes[t], d2_pred, options); 
+        gamma1_d = gamma1.getDensity(setObs.kdes[t], gamma1_pred, options);
+        gamma2_d = gamma2.getDensity(setObs.kdes[t], gamma2_pred, options); 
     }
 
     long double bin1_d = 1.0;
@@ -271,13 +268,13 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], options);
     }
     // log-space
-    eProbs[0] = myLog(g1_d) + myLog(bin1_d); 
-    eProbs[1] = myLog(g1_d) + myLog(bin2_d);
-    eProbs[2] = myLog(g2_d) + myLog(bin1_d);
-    eProbs[3] = myLog(g2_d) + myLog(bin2_d);
+    eProbs[0] = myLog(gamma1_d) + myLog(bin1_d); 
+    eProbs[1] = myLog(gamma1_d) + myLog(bin2_d);
+    eProbs[2] = myLog(gamma2_d) + myLog(bin1_d);
+    eProbs[3] = myLog(gamma2_d) + myLog(bin2_d);
 
     // 
-    if ((g1_d + g2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
+    if ((gamma1_d + gamma2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
             (std::isnan(eProbs[0]) && std::isnan(eProbs[1]) && std::isnan(eProbs[2]) && std::isnan(eProbs[3])) )
     {
         if (options.verbosity >= 2)
@@ -291,11 +288,11 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       covariate b: " << x << " predicted mean 'non-enriched': " << d1_pred << " predicted mean 'enriched': " << d2_pred << std::endl;
+                std::cout << "       covariate b: " << x << " predicted mean 'non-enriched': " << gamma1_pred << " predicted mean 'enriched': " << gamma2_pred << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-enriched' gamma: " << g1_d << std::endl;
+                std::cout << "       emission probability 'non-enriched' gamma: " << gamma1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'enriched' gamma: " << g2_d << std::endl;
+                std::cout << "       emission probability 'enriched' gamma: " << gamma2_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'non-crosslink' binomial: " << bin1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -310,15 +307,15 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
     return true;
 }
 
-template<typename TEProbs, typename TSetObs, typename TDOUBLE>
-bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, unsigned t, AppOptions &options)
+template<typename TEProbs, typename TSetObs>
+bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA &gamma1, GAMMA &gamma2, ZTBIN_REG &bin1, ZTBIN_REG &bin2, unsigned t, AppOptions &options)
 {
-    long double g1_d = 1.0;
-    long double g2_d = 0.0;
-    if (setObs.kdes[t] >= d1.tp) 
+    long double gamma1_d = 1.0;
+    long double gamma2_d = 0.0;
+    if (setObs.kdes[t] >= gamma1.tp) 
     {
-        g1_d = d1.getDensity(setObs.kdes[t]);
-        g2_d = d2.getDensity(setObs.kdes[t]); 
+        gamma1_d = gamma1.getDensity(setObs.kdes[t]);
+        gamma2_d = gamma2.getDensity(setObs.kdes[t]); 
     }
     unsigned mId = setObs.motifIds[t];
     long double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs.fimoScores[t]));
@@ -332,13 +329,13 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
     }
 
-    eProbs[0] = myLog(g1_d) + myLog(bin1_d);
-    eProbs[1] = myLog(g1_d) + myLog(bin2_d);
-    eProbs[2] = myLog(g2_d) + myLog(bin1_d);
-    eProbs[3] = myLog(g2_d) + myLog(bin2_d);
+    eProbs[0] = myLog(gamma1_d) + myLog(bin1_d);
+    eProbs[1] = myLog(gamma1_d) + myLog(bin2_d);
+    eProbs[2] = myLog(gamma2_d) + myLog(bin1_d);
+    eProbs[3] = myLog(gamma2_d) + myLog(bin2_d);
 
     //
-    if ((g1_d + g2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
+    if ((gamma1_d + gamma2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
             (std::isnan(eProbs[0]) && std::isnan(eProbs[1]) && std::isnan(eProbs[2]) && std::isnan(eProbs[3])) )
     {
         if (options.verbosity >= 2)
@@ -354,9 +351,9 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       covariate x: " << setObs.fimoScores[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-enriched' gamma: " << g1_d << std::endl;
+                std::cout << "       emission probability 'non-enriched' gamma: " << gamma1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'enriched' gamma: " << g2_d << std::endl;
+                std::cout << "       emission probability 'enriched' gamma: " << gamma2_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'non-crosslink' binomial: " << bin1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -371,19 +368,19 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2<TDOUBLE> &d1, GAMMA2<
     return true;
 }
 
-template<typename TEProbs, typename TSetObs, typename TDOUBLE>
-bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, unsigned t, AppOptions &options)
+template<typename TEProbs, typename TSetObs>
+bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA_REG &gamma1, GAMMA_REG &gamma2, ZTBIN_REG &bin1, ZTBIN_REG &bin2, unsigned t, AppOptions &options)
 {
     long double x = std::max(setObs.rpkms[t], options.minRPKMtoFit);
-    long double d1_pred = exp(d1.b0 + d1.b1 * x);
-    long double d2_pred = exp(d2.b0 + d2.b1 * x);
+    long double gamma1_pred = exp(gamma1.b0 + gamma1.b1 * x);
+    long double gamma2_pred = exp(gamma2.b0 + gamma2.b1 * x);
 
-    long double g1_d = 1.0;
-    long double g2_d = 0.0;
-    if (setObs.kdes[t] >= d1.tp) 
+    long double gamma1_d = 1.0;
+    long double gamma2_d = 0.0;
+    if (setObs.kdes[t] >= gamma1.tp) 
     {
-        g1_d = d1.getDensity(setObs.kdes[t], d1_pred, options);
-        g2_d = d2.getDensity(setObs.kdes[t], d2_pred, options); 
+        gamma1_d = gamma1.getDensity(setObs.kdes[t], gamma1_pred, options);
+        gamma2_d = gamma2.getDensity(setObs.kdes[t], gamma2_pred, options); 
     }
     unsigned mId = setObs.motifIds[t];
     long double bin1_pred = 1.0/(1.0+exp(-bin1.b0 - bin1.regCoeffs[mId]*setObs.fimoScores[t]));
@@ -397,13 +394,13 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
         bin2_d = bin2.getDensity(setObs.truncCounts[t], setObs.nEstimates[t], bin2_pred, options);
     }
 
-    eProbs[0] = myLog(g1_d) + myLog(bin1_d);
-    eProbs[1] = myLog(g1_d) + myLog(bin2_d);
-    eProbs[2] = myLog(g2_d) + myLog(bin1_d);
-    eProbs[3] = myLog(g2_d) + myLog(bin2_d);
+    eProbs[0] = myLog(gamma1_d) + myLog(bin1_d);
+    eProbs[1] = myLog(gamma1_d) + myLog(bin2_d);
+    eProbs[2] = myLog(gamma2_d) + myLog(bin1_d);
+    eProbs[3] = myLog(gamma2_d) + myLog(bin2_d);
 
     // 
-    if ((g1_d + g2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
+    if ((gamma1_d + gamma2_d == 0.0) || (bin1_d + bin2_d == 0.0) ||
             (std::isnan(eProbs[0]) && std::isnan(eProbs[1]) && std::isnan(eProbs[2]) && std::isnan(eProbs[3])) )
     {
         if (options.verbosity >= 2)
@@ -417,13 +414,13 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       estimated n: " << setObs.nEstimates[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       covariate b: " << x << " predicted mean 'non-enriched': " << d1_pred << " predicted mean 'enriched': " << d2_pred << std::endl;
+                std::cout << "       covariate b: " << x << " predicted mean 'non-enriched': " << gamma1_pred << " predicted mean 'enriched': " << gamma2_pred << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       covariate x: " << setObs.fimoScores[t] << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'non-enriched' gamma: " << g1_d << std::endl;
+                std::cout << "       emission probability 'non-enriched' gamma: " << gamma1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
-                std::cout << "       emission probability 'enriched' gamma: " << g2_d << std::endl;
+                std::cout << "       emission probability 'enriched' gamma: " << gamma2_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
                 std::cout << "       emission probability 'non-crosslink' binomial: " << bin1_d << std::endl;
             SEQAN_OMP_PRAGMA(critical) 
@@ -439,8 +436,8 @@ bool computeEProb(TEProbs &eProbs, TSetObs &setObs, GAMMA2_REG<TDOUBLE> &d1, GAM
 }
 
 
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, bool learning, AppOptions &options)
+template<typename TGAMMA, typename TBIN>
+bool HMM<TGAMMA, TBIN>::computeEmissionProbs(ModelParams<TGAMMA, TBIN> &modelParams, bool learning, AppOptions &options)
 {
     bool stop = false;
     for (unsigned s = 0; s < 2; ++s)
@@ -460,7 +457,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
                     stop = true;
                 }
 
-                if (!computeEProb(this->eProbs[s][i][t], this->setObs[s][i], d1, d2, bin1, bin2, t, options))
+                if (!computeEProb(this->eProbs[s][i][t], this->setObs[s][i], modelParams.gamma1, modelParams.gamma2, modelParams.bin1, modelParams.bin2, t, options))
                 {
                     SEQAN_OMP_PRAGMA(critical) 
                     discardInterval = true;
@@ -518,8 +515,8 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeEmissionProbs(TGAMMA &d1, TGAMMA &d2, TB
 
 // for one interval only
 // Forward-algorithm: log-space
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options)
+template<typename TGAMMA, typename TBIN>
+bool HMM<TGAMMA, TBIN>::iForward(String<String<long double> > &alphas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options)
 {
     // NOTE
     // in log-space: alphas_1, eProbs
@@ -560,8 +557,8 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::iForward(String<String<TDOUBLE> > &alphas_1, un
 
 
 // Backward-algorithm: log-space
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options)
+template<typename TGAMMA, typename TBIN>
+bool HMM<TGAMMA, TBIN>::iBackward(String<String<long double> > &betas_1, unsigned s, unsigned i, String<String<long double> > &logA, AppOptions &options)
 {
     unsigned T = this->setObs[s][i].length();
     // for t = T
@@ -595,8 +592,8 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::iBackward(String<String<TDOUBLE> > &betas_1, un
 // for log-space
 // interval-wise to avoid storing alpha_1 and beta_1 values for whole genome
 // TODO learn 2-> 2/3 only above threshold !?
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
+template<typename TGAMMA, typename TBIN>
+bool HMM<TGAMMA, TBIN>::computeStatePosteriorsFBupdateTrans(AppOptions &options)
 {
     String<String<long double> > logA = this->transMatrix;
     for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
@@ -625,7 +622,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
         {
             unsigned T = setObs[s][i].length();
             // forward probabilities
-            String<String<TDOUBLE> > alphas_1;
+            String<String<long double> > alphas_1;
             resize(alphas_1, T, Exact());
             for (unsigned t = 0; t < T; ++t)
             {
@@ -638,7 +635,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
             }
 
             // backward probabilities  
-            String<String<TDOUBLE> > betas_1;
+            String<String<long double> > betas_1;
             resize(betas_1, T, Exact());
             for (unsigned t = 0; t < T; ++t)
                 resize(betas_1[t], this->K, Exact());
@@ -763,8 +760,8 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFBupdateTrans(AppOptions 
 
 
 // without updating transition probabilities: log space
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
+template<typename TGAMMA, typename TBIN>
+bool HMM<TGAMMA, TBIN>::computeStatePosteriorsFB(AppOptions &options)
 {
     String<String<long double> > logA = this->transMatrix;
     for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
@@ -781,7 +778,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
         {
             unsigned T = setObs[s][i].length();
             // forward probabilities
-            String<String<TDOUBLE> > alphas_1;
+            String<String<long double> > alphas_1;
             resize(alphas_1, T, Exact());
             for (unsigned t = 0; t < T; ++t)
             {
@@ -794,7 +791,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
             }
 
             // backward probabilities
-            String<String<TDOUBLE> > betas_1;
+            String<String<long double> > betas_1;
             resize(betas_1, T, Exact());
             for (unsigned t = 0; t < T; ++t)
                 resize(betas_1[t], this->K, Exact());
@@ -833,50 +830,48 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::computeStatePosteriorsFB(AppOptions &options)
 
 
 
-template<typename TDOUBLE>
-bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, 
-                          GAMMA2<TDOUBLE> &d1, GAMMA2<TDOUBLE> &d2, 
+bool updateDensityParams2(String<String<String<double> > > &statePosteriors1, String<String<String<double> > > &statePosteriors2, String<String<Observations> > &setObs, 
+                          GAMMA &gamma1, GAMMA &gamma2, 
                           unsigned &iter, unsigned &trial,
                           AppOptions &options)
 {
-    if (!d1.updateThetaAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
+    if (!gamma1.updateThetaAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
         return false;
 
-    if (!d2.updateThetaAndK(statePosteriors2, setObs, options.g2_kMin, options.g2_kMax, options))         // make sure g1k <= g2k
+    if (!gamma2.updateThetaAndK(statePosteriors2, setObs, options.g2_kMin, options.g2_kMax, options))         // make sure g1k <= g2k
         return false;
 
     // make sure gamma1.mu < gamma2.mu   
-    checkOrderG1G2(d1, d2, options);
+    checkOrderG1G2(gamma1, gamma2, options);
     return true;
 }
 
-template<typename TDOUBLE>
-bool updateDensityParams2(String<String<String<TDOUBLE> > > &statePosteriors1, String<String<String<TDOUBLE> > > &statePosteriors2, String<String<Observations> > &setObs, 
-                          GAMMA2_REG<TDOUBLE> &d1, GAMMA2_REG<TDOUBLE> &d2, 
+bool updateDensityParams2(String<String<String<double> > > &statePosteriors1, String<String<String<double> > > &statePosteriors2, String<String<Observations> > &setObs, 
+                          GAMMA_REG &gamma1, GAMMA_REG &gamma2, 
                           unsigned &iter, unsigned &trial,
                           AppOptions &options)
 {
-    if (!d1.updateRegCoeffsAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
+    if (!gamma1.updateRegCoeffsAndK(statePosteriors1, setObs, options.g1_kMin, options.g1_kMax, options))
         return false;
 
     double g2_kMin = options.g2_kMin;
     if (options.g1_k_le_g2_k)
-        g2_kMin = std::max(d1.k, options.g2_kMin);
+        g2_kMin = std::max(gamma1.k, options.g2_kMin);
 
-    if (!d2.updateRegCoeffsAndK(statePosteriors2, setObs, g2_kMin, options.g2_kMax, options))
+    if (!gamma2.updateRegCoeffsAndK(statePosteriors2, setObs, g2_kMin, options.g2_kMax, options))
         return false;
 
     // make sure gamma1.mu < gamma2.mu    
-    checkOrderG1G2(d1, d2, iter, trial, options);
+    checkOrderG1G2(gamma1, gamma2, iter, trial, options);
     return true;
 }
 
 
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA &d1, TGAMMA &d2, unsigned &iter, unsigned &trial, AppOptions &options)   
+template<typename TGAMMA, typename TBIN>
+bool HMM<TGAMMA, TBIN>::updateDensityParams(TGAMMA &gamma1, TGAMMA &gamma2, unsigned &iter, unsigned &trial, AppOptions &options)   
 {
-    String<String<String<TDOUBLE> > > statePosteriors1;
-    String<String<String<TDOUBLE> > > statePosteriors2;
+    String<String<String<double> > > statePosteriors1;
+    String<String<String<double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     for (unsigned s = 0; s < 2; ++s)
@@ -895,17 +890,17 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA &d1, TGAMMA &d2, uns
         }
     }
 
-    updateDensityParams2(statePosteriors1, statePosteriors2, this->setObs, d1, d2, iter, trial, options); 
+    updateDensityParams2(statePosteriors1, statePosteriors2, this->setObs, gamma1, gamma2, iter, trial, options); 
 
     return true;
 }
 
 
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d2*/, TBIN &bin1, TBIN &bin2, AppOptions &options)   
+template<typename TGAMMA, typename TBIN>
+bool HMM<TGAMMA, TBIN>::updateDensityParams(ModelParams<TGAMMA, TBIN> &modelParams, AppOptions &options)   
 {
-    String<String<String<TDOUBLE> > > statePosteriors1;
-    String<String<String<TDOUBLE> > > statePosteriors2;
+    String<String<String<double> > > statePosteriors1;
+    String<String<String<double> > > statePosteriors2;
     resize(statePosteriors1, 2, Exact());
     resize(statePosteriors2, 2, Exact());
     for (unsigned s = 0; s < 2; ++s)
@@ -925,11 +920,11 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d
     }
 
     // truncation counts
-    bin1.updateP(statePosteriors1, this->setObs, options); 
-    bin2.updateP(statePosteriors2, this->setObs, options);
+    modelParams.bin1.updateP(statePosteriors1, this->setObs, options); 
+    modelParams.bin2.updateP(statePosteriors2, this->setObs, options);
 
     // make sure bin1.p < bin2.p   
-    checkOrderBin1Bin2(bin1, bin2);
+    checkOrderBin1Bin2(modelParams.bin1, modelParams.bin2);
 
     return true;
 }
@@ -938,19 +933,19 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::updateDensityParams(TGAMMA /*&d1*/, TGAMMA /*&d
 
 // Baum-Welch
 // in log-space (using log-sum-exp trick)
-template<typename TGAMMA, typename TBIN, typename TDOUBLE> 
-bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, CharString learnTag, AppOptions &options)
+template<typename TGAMMA, typename TBIN> 
+bool HMM<TGAMMA, TBIN>::baumWelch(ModelParams<TGAMMA, TBIN> &modelParams, CharString learnTag, AppOptions &options)
 {
-    TGAMMA prev_d1 = d1;
-    TGAMMA prev_d2 = d2;
-    TBIN prev_bin1 = bin1;
-    TBIN prev_bin2 = bin2;
+    TGAMMA prev_gamma1 = modelParams.gamma1;
+    TGAMMA prev_gamma2 = modelParams.gamma2;
+    TBIN prev_bin1 = modelParams.bin1;
+    TBIN prev_bin2 = modelParams.bin2;
     unsigned trial = 0;
     for (unsigned iter = 0; iter < options.maxIter_bw; ++iter)
     {
         std::cout << ".. " << iter << "th iteration " << std::endl;
         std::cout << "                        computeEmissionProbs() " << std::endl;
-        if (!computeEmissionProbs(d1, d2, bin1, bin2, true, options) )
+        if (!computeEmissionProbs(modelParams, true, options) )
         {
             std::cerr << "ERROR: Could not compute emission probabilities! " << std::endl;
             return false;
@@ -966,7 +961,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, T
 
         if (learnTag == "LEARN_BINOMIAL")
         {
-            if (!updateDensityParams(d1, d2, bin1, bin2, options))
+            if (!updateDensityParams(modelParams, options))
             {
                 std::cerr << "ERROR: Could not update parameters! " << std::endl;
                 return false;
@@ -974,7 +969,7 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, T
         }
         else
         {
-            if (!updateDensityParams(d1, d2, iter, trial, options))
+            if (!updateDensityParams(modelParams.gamma1, modelParams.gamma2, iter, trial, options))
             {
                 std::cerr << "ERROR: Could not update parameters! " << std::endl;
                 return false;
@@ -987,23 +982,23 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, T
 
         }
         
-        if (learnTag == "LEARN_GAMMA" && checkConvergence(d1, prev_d1, options) && checkConvergence(d2, prev_d2, options) )             
+        if (learnTag == "LEARN_GAMMA" && checkConvergence(modelParams.gamma1, prev_gamma1, options) && checkConvergence(modelParams.gamma2, prev_gamma2, options) )             
         {
             std::cout << " **** Convergence ! **** " << std::endl;
             break;
         }
-        else if (learnTag != "LEARN_GAMMA" && checkConvergence(bin1, prev_bin1, options) && checkConvergence(bin2, prev_bin2, options) )             
+        else if (learnTag != "LEARN_GAMMA" && checkConvergence(modelParams.bin1, prev_bin1, options) && checkConvergence(modelParams.bin2, prev_bin2, options) )             
         {
             std::cout << " **** Convergence ! **** " << std::endl;
             break;
         }
-        prev_d1 = d1;
-        prev_d2 = d2;
-        prev_bin1 = bin1;
-        prev_bin2 = bin2;
+        prev_gamma1 = modelParams.gamma1;
+        prev_gamma2 = modelParams.gamma2;
+        prev_bin1 = modelParams.bin1;
+        prev_bin2 = modelParams.bin2;
 
-        myPrint(d1);
-        myPrint(d2);
+        myPrint(modelParams.gamma1);
+        myPrint(modelParams.gamma2);
         
         std::cout << "*** Transition probabilitites ***" << std::endl;
         for (unsigned k_1 = 0; k_1 < this->K; ++k_1)
@@ -1016,18 +1011,18 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::baumWelch(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, T
         std::cout << std::endl;
         if (learnTag != "LEARN_GAMMA")
          {
-            myPrint(bin1);
-            myPrint(bin2);
+            myPrint(modelParams.bin1);
+            myPrint(modelParams.bin2);
         }
     }
     return true;
 }
 
 
-template<typename TGAMMA, typename TBIN, typename TDOUBLE> 
-bool HMM<TGAMMA, TBIN, TDOUBLE>::applyParameters(TGAMMA &d1, TGAMMA &d2, TBIN &bin1, TBIN &bin2, AppOptions &options)
+template<typename TGAMMA, typename TBIN> 
+bool HMM<TGAMMA, TBIN>::applyParameters(ModelParams<TGAMMA, TBIN> &modelParams, AppOptions &options)
 {
-    if (!computeEmissionProbs(d1, d2, bin1, bin2, false, options))
+    if (!computeEmissionProbs(modelParams, false, options))
     {
         std::cerr << "ERROR: Could not compute emission probabilities! " << std::endl;
         return false;
@@ -1041,81 +1036,9 @@ bool HMM<TGAMMA, TBIN, TDOUBLE>::applyParameters(TGAMMA &d1, TGAMMA &d2, TBIN &b
 }
 
 
-// log-space
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-long double HMM<TGAMMA, TBIN, TDOUBLE>::viterbi(String<String<String<__uint8> > > &states)
-{
-    long double p = 0.0;
-    for (unsigned s = 0; s < 2; ++s)
-    {
-        resize(states[s], length(this->setObs[s]), Exact());
-        for (unsigned i = 0; i < length(this->setObs[s]); ++i)
-        {
-            if (!this->setObs[s][i].discard)
-            {
-                resize(states[s][i], this->setObs[s][i].length(), Exact());
-                // store for each t and state maximizing precursor joint probability of state sequence and observation
-                String<String<long double> > vits;
-                resize(vits, this->setObs[s][i].length(), Exact());
-                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-                    resize(vits[t], this->K, Exact());
-                // store for each t and state maximizing precursor state
-                String<String<unsigned> > track;
-                resize(track, this->setObs[s][i].length(), Exact());
-                for (unsigned t = 0; t < this->setObs[s][i].length(); ++t)
-                    resize(track[t], this->K, Exact());
 
-                // SEQAN_ASSERT_GT( ,0.0) or <- DBL_MIN
-
-                // initialize
-                for (unsigned k = 0; k < this->K; ++k)
-                    vits[0][k] = log(this->initProbs[s][i][k]) + log(this->eProbs[s][i][0][k]);
-                // recursion
-                for (unsigned t = 1; t < this->setObs[s][i].length(); ++t)
-                {
-                    for (unsigned k = 0; k < this->K; ++k)
-                    {
-                        long double max_v = vits[t-1][0] + log(this->transMatrix[0][k]);
-                        unsigned max_k = 0;
-                        for (unsigned k_p = 1; k_p < this->K; ++k_p)
-                        {
-                            double v = vits[t-1][k_p] + log(this->transMatrix[k_p][k]);
-                            if (v > max_v)
-                            {
-                                max_v = v;
-                                max_k = k_p;
-                            }
-                        }
-                        vits[t][k] = max_v + log(this->eProbs[s][i][t][k]);
-                        track[t][k] = max_k;
-                    }
-                }
-                // backtracking
-                long double max_v = vits[this->setObs[s][i].length() - 1][0];
-                unsigned max_k = 0;
-                for (unsigned k = 1; k < this->K; ++k)
-                {
-                    if (vits[this->setObs[s][i].length() - 1][k] >= max_v)
-                    {
-                        max_v = vits[this->setObs[s][i].length() - 1][k];
-                        max_k = k;
-                    }
-                }
-                states[s][i][this->setObs[s][i].length() - 1] = max_k;
-                for (int t = this->setObs[s][i].length() - 2; t >= 0; --t)
-                    states[s][i][t] = track[t+1][states[s][i][t+1]];
-
-                p += max_v;
-            }
-        }
-    }
-    // NOTE p: of all sites, not only selected for parameter fitting, not necessarly increases!
-    return p;        
-}
-
-
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-void HMM<TGAMMA, TBIN, TDOUBLE>::posteriorDecoding(String<String<String<__uint8> > > &states)
+template<typename TGAMMA, typename TBIN>
+void HMM<TGAMMA, TBIN>::posteriorDecoding(String<String<String<__uint8> > > &states)
 { 
     for (unsigned s = 0; s < 2; ++s)
     {
@@ -1138,15 +1061,37 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::posteriorDecoding(String<String<String<__uint8>
                         }
                     }
                     states[s][i][t] = max_k;
-                    if (s==0 && (t + this->setPos[s][i] - 1 == 22418895) )
+                }
+            }
+        }
+    }
+}
+
+
+void rmBoarderArtifacts2(String<String<String<__uint8> > > &states, 
+                         String<String<Observations> > &setObs, 
+                         String<Data> &data_replicates,
+                         String<ModelParams<GAMMA_REG, ZTBIN> > &modelParams)
+{
+    for (unsigned s = 0; s < 2; ++s)
+    {
+        for (unsigned i = 0; i < length(data_replicates[0].setObs[s]); ++i)
+        {
+            if (!data_replicates[0].setObs[s][i].discard)
+            {
+                for (unsigned t = 0; t < data_replicates[0].setObs[s][i].length(); ++t)
+                {
+                    if (states[s][i][t] >= 2)
                     {
-                        std::cout << "State posterior probs" << std::endl;
-                        std::cout << "k: 0  " << this->statePosteriors[s][0][i][t] << std::endl;
-                        std::cout << "k: 1  " << this->statePosteriors[s][1][i][t] << std::endl;
-                        std::cout << "k: 2  " << this->statePosteriors[s][2][i][t] << std::endl;
-                        std::cout << "k: 3  " << this->statePosteriors[s][3][i][t] << std::endl;
-                        std::cout << "max k  " << (int)states[s][i][t] << std::endl;
-                        
+                        double x1 = data_replicates[0].setObs[s][i].rpkms[t];   // same for all replicates
+                        bool rm = true;
+                        // rm if not > gamma1 expected value in all replicates
+                        for (unsigned rep = 0; rep < length(data_replicates); ++rep)
+                        {
+                            double gamma1_pred = exp(modelParams[rep].gamma1.b0 + modelParams[rep].gamma1.b1 * x1);
+                            if (data_replicates[rep].setObs[s][i].kdes[t] > gamma1_pred) rm = false;
+                        }
+                        if (rm) states[s][i][t] -= 2;
                     }
                 }
             }
@@ -1154,43 +1099,58 @@ void HMM<TGAMMA, TBIN, TDOUBLE>::posteriorDecoding(String<String<String<__uint8>
     }
 }
 
-
-template<typename TDOUBLE>
-void rmBoarderArtifacts2(String<String<String<__uint8> > > &states, String<String<Observations> > &setObs, GAMMA2_REG<TDOUBLE> &g1)
+void rmBoarderArtifacts2(String<String<String<__uint8> > > &states, 
+                         String<String<Observations> > &setObs, 
+                         String<Data> &data_replicates,
+                         String<ModelParams<GAMMA_REG, ZTBIN_REG> > &modelParams)
 {
-    double b0 = g1.b0;
-    double b1 = g1.b1;
     for (unsigned s = 0; s < 2; ++s)
     {
-        for (unsigned i = 0; i < length(setObs[s]); ++i)
+        for (unsigned i = 0; i < length(data_replicates[0].setObs[s]); ++i)
         {
-            if (!setObs[s][i].discard)
+            if (!data_replicates[0].setObs[s][i].discard)
             {
-                for (unsigned t = 0; t < setObs[s][i].length(); ++t)
+                for (unsigned t = 0; t < data_replicates[0].setObs[s][i].length(); ++t)
                 {
-                    double x1 = setObs[s][i].rpkms[t];
-                    double g1_pred = exp(b0 + b1 * x1);
-                    if (states[s][i][t] >= 2 && setObs[s][i].kdes[t] < g1_pred)
-                        states[s][i][t] -= 2;
+                    if (states[s][i][t] >= 2)
+                    {
+                        double x1 = data_replicates[0].setObs[s][i].rpkms[t];   // same for all replicates
+                        bool rm = true;
+                        // rm if not > gamma1 expected value in all replicates
+                        for (unsigned rep = 0; rep < length(data_replicates); ++rep)
+                        {
+                            double gamma1_pred = exp(modelParams[rep].gamma1.b0 + modelParams[rep].gamma1.b1 * x1);
+                            if (data_replicates[rep].setObs[s][i].kdes[t] > gamma1_pred) rm = false;
+                        }
+                        if (rm) states[s][i][t] -= 2;
+                    }
                 }
             }
         }
     }
 }
 
-template<typename TDOUBLE>
-void rmBoarderArtifacts2(String<String<String<__uint8> > > &states, String<String<Observations> > &setObs, GAMMA2<TDOUBLE> &g1)
-{
-    // do nothing
-}
+// do nothing
+void rmBoarderArtifacts2(String<String<String<__uint8> > > &states, 
+                         String<String<Observations> > &setObs, 
+                         String<Data> &data_replicates, 
+                         String<ModelParams<GAMMA, ZTBIN> > &modelParams){}
+
+void rmBoarderArtifacts2(String<String<String<__uint8> > > &states, 
+                         String<String<Observations> > &setObs, 
+                         String<Data> &data_replicates, 
+                         String<ModelParams<GAMMA, ZTBIN_REG> > &modelParams){}
+
 
 // for GLM with input signal: 
 // when using free gamma shapes, i.e. gamma1.k can be > gamma2.k
 // make sure sites with fragment coverage (KDE) below gamma1.mean are classified as 'non-enriched'
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-void HMM<TGAMMA, TBIN, TDOUBLE>::rmBoarderArtifacts(String<String<String<__uint8> > > &states, TGAMMA &g1)
+template<typename TGAMMA, typename TBIN>
+void HMM<TGAMMA, TBIN>::rmBoarderArtifacts(String<String<String<__uint8> > > &states, 
+                                           String<Data> &data_replicates, 
+                                           String<ModelParams<TGAMMA, TBIN> > &modelParams)
 {
-    rmBoarderArtifacts2(states, this->setObs, g1);
+    rmBoarderArtifacts2(states, this->setObs, data_replicates, modelParams);
 }
 
 
@@ -1586,8 +1546,8 @@ void writeRegions(String<BedRecord<Bed6> > &bedRecords_regions,
 }
 
   
-template<typename TGAMMA, typename TBIN, typename TDOUBLE>
-void myPrint(HMM<TGAMMA, TBIN, TDOUBLE> &hmm)
+template<typename TGAMMA, typename TBIN>
+void myPrint(HMM<TGAMMA, TBIN> &hmm)
 {
     std::cout << "*** Transition probabilitites ***" << std::endl;
     for (unsigned k_1 = 0; k_1 < hmm.K; ++k_1)

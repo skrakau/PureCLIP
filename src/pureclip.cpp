@@ -53,29 +53,20 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     // Set short description, version, and date.
     setShortDescription(parser, "Protein-RNA interaction site detection ");
     setVersion(parser, "1.2.0");
-    setDate(parser, "November 2019");
+    setDate(parser, "January 2019");
 
     // Define usage line and long description.
     addUsageLine(parser, "[\\fIOPTIONS\\fP] <-i \\fIBAM FILE\\fP> <-bai \\fIBAI FILE\\fP> <-g \\fIGENOME FILE\\fP> <-o \\fIOUTPUT BED FILE\\fP> ");
     addDescription(parser, "Protein-RNA interaction site detection using a non-homogeneous HMM.");
 
-    // rep1
-    addOption(parser, ArgParseOption("i", "in", "Target bam file (rep1).", ArgParseArgument::INPUT_FILE));
+    // rep1 [rep2]
+    addOption(parser, ArgParseOption("i", "in", "Target bam files.", ArgParseArgument::INPUT_FILE, "BAM", true));
     setValidValues(parser, "in", ".bam");
     setRequired(parser, "in", true);
 
-    addOption(parser, ArgParseOption("bai", "bai", "Target bam index file (rep1).", ArgParseArgument::INPUT_FILE));
+    addOption(parser, ArgParseOption("bai", "bai", "Target bam index files.", ArgParseArgument::INPUT_FILE, "BAI", true));
     setValidValues(parser, "bai", ".bai");
     setRequired(parser, "bai", true);
-    // rep2
-    addOption(parser, ArgParseOption("i2", "in2", "Target bam file (rep2).", ArgParseArgument::INPUT_FILE));
-    setValidValues(parser, "in2", ".bam");
-    setRequired(parser, "in2", true);
-
-    addOption(parser, ArgParseOption("bai2", "bai2", "Target bam index file (rep2).", ArgParseArgument::INPUT_FILE));
-    setValidValues(parser, "bai2", ".bai");
-    setRequired(parser, "bai2", true);
-
 
     addOption(parser, ArgParseOption("g", "genome", "Genome reference file.", ArgParseArgument::INPUT_FILE));
     setValidValues(parser, "genome", ".fa .fasta");
@@ -227,12 +218,24 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     if (res != ArgumentParser::PARSE_OK)
         return res;
 
-    resize(options.bamFileNames, 2);
-    resize(options.baiFileNames, 2);
-    getOptionValue(options.bamFileNames[0], parser, "in");
-    getOptionValue(options.baiFileNames[0], parser, "bai");
-    getOptionValue(options.bamFileNames[1], parser, "in2");
-    getOptionValue(options.baiFileNames[1], parser, "bai2");
+    unsigned repNo = getOptionValueCount(parser, "in");
+    if (repNo != getOptionValueCount(parser, "bai"))
+    {
+        std::cout << "ERROR: currently only support for <= 2 replicates!" << std::endl;
+        return ArgumentParser::PARSE_ERROR;
+    }
+    if (repNo != getOptionValueCount(parser, "bai"))
+    {
+        std::cout << "ERROR: number of BAI files must be the same as of BAM files!" << std::endl;
+        return ArgumentParser::PARSE_ERROR;
+    }
+    resize(options.bamFileNames, repNo);
+    resize(options.baiFileNames, repNo);
+    for (unsigned i = 0; i < repNo; ++i)
+    {
+        getOptionValue(options.bamFileNames[i], parser, "in", i);
+        getOptionValue(options.baiFileNames[i], parser, "bai", i);
+    }
 
     getOptionValue(options.refFileName, parser, "genome");
     getOptionValue(options.outFileName, parser, "out");
@@ -343,22 +346,16 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
         options.verbosity = 3;
 
 
-    //if (isSet(parser, "enk"))
-    //    options.estimateNfromKdes = true;
-    //if (isSet(parser, "ulr"))
-    //    options.useLogRPKM = true;
     //if (isSet(parser, "dis"))
     //    options.discardSingletonIntervals = true;
-    //getOptionValue(options.binSize, parser, "bins");
     getOptionValue(options.applyChr_str, parser, "chr");
 
     return ArgumentParser::PARSE_OK;
 }
 
 
-
-template <typename TDOUBLE, typename TOptions>
-bool doIt(TDOUBLE /**/, TOptions &options)
+template <typename TOptions>
+bool doIt(TOptions &options)
 {
     unsigned repNo = length(options.baiFileNames);
     
@@ -367,85 +364,67 @@ bool doIt(TDOUBLE /**/, TOptions &options)
 
     if (options.useCov_RPKM)
     {
-        GAMMA2_REG<TDOUBLE> gamma1; 
-        GAMMA2_REG<TDOUBLE> gamma2;
-
-        // for each replicate
-        String<GAMMA2_REG<TDOUBLE> > gamma1_replicates;
-        String<GAMMA2_REG<TDOUBLE> > gamma2_replicates;
-        resize(gamma1_replicates, repNo, gamma1);
-        resize(gamma2_replicates, repNo, gamma2);
 
         if (options.useFimoScore)
-        {
-            ZTBIN_REG<TDOUBLE> bin1;
-            ZTBIN_REG<TDOUBLE> bin2;
-            bin1.b0 = log(options.p1/(1.0 - options.p1));            
-            bin2.b0 = log(options.p2/(1.0 - options.p2)); 
-            resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
+        { 
+            ModelParams<GAMMA_REG, ZTBIN_REG> modelParams;
+            modelParams.gamma1.tp = options.useKdeThreshold;
+            modelParams.gamma2.tp = options.useKdeThreshold; 
+            modelParams.bin1.b0 = log(options.p1/(1.0 - options.p1)); 
+            modelParams.bin2.b0 = log(options.p2/(1.0 - options.p2));
+            resize(modelParams.bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
+            resize(modelParams.bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
+            // for each replicate
+            String<ModelParams<GAMMA_REG, ZTBIN_REG> > modelParams_reps;
+            resize(modelParams_reps, repNo, modelParams);
 
-            String<ZTBIN_REG<TDOUBLE> > bin1_replicates;
-            String<ZTBIN_REG<TDOUBLE> > bin2_replicates;
-            resize(bin1_replicates, repNo, bin1);
-            resize(bin2_replicates, repNo, bin2);            
-            return doIt(gamma1_replicates, gamma2_replicates, bin1_replicates, bin2_replicates, (TDOUBLE)0.0, options);  
+            return doIt(modelParams_reps, options);  
         }
         else
         {
-            ZTBIN<TDOUBLE> bin1;
-            ZTBIN<TDOUBLE> bin2;
-            bin1.p = options.p1;            
-            bin2.p = options.p2; 
+            ModelParams<GAMMA_REG, ZTBIN> modelParams;
+            modelParams.gamma1.tp = options.useKdeThreshold;
+            modelParams.gamma2.tp = options.useKdeThreshold;             
+            modelParams.bin1.p = options.p1; 
+            modelParams.bin2.p = options.p2;
+            // for each replicate
+            String<ModelParams<GAMMA_REG, ZTBIN> > modelParams_reps;
+            resize(modelParams_reps, repNo, modelParams);
 
-            String<ZTBIN<TDOUBLE> > bin1_replicates;
-            String<ZTBIN<TDOUBLE> > bin2_replicates;
-            resize(bin1_replicates, repNo, bin1);
-            resize(bin2_replicates, repNo, bin2); 
-            return doIt(gamma1_replicates, gamma2_replicates, bin1_replicates, bin2_replicates, (TDOUBLE)0.0, options);  
+            return doIt(modelParams_reps, options);  
         }
     }
     else
     {
-        GAMMA2<TDOUBLE> gamma1;           
-        GAMMA2<TDOUBLE> gamma2;
-
-        String<GAMMA2<TDOUBLE> > gamma1_replicates;
-        String<GAMMA2<TDOUBLE> > gamma2_replicates;
-        resize(gamma1_replicates, repNo, gamma1);
-        resize(gamma2_replicates, repNo, gamma2);
-
         options.g1_kMax = 1.0;
         if (options.verbosity > 1) std::cout << "Note: set max. value of g1.k (shape parameter of 'non-enriched' gamma distribution) to 1.0." << std::endl;
 
         if (options.useFimoScore)
         {
-            ZTBIN_REG<TDOUBLE> bin1;
-            ZTBIN_REG<TDOUBLE> bin2;
+            ModelParams<GAMMA, ZTBIN_REG> modelParams;
+            modelParams.gamma1.tp = options.useKdeThreshold;
+            modelParams.gamma2.tp = options.useKdeThreshold;             
+            modelParams.bin1.b0 = log(options.p1/(1.0 - options.p1)); 
+            modelParams.bin2.b0 = log(options.p2/(1.0 - options.p2));
+            resize(modelParams.bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
+            resize(modelParams.bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
+            // for each replicate
+            String<ModelParams<GAMMA, ZTBIN_REG> > modelParams_reps;
+            resize(modelParams_reps, repNo, modelParams);
 
-            bin1.b0 = log(options.p1/(1.0 - options.p1));            
-            bin2.b0 = log(options.p2/(1.0 - options.p2)); 
-            resize(bin1.regCoeffs, options.nInputMotifs, 0.0, Exact());
-            resize(bin2.regCoeffs, options.nInputMotifs, 0.0, Exact());
-
-            String<ZTBIN_REG<TDOUBLE> > bin1_replicates;
-            String<ZTBIN_REG<TDOUBLE> > bin2_replicates;
-            resize(bin1_replicates, repNo, bin1);
-            resize(bin2_replicates, repNo, bin2); 
-            return doIt(gamma1_replicates, gamma2_replicates, bin1_replicates, bin2_replicates, (TDOUBLE)0.0, options);  
+            return doIt(modelParams_reps, options);  
         }
         else
         {
-            ZTBIN<TDOUBLE> bin1;
-            ZTBIN<TDOUBLE> bin2;
-            bin1.p = options.p1;            
-            bin2.p = options.p2; 
-
-            String<ZTBIN<TDOUBLE> > bin1_replicates;
-            String<ZTBIN<TDOUBLE> > bin2_replicates;
-            resize(bin1_replicates, repNo, bin1);
-            resize(bin2_replicates, repNo, bin2); 
-            return doIt(gamma1_replicates, gamma2_replicates, bin1_replicates, bin2_replicates, (TDOUBLE)0.0, options);  
+            ModelParams<GAMMA, ZTBIN> modelParams;
+            modelParams.gamma1.tp = options.useKdeThreshold;
+            modelParams.gamma2.tp = options.useKdeThreshold;             
+            modelParams.bin1.p = options.p1; 
+            modelParams.bin2.p = options.p2;
+            // for each replicate
+            String<ModelParams<GAMMA, ZTBIN> > modelParams_reps;
+            resize(modelParams_reps, repNo, modelParams);
+            return doIt(modelParams_reps, options); 
         }
     }
 }
@@ -475,17 +454,13 @@ int main(int argc, char const ** argv)
                   << "VERBOSITY\t" << options.verbosity << "\n\n";
     }*/
     /////////////////////////////////////////
-    // use parameter
-    if (options.useHighPrecision)
-    {
-        return doIt((long double)0.0, options);
-    }
-    else
-    {
-        return doIt((double)0.0, options);
-    }  
+#if SEQAN_HAS_ZLIB
+    if (options.verbosity > 1) std::cout << "SEQAN_HAS_ZLIB" << std::endl;
+#else
+    std::cout << "WARNING: zlib not available !" << std::endl;
+#endif
 
-    return 0;
+    return doIt(options);
 }
 
 

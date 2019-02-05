@@ -48,7 +48,6 @@ using namespace seqan;
 ////////
 // P = (k-1)/(n-1) ?
 
-template<typename TDOUBLE>
 class ZTBIN_REG
 {
 public:
@@ -58,8 +57,8 @@ public:
     long double getDensity(unsigned const &k, unsigned const &n, long double const &pred, AppOptions const& options);
     long double getDensity(unsigned const &k, unsigned const &n, AppOptions const& options);
 
-    void updateP(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options);
-    void updateRegCoeffs(String<String<String<TDOUBLE> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const&options);
+    void updateP(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const& options);
+    void updateRegCoeffs(String<String<String<double> > > &statePosteriors, String<String<Observations> > &setObs, AppOptions const&options);
 
     long double b0;   // intercept
     String<long double> regCoeffs;
@@ -68,10 +67,9 @@ public:
 
 // Functor for Brent's algorithm: find regression coefficients
 // for given motif m; optimize b_m
-template<typename TDOUBLE>
 struct FctLL_ZTBIN_REG
 {
-    FctLL_ZTBIN_REG(long double const& b0_, char const& m_, String<String<String<TDOUBLE> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : b0(b0_), m(m_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
+    FctLL_ZTBIN_REG(long double const& b0_, char const& m_, String<String<String<double> > > const& statePosteriors_,  String<String<Observations> > &setObs_, AppOptions const&options_) : b0(b0_), m(m_), statePosteriors(statePosteriors_), setObs(setObs_), options(options_)
     { 
     }
     double operator()(double const& b)
@@ -117,14 +115,13 @@ struct FctLL_ZTBIN_REG
 private:
     long double b0;
     char m;     // motif ID
-    String<String<String<TDOUBLE> > > statePosteriors;
+    String<String<String<double> > > statePosteriors;
     String<String<Observations> > &setObs;
     AppOptions options;
 };
 
 
-template<typename TDOUBLE>
-void ZTBIN_REG<TDOUBLE>::updateRegCoeffs(String<String<String<TDOUBLE> > > &statePosteriors, 
+void ZTBIN_REG::updateRegCoeffs(String<String<String<double> > > &statePosteriors, 
                          String<String<Observations> > &setObs, 
                          AppOptions const&options)
 { 
@@ -137,7 +134,7 @@ void ZTBIN_REG<TDOUBLE>::updateRegCoeffs(String<String<String<TDOUBLE> > > &stat
     // for each input motif learn independent regCoeff (each position only one motif match with score assigned)
     for (unsigned char m = 0; m < options.nInputMotifs; ++m)
     {
-        FctLL_ZTBIN_REG<TDOUBLE> fct_ZTBIN_REG(this->b0, m, statePosteriors, setObs, options);
+        FctLL_ZTBIN_REG fct_ZTBIN_REG(this->b0, m, statePosteriors, setObs, options);
         std::pair<long double, long double> res = boost::math::tools::brent_find_minima(fct_ZTBIN_REG, bMin, bMax, bits, maxIter);         
         this->regCoeffs[m] = res.first;
     }
@@ -146,8 +143,7 @@ void ZTBIN_REG<TDOUBLE>::updateRegCoeffs(String<String<String<TDOUBLE> > > &stat
 
 
 // use truncCounts
-template<typename TDOUBLE>
-void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteriors, 
+void ZTBIN_REG::updateP(String<String<String<double> > > &statePosteriors, 
                   String<String<Observations> > &setObs, AppOptions const& options)
 {
     long double sum1 = 0.0;
@@ -165,7 +161,7 @@ void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteri
                     unsigned n = (setObs[s][i].nEstimates[t] > setObs[s][i].truncCounts[t]) ? (setObs[s][i].nEstimates[t]) : (setObs[s][i].truncCounts[t]);      
                     if (((long double)(k) / (long double)(n)) <= options.maxkNratio)
                     {
-                        sum1 += statePosteriors[s][i][t] * ((TDOUBLE)(k - 1) / (TDOUBLE)(n - 1));        
+                        sum1 += statePosteriors[s][i][t] * ((double)(k - 1)/(double)(n - 1));        
                         sum2 += statePosteriors[s][i][t];
                     }
                  }
@@ -181,8 +177,7 @@ void ZTBIN_REG<TDOUBLE>::updateP(String<String<String<TDOUBLE> > > &statePosteri
 
 
 // k: diagnostic events (de); n: read counts (c)
-template<typename TDOUBLE> 
-long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, long double const &pred, AppOptions const& options)
+long double ZTBIN_REG::getDensity(unsigned const &k, unsigned const &n, long double const &pred, AppOptions const& options)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
@@ -203,8 +198,7 @@ long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n,
     return res * (long double)(1.0/(1.0 - pow((1.0 - (long double)pred), n2)));     // zero-truncated      TODO ???
 }
 
-template<typename TDOUBLE> 
-long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n, AppOptions const&options)
+long double ZTBIN_REG::getDensity(unsigned const &k, unsigned const &n, AppOptions const&options)
 {
     if (k == 0) return 0.0;     // zero-truncated
 
@@ -228,8 +222,7 @@ long double ZTBIN_REG<TDOUBLE>::getDensity(unsigned const &k, unsigned const &n,
 }
 
 
-template<typename TDOUBLE>
-void myPrint(ZTBIN_REG<TDOUBLE> &bin)
+void myPrint(ZTBIN_REG &bin)
 {
     std::cout << "*** ZTBIN_REG ***" << std::endl;
     std::cout << "    p (0):"<< (1.0/(1.0+exp(-bin.b0))) << std::endl;
@@ -242,8 +235,8 @@ void myPrint(ZTBIN_REG<TDOUBLE> &bin)
 }
 
 
-template<typename TOut, typename TDOUBLE>
-void printParams(TOut &out, ZTBIN_REG<TDOUBLE> &bin, int i)
+template<typename TOut>
+void printParams(TOut &out, ZTBIN_REG &bin, int i)
 {
     out << "bin" << i << ".b0" << '\t' << bin.b0 << std::endl;
 
@@ -253,8 +246,7 @@ void printParams(TOut &out, ZTBIN_REG<TDOUBLE> &bin, int i)
 }
 
 
-template<typename TDOUBLE>
-bool checkConvergence(ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, AppOptions &options)
+bool checkConvergence(ZTBIN_REG &bin1, ZTBIN_REG &bin2, AppOptions &options)
 {
     if (std::fabs(bin1.b0 - bin2.b0) > options.bin_p_conv) return false;
     
@@ -265,8 +257,7 @@ bool checkConvergence(ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2, AppOpt
 }
 
 
-template<typename TDOUBLE>
-void checkOrderBin1Bin2(ZTBIN_REG<TDOUBLE> &bin1, ZTBIN_REG<TDOUBLE> &bin2)
+void checkOrderBin1Bin2(ZTBIN_REG &bin1, ZTBIN_REG &bin2)
 {
     if (bin1.b0 > bin2.b0)
         std::swap(bin1.b0, bin2.b0); 
