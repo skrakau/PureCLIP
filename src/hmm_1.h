@@ -1154,18 +1154,37 @@ void HMM<TGAMMA, TBIN>::rmBoarderArtifacts(String<String<String<__uint8> > > &st
 }
 
 
+double getCrosslinkSiteScore(double postProb0, double postProb1, double postProb2, double postProb3, unsigned score_type)
+{
+    if (score_type == 1)        // log(3/2) "crosslink focussed"
+    {
+        return (double)log(postProb3/std::max(postProb2, DBL_MIN));
+    }
+    else if (score_type == 2)   // log(3/1) "enrichment focussed"
+    {
+        return (double)log(postProb3/std::max(postProb1, DBL_MIN));
+    }                  
+    else if (score_type == 3)   // log(enriched/non-enriched) + log(crosslinked/non-crosslinked) "balanced"
+    {
+        return ((double)log((postProb2 + postProb3)/std::max(postProb0 + postProb1, DBL_MIN)) + (double)log((postProb1 + postProb3)/std::max(postProb0 + postProb2, DBL_MIN)));
+    }
+    else                                // log posterior prob. ratio: log(best/second best) default
+    {
+        double secondBest = postProb2;
+        secondBest = std::max(secondBest, postProb1);
+        secondBest = std::max(secondBest, postProb0);
+        return (double)log(postProb3/std::max(secondBest, DBL_MIN));
+    }
+}
+
+
+
 void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                  Data &data,
                  FragmentStore<> &store, 
                  unsigned contigId,
                  AppOptions &options)          
 { 
-    long double min_val;
-    if (!options.useHighPrecision)
-        min_val = DBL_MIN;
-    else
-        min_val = LDBL_MIN;
-
     for (unsigned s = 0; s < 2; ++s)
     {
         for (unsigned i = 0; i < length(data.setObs[s]); ++i)    // data.states[s]
@@ -1203,48 +1222,7 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                     ss.str("");  
                     ss.clear();  
 
-                    if (options.score_type == 0)
-                    {
-                        // log posterior prob. ratio score
-                        long double secondBest = 0.0;
-                        for (unsigned k = 0; k < 4; ++k)
-                        {
-                            if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
-                                secondBest = data.statePosteriors[s][k][i][t];
-                        }      
-                        ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max((long double)secondBest, min_val));
-                    }
-                    else if (options.score_type == 1)
-                    {
-                        // log(3/2)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][2][i][t], min_val));
-                    }
-                    else if (options.score_type == 2)
-                    {
-                        // log(3/1)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][1][i][t], min_val));
-                    }
-                    else if (options.score_type == 3)
-                    {
-                        // log(3/0)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][0][i][t], min_val));
-                    }                    
-                    else if (options.score_type == 4)
-                    {
-                        // log(3/(1+2))  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][1][i][t] + (long double)data.statePosteriors[s][2][i][t], min_val));
-                    }
-                    else if (options.score_type == 5)
-                    {
-                        // 3 
-                        ss << (double)data.statePosteriors[s][3][i][t];
-                    }
-                    else if (options.score_type == 6)
-                    {
-                        // log(enriched/non-enriched) + log(crosslinked/non-crosslinked)  
-                        ss << ((double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/std::max((long double)data.statePosteriors[s][0][i][t] + (long double)data.statePosteriors[s][1][i][t], min_val)) + (double)log((data.statePosteriors[s][1][i][t] + data.statePosteriors[s][3][i][t])/std::max((long double)data.statePosteriors[s][0][i][t] + (long double)data.statePosteriors[s][2][i][t], min_val))) ;
-                    }
-
+                    ss << getCrosslinkSiteScore(data.statePosteriors[s][0][i][t], data.statePosteriors[s][1][i][t], data.statePosteriors[s][2][i][t], data.statePosteriors[s][3][i][t], options.score_type);
                     record.score = ss.str();
                     ss.str("");  
                     ss.clear();  
@@ -1374,48 +1352,7 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                     ss.str("");  
                     ss.clear();  
 
-                    if (options.score_type == 0)
-                    {
-                        // log posterior prob. ratio score
-                        long double secondBest = 0.0;
-                        for (unsigned k = 0; k < 4; ++k)
-                        {
-                            if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
-                                secondBest = data.statePosteriors[s][k][i][t];
-                        }      
-                        ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
-                    }
-                    else if (options.score_type == 1)
-                    {
-                        // log(3/2)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][2][i][t], min_val));
-                    }
-                    else if (options.score_type == 2)
-                    {
-                        // log(3/1)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][1][i][t], min_val));
-                    }
-                    else if (options.score_type == 3)
-                    {
-                        // log(3/0)  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][0][i][t], min_val));
-                    }                    
-                    else if (options.score_type == 4)
-                    {
-                        // log(3/(1+2))  
-                        ss << (double)log(data.statePosteriors[s][3][i][t]/std::max((long double)data.statePosteriors[s][1][i][t] + (long double)data.statePosteriors[s][2][i][t], min_val));
-                    }
-                    else if (options.score_type == 5)
-                    {
-                        // 3 
-                        ss << (double)data.statePosteriors[s][3][i][t];
-                    }
-                    else if (options.score_type == 6)
-                    {
-                        // log(enriched/non-enriched) + log(crosslinked/non-crosslinked)  
-                        ss << ((double)log((data.statePosteriors[s][2][i][t] + data.statePosteriors[s][3][i][t])/std::max((long double)data.statePosteriors[s][0][i][t] + (long double)data.statePosteriors[s][1][i][t], min_val)) + (double)log((data.statePosteriors[s][1][i][t] + data.statePosteriors[s][3][i][t])/std::max((long double)data.statePosteriors[s][0][i][t] + (long double)data.statePosteriors[s][2][i][t], min_val))) ;
-                    }
-
+                    ss << getCrosslinkSiteScore(data.statePosteriors[s][0][i][t], data.statePosteriors[s][1][i][t], data.statePosteriors[s][2][i][t], data.statePosteriors[s][3][i][t], options.score_type);
                     record.score = ss.str();
                     ss.str("");  
                     ss.clear();  
@@ -1423,6 +1360,15 @@ void writeStates(String<BedRecord<Bed6> > &bedRecords_sites,
                         record.strand = '+';
                     else
                         record.strand = '-';
+
+                    ss << "[score_CL=" << getCrosslinkSiteScore(data.statePosteriors[s][0][i][t], data.statePosteriors[s][1][i][t], data.statePosteriors[s][2][i][t], data.statePosteriors[s][3][i][t], 1) << ";";
+                    ss << "score_E=" << getCrosslinkSiteScore(data.statePosteriors[s][0][i][t], data.statePosteriors[s][1][i][t], data.statePosteriors[s][2][i][t], data.statePosteriors[s][3][i][t], 2) << ";";
+                    ss << "score_B=" << getCrosslinkSiteScore(data.statePosteriors[s][0][i][t], data.statePosteriors[s][1][i][t], data.statePosteriors[s][2][i][t], data.statePosteriors[s][3][i][t], 3) << ";";
+                    ss << "score_UC=" << getCrosslinkSiteScore(data.statePosteriors[s][0][i][t], data.statePosteriors[s][1][i][t], data.statePosteriors[s][2][i][t], data.statePosteriors[s][3][i][t], 0) << "]";
+
+                    record.data = ss.str();
+                    ss.str("");  
+                    ss.clear();  
 
                     appendValue(bedRecords_sites, record);
                 }               
@@ -1438,12 +1384,6 @@ void writeRegions(String<BedRecord<Bed6> > &bedRecords_regions,
                  unsigned contigId,
                  AppOptions &options)          
 { 
-    long double min_val;
-    if (!options.useHighPrecision)
-        min_val = DBL_MIN;
-    else
-        min_val = LDBL_MIN;
-
     for (unsigned s = 0; s < 2; ++s)
     {
         for (unsigned i = 0; i < length(data.states[s]); ++i)
@@ -1473,30 +1413,16 @@ void writeRegions(String<BedRecord<Bed6> > &bedRecords_regions,
                         record.endPos = record.beginPos + 1;
                     }
 
-                    std::stringstream ss;
-
-                    // TODO use different scores
-                    // log posterior prob. ratio score
-                    long double secondBest = 0.0;
-                    for (unsigned k = 0; k < 4; ++k)
-                    {
-                        if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
-                            secondBest = data.statePosteriors[s][k][i][t];
-                    }
-                    ss << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
-
-                    record.score = ss.str();
-                    ss.str("");  
-                    ss.clear();  
                     if (s == 0)
                         record.strand = '+';
                     else
                         record.strand = '-';
 
                     unsigned prev_cs = t;
-                    long double scoresSum = (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
+                    double score = getCrosslinkSiteScore(data.statePosteriors[s][0][i][t], data.statePosteriors[s][1][i][t], data.statePosteriors[s][2][i][t], data.statePosteriors[s][3][i][t], options.score_type);
+                    double scoresSum = score;
                     std::stringstream ss_indivScores;
-                    ss_indivScores << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) ) << ';';
+                    ss_indivScores << score << ';';
                     while ((t+1) < length(data.states[s][i]) && (t+1-prev_cs) <= options.distMerge)
                     {
                         ++t;
@@ -1515,21 +1441,16 @@ void writeRegions(String<BedRecord<Bed6> > &bedRecords_regions,
                                     record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]);
                                 else
                                     record.beginPos = length(store.contigStore[contigId].seq) - (t + data.setPos[s][i]) - 1;
-                            }
+                            }                
 
-                            // log posterior prob. ratio score
-                            long double secondBest = 0.0;
-                            for (unsigned k = 0; k < 4; ++k)
-                            {
-                                if (k != (unsigned)data.states[s][i][t] && data.statePosteriors[s][k][i][t] > secondBest)
-                                    secondBest = data.statePosteriors[s][k][i][t];
-                            }                   
-
-                            scoresSum += (long double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) );
-                            ss_indivScores << (double)log(data.statePosteriors[s][data.states[s][i][t]][i][t] / std::max(secondBest, min_val) ) << ';';
+                            score = getCrosslinkSiteScore(data.statePosteriors[s][0][i][t], data.statePosteriors[s][1][i][t], data.statePosteriors[s][2][i][t], data.statePosteriors[s][3][i][t], options.score_type);
+                            scoresSum += score;
+                            ss_indivScores << score << ';';
                             prev_cs = t;
                         }
                     }
+
+                    std::stringstream ss; 
                     ss << scoresSum;
                     record.score = ss.str();
                     ss.str("");  

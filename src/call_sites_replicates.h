@@ -348,5 +348,105 @@ bool HMM<TGAMMA, TBIN>::updateTransAndPostProbs(AppOptions &options)
 
 
 
+/////////////////////////////////////////////
+// TEST
+void setUp(String<Data> &data_replicates)
+{
+    resize(data_replicates, 2);
+
+    Data newData_rep1;
+    resize(newData_rep1.setObs, 2);
+    resize(newData_rep1.setPos, 2);
+    resize(newData_rep1.statePosteriors, 2);
+    resize(newData_rep1.states, 2);
+    Data newData_rep2 = newData_rep1;
+
+    unsigned no_t = 10;
+    Observations obsShort;
+    String<__uint16> truncs;
+    resize(truncs, 100, 0);    
+    obsShort.truncCounts = infix(truncs, 10, 20);
+    resize(obsShort.nEstimates, no_t, 0);
+    resize(obsShort.kdes, no_t, 0.0);
+    resize(obsShort.kdesN, no_t, 0.0);
+    obsShort.discard = false;
+    obsShort.contigId = 0;
+
+    no_t = 20;
+    Observations obsLong;
+    obsLong.truncCounts = infix(truncs, 10, 30);
+    resize(obsLong.nEstimates, no_t, 0);
+    resize(obsLong.kdes, no_t, 0.0);
+    resize(obsLong.kdesN, no_t, 0.0);
+    obsLong.discard = false;
+    obsLong.contigId = 0;
+
+    // ---    ---   ---        ----     ---  
+    //  ---        -----  ---   --    ---
+
+    for (unsigned s = 0; s < 2; ++s)
+    {
+        resize(newData_rep1.setObs[s], 5);
+        resize(newData_rep1.setPos[s], 5);  
+        resize(newData_rep2.setObs[s], 5);
+        resize(newData_rep2.setPos[s], 5);  
+    }
+
+    newData_rep1.setObs[0][0] = obsShort;
+    newData_rep1.setPos[0][0] = 100;
+    newData_rep1.setObs[0][1] = obsShort;
+    newData_rep1.setPos[0][1] = 200;
+    newData_rep1.setObs[0][2] = obsShort;
+    newData_rep1.setPos[0][2] = 300;
+    newData_rep1.setObs[0][3] = obsLong;
+    newData_rep1.setPos[0][3] = 500;
+    newData_rep1.setObs[0][4] = obsShort;
+    newData_rep1.setPos[0][4] = 600;
+
+    newData_rep2.setObs[0][0] = obsShort;
+    newData_rep2.setPos[0][0] = 105;
+    newData_rep2.setObs[0][1] = obsLong;
+    newData_rep2.setPos[0][1] = 295;
+    newData_rep2.setObs[0][2] = obsShort;
+    newData_rep2.setPos[0][2] = 400;    
+    newData_rep2.setObs[0][3] = obsShort;
+    newData_rep2.setPos[0][3] = 505;
+    newData_rep2.setObs[0][4] = obsShort;
+    newData_rep2.setPos[0][4] = 595;    
+
+    data_replicates[0] = newData_rep1;
+    data_replicates[1] = newData_rep2;
+}
+
+void check(String<Data> &data_replicates)
+{ 
+    std::cout << "Rep1: \t";
+    for (unsigned i = 0; i < length(data_replicates[0].setObs[0]); ++i)
+    {
+        std::cout << data_replicates[0].setPos[0][i] << " - " << (data_replicates[0].setPos[0][i] + data_replicates[0].setObs[0][i].length()) << "\t"; 
+    }
+    std::cout << std::endl;
+
+    std::cout << "Rep2: \t";
+    for (unsigned i = 0; i < length(data_replicates[1].setObs[0]); ++i)
+    {
+        std::cout << data_replicates[1].setPos[0][i] << " - " << (data_replicates[1].setPos[0][i] + data_replicates[1].setObs[0][i].length()) << "\t"; 
+    }
+    std::cout << std::endl;
+}
+
+void test_replicateIntersection()
+{
+    String<Data> data_replicates;
+    setUp(data_replicates);
+
+    check(data_replicates);
+    
+    intersect_replicateIntervals(data_replicates);
+
+    check(data_replicates);
+}
+// END TEST
+///////////////////////////////////////////// 
 
 #endif

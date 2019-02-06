@@ -914,7 +914,8 @@ bool learnModel(String<ModelParams<TGamma, TBIN> > &modelParams,
     ////////////////////////////////////////////////////
     for (unsigned rep = 0; rep < length(options.baiFileNames); ++rep)
     {
-        if (options.verbosity >= 1) std::cout << "Learn HMM parameters for replicate: " << rep << std::endl;
+        if (options.verbosity >= 1 && length(options.baiFileNames) == 1) std::cout << "Learn HMM parameters: " << std::endl;
+        else if (options.verbosity >= 1 && length(options.baiFileNames) > 1) std::cout << "Learn HMM parameters for replicate: " << rep << std::endl;
         
         // Read BAI index.
         BamIndex<Bai> baiIndex;
@@ -1019,7 +1020,9 @@ bool applyHMM(Data &newData,
     reserve(hmms_replicates, length(data_replicates));
     for (unsigned rep = 0; rep < length(data_replicates); ++rep)
     {
-        if (options.verbosity >= 1) std::cout << "Apply learned HMM for replicate: " << rep << std::endl;
+        if (options.verbosity >= 1 && length(options.baiFileNames) == 1) std::cout << "Apply learned HMM: " << std::endl;
+        else if (options.verbosity >= 1 && length(options.baiFileNames) > 1) std::cout << "Apply learned HMM for replicate: " << rep << std::endl;
+
         appendValue(hmms_replicates, HMM<TGAMMA, TBIN>(4, data_replicates[rep].setObs, data_replicates[rep].setPos, contigLen));
         auto & hmm = hmms_replicates[rep];
         hmm.transMatrix = modelParams[rep].transMatrix;
@@ -1030,7 +1033,7 @@ bool applyHMM(Data &newData,
     }
 
     // merge HMMs and multiply eProbs! (or if not multiple replicates: just using old HMM)
-    if (options.verbosity >= 1) std::cout << "Merge HMMs from replicates ... " << std::endl;
+    if (options.verbosity >= 1 && length(options.baiFileNames) > 1) std::cout << "Merge HMMs from replicates ... " << std::endl;
     HMM<TGAMMA, TBIN> mergedHmm = merge_HMMs(hmms_replicates, modelParams, options);
 
     if (length(options.baiFileNames) > 1)
@@ -1090,8 +1093,10 @@ bool applyModel(String<String<BedRecord<Bed6> > > &bedRecords_sites,
 
         for (unsigned rep = 0; rep < length(options.baiFileNames); ++rep)
         {
-            if (options.verbosity >= 1) std::cout << "Get preprocessed intervals for replicate: " << rep << std::endl;
+            if (options.verbosity >= 1 && length(options.baiFileNames) == 1) std::cout << "Get preprocessed intervals: " << std::endl;
+            else if (options.verbosity >= 1 && length(options.baiFileNames) > 1) std::cout << "Get preprocessed intervals for replicate: " << rep << std::endl;
             
+
             // for each replicate get preprocessed covered intervals
             int r = loadObservations(contigObservationsF[rep], contigObservationsR[rep], contigId, options.bamFileNames[rep], baiIndices[rep], store, options);
             if (r == 1)
@@ -1251,7 +1256,8 @@ bool doIt(String<ModelParams<TGamma, TBIN> > &modelParams, TOptions &options)
     out << std::endl;
     for (unsigned rep = 0; rep < length(options.baiFileNames); ++rep)
     {
-        out << "Parameter learned for replicate: " << rep << std::endl;
+        if (length(options.baiFileNames) == 1) out << "Parameter learned: " << std::endl;
+        else out << "Parameter learned for replicate: " << rep << std::endl;
         printParams(out, modelParams[rep].gamma1, 1);
         printParams(out, modelParams[rep].gamma2, 2);
         printParams(out, modelParams[rep].bin1, 1);

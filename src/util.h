@@ -303,7 +303,7 @@ namespace seqan {
         String<__uint32>    nEstimates;      
         String<double>      kdes;       // used for 'enriched'. 'non-enriched' classification
         String<double>      kdesN;    // used to estimate the binomial n parameters (decoupled, might be useful e.g. for longer crosslink clusters) 
-        String<double>      rpkms;      // TODO change name -> e.g. bgSignal
+        String<double>      rpkms;      // change name -> e.g. bgSignal
         String<float>       fimoScores; // for each t: one motif score
         String<char>        motifIds; // for each t: one motif score
         bool                discard;    // NOTE: only use for application, not for learning!

@@ -84,9 +84,9 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addSection(parser, "Options");
 
     addOption(parser, ArgParseOption("ctr", "ctr", "Assign crosslink sites to read start positions. Note: depends on RT enzyme, buffer conditions and likely on protein. Default: assign crosslink sites to positions upstream of read starts."));
-    addOption(parser, ArgParseOption("st", "st", "Score type.", ArgParseArgument::INTEGER));
+    addOption(parser, ArgParseOption("st", "st", "Scoring scheme. Default: 0 -> score_UC (log posterior probability ratio of most likely and second most likely state).", ArgParseArgument::INTEGER));
     setMinValue(parser, "st", "0");
-    setMaxValue(parser, "st", "6");
+    setMaxValue(parser, "st", "3");
 
     addOption(parser, ArgParseOption("iv", "inter", "Genomic chromosomes to learn HMM parameters, e.g. 'chr1;chr2;chr3'. Contigs have to be in the same order as in BAM file. Useful to reduce runtime and memory consumption. Default: all contigs from reference file are used (useful when applying to transcript-wise alignments or poor data).", ArgParseArgument::STRING));
     addOption(parser, ArgParseOption("chr", "chr", "Contigs to apply HMM, e.g. 'chr1;chr2;chr3;'. Contigs have to be in the same order as in BAM file.", ArgParseArgument::STRING));
@@ -135,7 +135,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     addOption(parser, ArgParseOption("upe", "upe", "Use (n dependent) pseudo emission probabilities for crosslink state."));
 
-    addOption(parser, ArgParseOption("vtb", "vtb", "Use Viterbi instead of posterior decoding."));
     addOption(parser, ArgParseOption("m", "mibr", "Maximum number of iterations within BRENT algorithm.", ArgParseArgument::INTEGER));
     setMinValue(parser, "mibr", "1");
     setMaxValue(parser, "mibr", "1000");
@@ -185,6 +184,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addOption(parser, ArgParseOption("nta", "nta", "Number of threads used for applying learned parameters. Increases memory usage, if greater than number of chromosomes used for learning, since HMM will be build for multiple chromosomes in parallel. Default: min(nt, no. of chromosomes/transcripts used for learning).", ArgParseArgument::INTEGER));
     addOption(parser, ArgParseOption("oa", "oa", "Outputs all sites with at least one read start in extended output format."));
     addOption(parser, ArgParseOption("oe", "oe", "Outputs additionally all sites that are 'enriched' and contain at least one read start."));
+    hideOption(parser, "oe");
 
     addOption(parser, ArgParseOption("q", "quiet", "Set verbosity to a minimum."));
     addOption(parser, ArgParseOption("v", "verbose", "Enable verbose output."));
@@ -210,7 +210,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     addListItem(parser, "\\fBpureclip\\fP \\fB-i target.bam\\fP \\fB-bai target.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP  \\fB-iv '1;2;3;'\\fP \\fB-bc 1\\fP ", "Use parameter settings for proteins causing larger crosslink clusters");
     addListItem(parser, "\\fBpureclip\\fP \\fB-i target.bam\\fP \\fB-bai target.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP  \\fB-iv '1;2;3;'\\fP \\fB-bc 1 -b2p 0.03\\fP ", "Use parameter settings for proteins causing larger crosslink clusters and decrease initial probability parameter for 'crosslink' state for data with high fraction of non-coinciding read starts.");
     addListItem(parser, "\\fBpureclip\\fP \\fB-i target.bam\\fP \\fB-bai target.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP  \\fB-iv '1;2;3;'\\fP \\fB-bdw 25\\fP ", "Use decreased bandwidth of 25 bp to access enrichment.");
-
+    addListItem(parser, "\\fBpureclip\\fP \\fB-i target.rep1.bam\\fP \\fB-i target.rep2.bam\\fP \\fB-bai target.rep1.bai\\fP \\fB-bai target.rep2.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP  \\fB-iv '1;2;3;'\\fP", "Include individual replicates.");
     // Parse command line.
     ArgumentParser::ParseResult res = parse(parser, argc, argv);
 
@@ -265,8 +265,6 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
 
     if (isSet(parser, "upe"))
         options.use_pseudoEProb = true;
-    if (isSet(parser, "vtb"))
-        options.posteriorDecoding = false;
     getOptionValue(options.maxIter_brent, parser, "mibr");
     getOptionValue(options.maxIter_bw, parser, "mibw");
     getOptionValue(options.g1_kMin, parser, "g1kmin");
