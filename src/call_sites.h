@@ -746,7 +746,7 @@ void extractCoveredIntervals(Data &data,
     }
     cleanCoveredIntervals(data, length(store.contigStore[contigId].seq), learning, options);
     if (options.verbosity >= 2) 
-        std::cout << " No. of remaining intervals after cleaning up: " << (length(data.setObs[0]) + length(data.setObs[1])) << std::endl;
+        std::cout << " No. of remaining intervals after cleaning up: " << (length(data.setObs[0]) + length(data.setObs[1])) << "   F: " << length(data.setObs[0]) << "   R: " << length(data.setObs[1]) << std::endl;
 }
 
 
@@ -834,7 +834,7 @@ void preproCoveredIntervals(Data &data, double &b0, double &b1, TBai &inputBaiIn
             else
                 data.setObs[s][i].estimateNs(options);
 
-            clear(data.setObs[s][i].kdesN);
+            clear(data.setObs[s][i].kdesN); // only used to estimate Ns
         }
     }
 
@@ -866,7 +866,7 @@ bool learnHMM(Data &data,
         std::cout << "Baum-Welch  ..." << std::endl;
     }
     CharString learnTag;
-    if (options.verbosity >= 1)  std::cout << "            learn binomial parameter" << std::endl;
+    if (options.verbosity >= 1)  std::cout << "            learn binomial parameter" << std::endl;      // in rare cases (with certain parameter combinations) beneficial to learn binomial parameters first
     learnTag = "LEARN_BINOMIAL"; 
     if (!hmm.baumWelch(modelParams, learnTag, options))
         return false;
@@ -885,7 +885,7 @@ bool learnHMM(Data &data,
     learnTag = "LEARN_GAMMA";
     if (!hmm.baumWelch(modelParams, learnTag, options))
         return false;
-
+    // TODO optimize!
 
     modelParams.transMatrix = hmm.transMatrix;
     data.statePosteriors = hmm.statePosteriors;
@@ -1026,7 +1026,7 @@ bool applyHMM(Data &newData,
         appendValue(hmms_replicates, HMM<TGAMMA, TBIN>(4, data_replicates[rep].setObs, data_replicates[rep].setPos, contigLen));
         auto & hmm = hmms_replicates[rep];
         hmm.transMatrix = modelParams[rep].transMatrix;
-        std::cout << "   applyParameters" << std::endl;        
+        if (options.verbosity >= 1) std::cout << "   applyParameters" << std::endl;
         if (!hmm.applyParameters(modelParams[rep], options))
              return false;
 
@@ -1081,6 +1081,7 @@ bool applyModel(String<String<BedRecord<Bed6> > > &bedRecords_sites,
     {
         unsigned contigId = options.applyChr_contigIds[i];
         unsigned contigLen = length(store.contigStore[contigId].seq);
+        bool skipContig = false;
 
         if (options.verbosity >= 1) std::cout << "  " << store.contigNameStore[contigId] << std::endl;
 
@@ -1099,9 +1100,15 @@ bool applyModel(String<String<BedRecord<Bed6> > > &bedRecords_sites,
 
             // for each replicate get preprocessed covered intervals
             int r = loadObservations(contigObservationsF[rep], contigObservationsR[rep], contigId, options.bamFileNames[rep], baiIndices[rep], store, options);
-            if (r == 1)
+            if (r == 1) // error
             {
+                SEQAN_OMP_PRAGMA(critical)
                 stop = true; 
+            }
+            else if (r == 2)    // no alignments (F & R) for one replicate, ignore contig
+            {
+                SEQAN_OMP_PRAGMA(critical)
+                skipContig = true; 
             }
             else if (r == 0)
             {
@@ -1127,14 +1134,20 @@ bool applyModel(String<String<BedRecord<Bed6> > > &bedRecords_sites,
                     preproCoveredIntervals(c_data, modelParams[rep].slr_NfromKDE_b0, modelParams[rep].slr_NfromKDE_b1, inputBaiIndex, store, false, options);
                     data_replicates[rep] = c_data;
                 }
+                else
+                {
+                    // if no covered regions remaining for one replicate, ignore contig
+                    SEQAN_OMP_PRAGMA(critical)
+                    skipContig = true;
+                }
             }
         }
-        if (stop) continue;
+        if (stop || skipContig) continue;
 
         // get intersection of covered intervals and clip individual observations
         if (length(options.baiFileNames) > 1)
         {
-            if (options.verbosity >= 1) std::cout << "Intersect covered intervals from replicates ... " << std::endl;
+            if (options.verbosity >= 1) std::cout << "Intersect covered intervals from replicates ... (contig: " << store.contigNameStore[contigId] << ")." << std::endl;
             intersect_replicateIntervals(data_replicates);
         }
         
@@ -1238,9 +1251,9 @@ bool doIt(String<ModelParams<TGamma, TBIN> > &modelParams, TOptions &options)
 #ifdef HMM_PROFILE
     Times::instance().time_all = sysTime() - timeStamp;
     std::cout << "  Time needed for all: " << Times::instance().time_all/60.0 << "min" << std::endl;
-    std::cout << "  Time needed for loadObservations: " << Times::instance().time_loadObservations/60.0 << "min" << std::endl;
-    std::cout << "  Time needed for learnHMM: " << Times::instance().time_learnHMM/60.0 << "min" << std::endl;
-    std::cout << "  Time needed for applyHMM: " << Times::instance().time_applyHMM/60.0 << "min" << std::endl;
+    //std::cout << "  Time needed for loadObservations: " << Times::instance().time_loadObservations/60.0 << "min" << std::endl;
+    //std::cout << "  Time needed for learnHMM: " << Times::instance().time_learnHMM/60.0 << "min" << std::endl;
+    //std::cout << "  Time needed for applyHMM: " << Times::instance().time_applyHMM/60.0 << "min" << std::endl;
 #endif
 
     CharString fileNameParams;

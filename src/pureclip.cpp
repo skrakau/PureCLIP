@@ -53,7 +53,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     // Set short description, version, and date.
     setShortDescription(parser, "Protein-RNA interaction site detection ");
     setVersion(parser, "1.2.0");
-    setDate(parser, "January 2019");
+    setDate(parser, "February 2019");
 
     // Define usage line and long description.
     addUsageLine(parser, "[\\fIOPTIONS\\fP] <-i \\fIBAM FILE\\fP> <-bai \\fIBAI FILE\\fP> <-g \\fIGENOME FILE\\fP> <-o \\fIOUTPUT BED FILE\\fP> ");
@@ -69,7 +69,7 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     setRequired(parser, "bai", true);
 
     addOption(parser, ArgParseOption("g", "genome", "Genome reference file.", ArgParseArgument::INPUT_FILE));
-    setValidValues(parser, "genome", ".fa .fasta");
+    setValidValues(parser, "genome", ".fa .fasta .fa.gz .fasta.gz");
     setRequired(parser, "genome", true);  
 
     addOption(parser, ArgParseOption("o", "out", "Output file to write crosslink sites.", ArgParseArgument::OUTPUT_FILE));
@@ -207,10 +207,11 @@ parseCommandLine(AppOptions & options, int argc, char const ** argv)
     // Add Examples Section.
     addTextSection(parser, "Examples");
     addListItem(parser, "\\fBpureclip\\fP \\fB-i target.bam\\fP \\fB-bai target.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP  \\fB-iv '1;2;3;'\\fP", "Learn HMM parameters on chromosomes 1-3, use 10 threads for learning and otherwise default parameters.");
+    addListItem(parser, "\\fBpureclip\\fP \\fB-i target.rep1.bam\\fP \\fB-bai target.rep1.bai\\fP \\fB-i target.rep2.bam\\fP \\fB-bai target.rep2.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP", "Include individual replicates (currently only supported for two), while learning parameters on whole datasets.");
     addListItem(parser, "\\fBpureclip\\fP \\fB-i target.bam\\fP \\fB-bai target.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP  \\fB-iv '1;2;3;'\\fP \\fB-bc 1\\fP ", "Use parameter settings for proteins causing larger crosslink clusters");
     addListItem(parser, "\\fBpureclip\\fP \\fB-i target.bam\\fP \\fB-bai target.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP  \\fB-iv '1;2;3;'\\fP \\fB-bc 1 -b2p 0.03\\fP ", "Use parameter settings for proteins causing larger crosslink clusters and decrease initial probability parameter for 'crosslink' state for data with high fraction of non-coinciding read starts.");
     addListItem(parser, "\\fBpureclip\\fP \\fB-i target.bam\\fP \\fB-bai target.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP  \\fB-iv '1;2;3;'\\fP \\fB-bdw 25\\fP ", "Use decreased bandwidth of 25 bp to access enrichment.");
-    addListItem(parser, "\\fBpureclip\\fP \\fB-i target.rep1.bam\\fP \\fB-i target.rep2.bam\\fP \\fB-bai target.rep1.bai\\fP \\fB-bai target.rep2.bai\\fP \\fB-g ref.fasta\\fP \\fB-o called_crosslinksites.bed\\fP \\fB-nt 10\\fP  \\fB-iv '1;2;3;'\\fP", "Include individual replicates.");
+
     // Parse command line.
     ArgumentParser::ParseResult res = parse(parser, argc, argv);
 

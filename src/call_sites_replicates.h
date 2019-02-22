@@ -78,7 +78,6 @@ void copyAndClipData(Data &newData, Data &oldData, unsigned s, unsigned i, unsig
 
     obs.nEstimates = infix(oldData.setObs[s][i].nEstimates, beginPos, endPos);
     obs.kdes = infix(oldData.setObs[s][i].kdes, beginPos, endPos);
-    obs.kdesN = infix(oldData.setObs[s][i].kdesN, beginPos, endPos);
     if (!empty(oldData.setObs[s][i].rpkms)) obs.rpkms = infix(oldData.setObs[s][i].rpkms, beginPos, endPos);
     if (!empty(oldData.setObs[s][i].fimoScores)) obs.fimoScores = infix(oldData.setObs[s][i].fimoScores, beginPos, endPos);
      if (!empty(oldData.setObs[s][i].motifIds)) obs.motifIds = infix(oldData.setObs[s][i].motifIds, beginPos, endPos);
@@ -94,9 +93,6 @@ void copyAndClipData(Data &newData, Data &oldData, unsigned s, unsigned i, unsig
 
 
 
-
-
-// TODO TEST !!!
 bool intersect_replicateIntervals(String<Data> &data_replicates)
 {
     // currently only for 2 replicates!?
@@ -303,7 +299,6 @@ HMM<TGAMMA, TBIN> merge_HMMs(String<HMM<TGAMMA, TBIN> > &hmms_replicates, String
                     // set others to 0 for now
                     //mergedHmm.setObs[s][i].truncCounts[t] = 0;        // reference, cannot be changed!        
                     mergedHmm.setObs[s][i].kdes[t] = 0.0;
-                    mergedHmm.setObs[s][i].kdesN[t] = 0.0;    
                 }
             }
         }
@@ -368,7 +363,6 @@ void setUp(String<Data> &data_replicates)
     obsShort.truncCounts = infix(truncs, 10, 20);
     resize(obsShort.nEstimates, no_t, 0);
     resize(obsShort.kdes, no_t, 0.0);
-    resize(obsShort.kdesN, no_t, 0.0);
     obsShort.discard = false;
     obsShort.contigId = 0;
 
@@ -377,7 +371,6 @@ void setUp(String<Data> &data_replicates)
     obsLong.truncCounts = infix(truncs, 10, 30);
     resize(obsLong.nEstimates, no_t, 0);
     resize(obsLong.kdes, no_t, 0.0);
-    resize(obsLong.kdesN, no_t, 0.0);
     obsLong.discard = false;
     obsLong.contigId = 0;
 
