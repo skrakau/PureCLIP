@@ -526,7 +526,7 @@ bool GAMMA_REG::updateRegCoeffsAndK(String<String<String<double> > > &statePoste
                     AppOptions const&options)
 {
     // use multidimensional minimzation
-    double fval = 100000.0;  // note: f was negated before, we minimze
+    double fval = DBL_MAX;  // note: f was negated before, we minimze
     return callGSL_simplex2(fval, this->tp, this->k, this->b0, this->b1, statePosteriors, setObs, kMin, kMax, options);
 }
 
@@ -540,7 +540,7 @@ bool GAMMA_REG::updateRegCoeffsAndK(String<String<double> > &startSet,
     String<double> ks;
     String<double> b0s;
     String<double> b1s;
-    resize(fvals, length(startSet), 100000.0, Exact()); // note: f was negated before, we minimze
+    resize(fvals, length(startSet), DBL_MAX, Exact()); // note: f was negated before, we minimze
     resize(ks, length(startSet), Exact());
     resize(b0s, length(startSet), Exact());
     resize(b1s, length(startSet), Exact());
@@ -560,7 +560,7 @@ bool GAMMA_REG::updateRegCoeffsAndK(String<String<double> > &startSet,
         b0s[i] = b0;
         b1s[i] = b1;
     }
-    double min_fval = 100000.0;
+    double min_fval = DBL_MAX;
     for (unsigned i = 0; i < length(startSet); ++i)
     {
         if (fvals[i] < min_fval)

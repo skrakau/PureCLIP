@@ -494,7 +494,7 @@ bool GAMMA::updateThetaAndK(String<String<String<double> > > &statePosteriors,
                     AppOptions const&options)
 {
     // use multidimensional simplex2
-    double fval = 100000.0;  // note: f was negated before, we minimze
+    double fval = DBL_MAX;  // note: f was negated before, we minimze
     return callGSL_simplex2(fval, this->tp, this->k, this->b0, statePosteriors, setObs, kMin, kMax, options);    
 }
 
@@ -509,7 +509,7 @@ bool GAMMA::updateThetaAndK(String<String<double> > &startSet,
     String<double> fvals;
     String<double> ks;
     String<double> b0s;
-    resize(fvals, length(startSet), 100000.0, Exact()); // note: f was negated before, we minimze
+    resize(fvals, length(startSet), DBL_MAX, Exact()); // note: f was negated before, we minimze
     resize(ks, length(startSet), Exact());
     resize(b0s, length(startSet), Exact());
 
@@ -526,7 +526,7 @@ bool GAMMA::updateThetaAndK(String<String<double> > &startSet,
         ks[i] = k;
         b0s[i] = b0;
     }
-    double min_fval = 100000.0;
+    double min_fval = DBL_MAX;
     for (unsigned i = 0; i < length(startSet); ++i)
     {
         if (fvals[i] < min_fval)
